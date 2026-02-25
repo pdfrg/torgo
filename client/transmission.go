@@ -42,8 +42,13 @@ type trTorrent struct {
 
 // trResponse is the wrapper for Transmission RPC responses
 type trResponse struct {
-	Result  string        `json:"result"`
-	Torrents []trTorrent  `json:"torrents"`
+	Result    string      `json:"result"`
+	Arguments trArguments `json:"arguments"`
+}
+
+// trArguments contains the response arguments
+type trArguments struct {
+	Torrents []trTorrent `json:"torrents"`
 }
 
 // NewTransmissionAdapter creates a new Transmission adapter
@@ -129,8 +134,8 @@ func (ta *TransmissionAdapter) ListTorrents(ctx context.Context) ([]Torrent, err
 		return nil, fmt.Errorf("torrent-get failed: %w", err)
 	}
 
-	torrents := make([]Torrent, len(resp.Torrents))
-	for i, tr := range resp.Torrents {
+	torrents := make([]Torrent, len(resp.Arguments.Torrents))
+	for i, tr := range resp.Arguments.Torrents {
 		torrents[i] = ta.mapTorrent(tr)
 	}
 	return torrents, nil
