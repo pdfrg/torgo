@@ -153,12 +153,23 @@ func (a *App) View() string {
 			Render("Error: "+a.lastError))
 	}
 
-	// Build the output with padding to fill terminal height
+	// Build output line by line
 	output := strings.Join(lines, "\n")
-	lineCount := len(lines)
 
-	// Pad with blank lines to push status/hints to bottom
-	paddingNeeded := a.height - lineCount - 2 // -2 for status and hints/spacing
+	// Calculate how many lines we've used
+	contentLines := len(lines)
+	statusLinesNeeded := 1 // status bar
+	if a.showHints {
+		statusLinesNeeded++ // hints bar
+	}
+
+	// Calculate padding needed to push status/hints to bottom
+	paddingNeeded := a.height - contentLines - statusLinesNeeded
+	if paddingNeeded < 0 {
+		paddingNeeded = 0
+	}
+
+	// Add padding
 	if paddingNeeded > 0 {
 		output += strings.Repeat("\n", paddingNeeded)
 	}

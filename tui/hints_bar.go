@@ -34,9 +34,12 @@ func (h *HintsBar) Render(width int) string {
 
 	hint := strings.Join(parts, "  ")
 
-	// Truncate if too long
-	if len(hint) > width {
-		hint = hint[:width-3] + "..."
+	// Truncate or pad to fit width
+	runes := []rune(hint)
+	if len(runes) > width {
+		hint = string(runes[:width-3]) + "..."
+	} else if len(runes) < width {
+		hint = hint + strings.Repeat(" ", width-len(runes))
 	}
 
 	return h.styles.HintsBar.Render(hint)
