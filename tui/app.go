@@ -66,7 +66,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		return a, nil
 	case torrentRefreshMsg:
-		a.list.SetTorrents(a.state.Torrents)
+		a.list.SetTorrents(a.state.FilteredTorrents())
 		return a, nil
 	case errorMsg:
 		a.lastError = msg.Error()
@@ -184,11 +184,13 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case isKeyMatch(k, a.keys.Sort):
 		a.state.CycleSort()
+		a.list.SetTorrents(a.state.FilteredTorrents())
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Filter):
 		a.state.CycleFilter()
 		a.list.ClearSelection()
+		a.list.SetTorrents(a.state.FilteredTorrents())
 		return a, nil
 
 	case isKeyMatch(k, a.keys.ToggleHints):

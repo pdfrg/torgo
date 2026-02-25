@@ -312,20 +312,13 @@ func (ta *TransmissionAdapter) torrentRemove(ctx context.Context, id string, del
 }
 
 func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
-	status := ta.mapStatus(tr.Status)
-	
-	// Override status based on actual activity if needed
-	if status == StatusSeeding && tr.RateDownload > 0 && tr.PercentDone < 1.0 {
-		status = StatusDownloading
-	}
-	
 	return Torrent{
 		ID:         strconv.FormatInt(tr.ID, 10),
 		Name:       tr.Name,
 		Progress:   uint8(tr.PercentDone * 100),
 		SpeedDown:  tr.RateDownload,
 		SpeedUp:    tr.RateUpload,
-		Status:     status,
+		Status:     ta.mapStatus(tr.Status),
 		Seeds:      tr.PeersSendingToUs,
 		Leechs:     tr.PeersGettingFromUs,
 		Size:       tr.TotalSize,

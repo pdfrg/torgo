@@ -3,6 +3,7 @@ package state
 import (
 	"context"
 	"fmt"
+	"sort"
 	"tqbtui/client"
 	"tqbtui/config"
 )
@@ -140,7 +141,7 @@ func (as *AppState) RefreshTorrents(ctx context.Context) error {
 	return nil
 }
 
-// FilteredTorrents returns torrents matching current filter
+// FilteredTorrents returns torrents matching current filter and sort order
 func (as *AppState) FilteredTorrents() []client.Torrent {
 	filtered := []client.Torrent{}
 	for _, t := range as.Torrents {
@@ -148,7 +149,34 @@ func (as *AppState) FilteredTorrents() []client.Torrent {
 			filtered = append(filtered, t)
 		}
 	}
+	
+	// Apply sorting
+	as.sortTorrents(filtered)
+	
 	return filtered
+}
+
+// sortTorrents sorts torrents in place based on current SortBy
+func (as *AppState) sortTorrents(torrents []client.Torrent) {
+	switch as.SortBy {
+	case SortByName:
+		sort.Slice(torrents, func(i, j int) bool {
+			return torrents[i].Name < torrents[j].Name
+		})
+	case SortByProgress:
+		sort.Slice(torrents, func(i, j int) bool {
+			return torrents[i].Progress > torrents[j].Progress
+		})
+	case SortBySpeed:
+		sort.Slice(torrents, func(i, j int) bool {
+			return (torrents[i].SpeedDown + torrents[i].SpeedUp) > 
+				   (torrents[j].SpeedDown + torrents[j].SpeedUp)
+		})
+	case SortBySeeds:
+		sort.Slice(torrents, func(i, j int) bool {
+			return torrents[i].Seeds > torrents[j].Seeds
+		})
+	}
 }
 
 // matchesFilter checks if a torrent matches the current filter
