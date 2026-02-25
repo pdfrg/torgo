@@ -28,6 +28,7 @@ type AppState struct {
 	ErrorMsg             string
 	InputMode            string // "", "add", "search", "command"
 	Config               *config.Config
+	SpeedLimitEnabled    bool   // Cache of speed limit status
 }
 
 // FilterType represents torrent filtering options
@@ -219,4 +220,36 @@ func (as *AppState) CycleSort() {
 	case SortBySeeds:
 		as.SortBy = SortByName
 	}
+}
+
+// RefreshSpeedLimitStatus updates the cached speed limit status from the current client
+func (as *AppState) RefreshSpeedLimitStatus(ctx context.Context) error {
+	current := as.CurrentClient()
+	if current == nil {
+		return fmt.Errorf("no current client")
+	}
+
+	enabled, err := current.Adapter.GetSpeedLimitEnabled(ctx)
+	if err != nil {
+		return err
+	}
+
+	as.SpeedLimitEnabled = enabled
+	return nil
+}
+
+// ToggleSpeedLimit toggles the speed limit on the current client
+func (as *AppState) ToggleSpeedLimit(ctx context.Context) error {
+	current := as.CurrentClient()
+	if current == nil {
+		return fmt.Errorf("no current client")
+	}
+
+	newState := !as.SpeedLimitEnabled
+	if err := current.Adapter.SetSpeedLimitEnabled(ctx, newState); err != nil {
+		return err
+	}
+
+	as.SpeedLimitEnabled = newState
+	return nil
 }

@@ -346,3 +346,57 @@ func (ta *TransmissionAdapter) mapStatus(trStatus int) TorrentStatus {
 func decodeJSON(r io.Reader, v interface{}) error {
 	return json.NewDecoder(r).Decode(v)
 }
+
+// GetSpeedLimitEnabled returns whether speed limit mode is enabled
+func (ta *TransmissionAdapter) GetSpeedLimitEnabled(ctx context.Context) (bool, error) {
+	// For Transmission, we'll use a more flexible approach by parsing session-get
+	payload := `{
+		"method":"session-get",
+		"arguments":{}
+	}`
+
+	req, err := ta.buildRPCRequest(ctx, payload)
+	if err != nil {
+		return false, fmt.Errorf("failed to build request: %w", err)
+	}
+
+	resp, err := ta.client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("session-get request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("session-get failed: status %d", resp.StatusCode)
+	}
+
+	var sessionResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&sessionResp); err != nil {
+		return false, fmt.Errorf("failed to decode session response: %w", err)
+	}
+
+	// Check for speed-limit-down-enabled in arguments
+	if args, ok := sessionResp["arguments"].(map[string]interface{}); ok {
+		if speedLimit, ok := args["speed-limit-down-enabled"].(bool); ok {
+			return speedLimit, nil
+		}
+	}
+	return false, nil
+}
+
+// SetSpeedLimitEnabled enables or disables speed limit mode
+func (ta *TransmissionAdapter) SetSpeedLimitEnabled(ctx context.Context, enabled bool) error {
+	payload := fmt.Sprintf(`{
+		"method":"session-set",
+		"arguments":{"speed-limit-down-enabled":%v,"speed-limit-up-enabled":%v}
+	}`, enabled, enabled)
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("session-set failed: %w", err)
+	}
+	if resp.Result != "success" {
+		return fmt.Errorf("session-set failed: %s", resp.Result)
+	}
+	return nil
+}

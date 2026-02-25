@@ -21,11 +21,12 @@ type KeyMap struct {
 	DeleteData key.Binding
 
 	// Client & view
-	AddTorrent key.Binding
+	AddTorrent   key.Binding
 	SwitchClient key.Binding
-	Sort       key.Binding
-	Filter     key.Binding
-	ToggleHints key.Binding
+	Sort         key.Binding
+	Filter       key.Binding
+	ToggleHints  key.Binding
+	ToggleSpeedLimit key.Binding
 
 	// General
 	Quit key.Binding
@@ -102,6 +103,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("h"),
 			key.WithHelp("h", "toggle hints"),
 		),
+		ToggleSpeedLimit: key.NewBinding(
+			key.WithKeys("l"),
+			key.WithHelp("l", "toggle speed limit"),
+		),
 
 		// General
 		Quit: key.NewBinding(
@@ -120,7 +125,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.Pause, k.PauseAll, k.Resume, k.ResumeAll,
 		k.Delete, k.DeleteData, k.AddTorrent,
-		k.SwitchClient, k.ToggleHints, k.Quit,
+		k.SwitchClient, k.ToggleSpeedLimit, k.ToggleHints, k.Quit,
 	}
 }
 
@@ -130,7 +135,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down, k.Select, k.SelectAll},
 		{k.Pause, k.PauseAll, k.Resume, k.ResumeAll},
 		{k.Delete, k.DeleteData, k.AddTorrent},
-		{k.SwitchClient, k.Sort, k.Filter, k.ToggleHints},
-		{k.Help, k.Quit},
+		{k.SwitchClient, k.Sort, k.Filter, k.ToggleSpeedLimit},
+		{k.ToggleHints, k.Help, k.Quit},
 	}
 }

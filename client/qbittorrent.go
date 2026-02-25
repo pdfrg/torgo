@@ -306,3 +306,61 @@ func (qa *QBittorrentAdapter) mapStatus(qbState string) TorrentStatus {
 		return StatusQueued
 	}
 }
+
+// GetSpeedLimitEnabled returns whether alternative speed limit is enabled
+func (qa *QBittorrentAdapter) GetSpeedLimitEnabled(ctx context.Context) (bool, error) {
+	prefsURL := qa.getBaseURL() + "/api/v2/app/preferences"
+
+	req, err := http.NewRequestWithContext(ctx, "GET", prefsURL, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to create preferences request: %w", err)
+	}
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("preferences request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false, fmt.Errorf("get preferences failed: status %d", resp.StatusCode)
+	}
+
+	var prefs map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&prefs); err != nil {
+		return false, fmt.Errorf("failed to decode preferences: %w", err)
+	}
+
+	// Check if alt_speed_enabled key exists and is true
+	if val, ok := prefs["alt_speed_enabled"]; ok {
+		if enabled, ok := val.(bool); ok {
+			return enabled, nil
+		}
+	}
+	return false, nil
+}
+
+// SetSpeedLimitEnabled enables or disables alternative speed limit
+func (qa *QBittorrentAdapter) SetSpeedLimitEnabled(ctx context.Context, enabled bool) error {
+	prefsURL := qa.getBaseURL() + "/api/v2/app/setPreferences"
+	
+	// Create the preference update payload
+	payload := fmt.Sprintf(`{"alt_speed_enabled": %v}`, enabled)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", prefsURL, strings.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("failed to create preferences request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("set preferences request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("set preferences failed: status %d", resp.StatusCode)
+	}
+	return nil
+}

@@ -159,3 +159,32 @@ func TestCycleSort(t *testing.T) {
 		}
 	}
 }
+
+// TestSpeedLimitInitialized tests that speed limit is initialized as false
+func TestSpeedLimitInitialized(t *testing.T) {
+	cfg := &config.Config{
+		UI: config.UIConfig{
+			DefaultClient: "qbt-local",
+			ShowHints:     true,
+			ColorScheme:   "default",
+		},
+		Clients: []config.ClientConfig{
+			{
+				Type:     "qbittorrent",
+				ID:       "qbt-local",
+				Name:     "Local qBittorrent",
+				Host:     "localhost",
+				Port:     8080,
+				Username: "admin",
+				Password: "admin",
+			},
+		},
+		Theme: config.DefaultTheme(),
+	}
+
+	as, _ := NewAppState(cfg)
+
+	if as.SpeedLimitEnabled {
+		t.Errorf("Expected SpeedLimitEnabled to be false on init, got %v", as.SpeedLimitEnabled)
+	}
+}

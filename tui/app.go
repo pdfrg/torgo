@@ -56,6 +56,7 @@ func (a *App) Init() tea.Cmd {
 	return tea.Batch(
 		a.connectAndRefresh(),
 		a.startRefreshTicker(),
+		a.refreshSpeedLimitStatus(),
 	)
 }
 
@@ -88,6 +89,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 	case errorClearedMsg:
 		a.lastError = ""
+		return a, nil
+	case speedLimitToggledMsg:
+		// Speed limit toggled, UI will update on next render
 		return a, nil
 	case tickMsg:
 		// Refresh and re-schedule the ticker
@@ -244,7 +248,10 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKeyMatch(k, a.keys.SwitchClient):
 		a.state.SwitchClient()
 		a.list.ClearSelection()
-		return a, a.connectAndRefresh()
+		return a, tea.Batch(
+			a.connectAndRefresh(),
+			a.refreshSpeedLimitStatus(),
+		)
 
 	case isKeyMatch(k, a.keys.Sort):
 		a.state.CycleSort()
@@ -260,6 +267,9 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKeyMatch(k, a.keys.ToggleHints):
 		a.showHints = !a.showHints
 		return a, nil
+
+	case isKeyMatch(k, a.keys.ToggleSpeedLimit):
+		return a, a.toggleSpeedLimit()
 	}
 
 	return a, nil
@@ -428,6 +438,25 @@ func (a *App) addTorrent(magnetOrPath string) tea.Cmd {
 	}
 }
 
+func (a *App) toggleSpeedLimit() tea.Cmd {
+	return func() tea.Msg {
+		if err := a.state.ToggleSpeedLimit(a.ctx); err != nil {
+			return errorMsg{err: err}
+		}
+		return speedLimitToggledMsg{}
+	}
+}
+
+func (a *App) refreshSpeedLimitStatus() tea.Cmd {
+	return func() tea.Msg {
+		if err := a.state.RefreshSpeedLimitStatus(a.ctx); err != nil {
+			// Silent failure - speed limit feature may not be supported by all clients
+			return nil
+		}
+		return speedLimitToggledMsg{}
+	}
+}
+
 // Message types
 
 type torrentRefreshMsg struct{}
@@ -441,6 +470,8 @@ func (e errorMsg) Error() string {
 }
 
 type errorClearedMsg struct{}
+
+type speedLimitToggledMsg struct{}
 
 // Shutdown cleans up resources
 func (a *App) Shutdown() {

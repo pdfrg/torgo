@@ -49,8 +49,14 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	torrentInfo := fmt.Sprintf("%d/%d torrents  ↓%s ↑%s",
 		len(filtered), len(appState.Torrents), downSpeedStr, upSpeedStr)
 
+	// Speed limit status
+	speedLimitStatus := ""
+	if appState.SpeedLimitEnabled {
+		speedLimitStatus = "  Limit: ON"
+	}
+
 	// Build status line
-	left := fmt.Sprintf("%s  %s", connStatus, clientInfo)
+	left := fmt.Sprintf("%s  %s%s", connStatus, clientInfo, speedLimitStatus)
 	right := fmt.Sprintf("%s  Filter: %s  Sort: %s",
 		torrentInfo, appState.Filter, appState.SortBy)
 

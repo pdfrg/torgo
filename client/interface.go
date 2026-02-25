@@ -65,4 +65,10 @@ type ClientAdapter interface {
 
 	// ResumeAll resumes all paused torrents
 	ResumeAll(ctx context.Context) error
+
+	// GetSpeedLimitEnabled returns whether the speed limit is currently enabled
+	GetSpeedLimitEnabled(ctx context.Context) (bool, error)
+
+	// SetSpeedLimitEnabled enables or disables the speed limit
+	SetSpeedLimitEnabled(ctx context.Context, enabled bool) error
 }
