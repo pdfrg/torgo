@@ -53,8 +53,21 @@ func NewApp(appState *state.AppState) *App {
 
 // Init implements tea.Model
 func (a *App) Init() tea.Cmd {
-	return a.connectAndRefresh()
+	return tea.Batch(
+		a.connectAndRefresh(),
+		a.startRefreshTicker(),
+	)
 }
+
+// startRefreshTicker periodically refreshes torrents every 2 seconds
+func (a *App) startRefreshTicker() tea.Cmd {
+	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+		return tickMsg{}
+	})
+}
+
+// tickMsg is used for periodic refresh
+type tickMsg struct{}
 
 // Update implements tea.Model
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -76,6 +89,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case errorClearedMsg:
 		a.lastError = ""
 		return a, nil
+	case tickMsg:
+		// Refresh and re-schedule the ticker
+		return a, tea.Batch(
+			a.refreshTorrents(),
+			a.startRefreshTicker(),
+		)
 	}
 	return a, nil
 }
