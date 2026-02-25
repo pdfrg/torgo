@@ -105,8 +105,8 @@ func (t *TorrentListView) Render(width, height int) string {
 	lines := []string{}
 
 	// Calculate dynamic name width based on terminal width
-	// Fixed columns: checkbox(1) + space(1) + progress(9) + space(1) + down(10) + space(1) + up(10) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(11)
-	fixedWidth := 1 + 1 + 9 + 1 + 10 + 1 + 10 + 1 + 5 + 1 + 6 + 1 + 11
+	// Fixed columns: checkbox(1) + space(1) + progress(9) + space(1) + down(10) + space(1) + up(10) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(8)
+	fixedWidth := 1 + 1 + 9 + 1 + 10 + 1 + 10 + 1 + 5 + 1 + 6 + 1 + 8
 	nameWidth := width - fixedWidth
 	if nameWidth < 10 {
 		nameWidth = 10
@@ -152,7 +152,7 @@ func (t *TorrentListView) Render(width, height int) string {
 func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 	// Format: checkbox Name | Progress | ↓Down | ↑Up | Seeds | Leechs | Status
 	return t.styles.ListHeader.Render(
-		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %11s",
+		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %8s",
 			"", "Name", "Progress", "↓Down", "↑Up", "Seeds", "Leechs", "Status"),
 	)
 }
@@ -170,9 +170,9 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 	upSpeed := formatSpeed(torrent.SpeedUp)
 	seeds := fmt.Sprintf("%5d", torrent.Seeds)
 	leechs := fmt.Sprintf("%6d", torrent.Leechs)
-	status := fmt.Sprintf("%-11s", torrent.Status)
+	status := fmt.Sprintf("%8s", shortenStatus(string(torrent.Status)))
 
-	row := fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %11s",
+	row := fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %8s",
 		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status)
 
 	style := t.styles.ListItem
@@ -217,4 +217,21 @@ func formatSpeed(speed float64) string {
 		return fmt.Sprintf("%.1fKB/s", speed/1024)
 	}
 	return fmt.Sprintf("%.1fMB/s", speed/(1024*1024))
+}
+
+func shortenStatus(status string) string {
+	switch status {
+	case "downloading":
+		return "d/l"
+	case "seeding":
+		return "seed"
+	case "paused":
+		return "paused"
+	case "error":
+		return "error"
+	case "queued":
+		return "queue"
+	default:
+		return status
+	}
 }

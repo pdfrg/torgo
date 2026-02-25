@@ -46,7 +46,7 @@ func (h *HintsBar) Render(width int) string {
 	return h.styles.HintsBar.Render(hint)
 }
 
-// formatKeyHelp formats a single key binding with colored key and description
+// formatKeyHelp formats a single key binding with colored key
 func formatKeyHelp(binding key.Binding) string {
 	help := binding.Help()
 	if help.Key == "" || help.Desc == "" {
@@ -54,8 +54,6 @@ func formatKeyHelp(binding key.Binding) string {
 	}
 	// Color the first character of key in bright cyan
 	keyColor := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
-	// Color first character of description in cyan, rest in normal color
-	descColor := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	
 	var keyPart string
 	if len(help.Key) == 1 {
@@ -64,13 +62,5 @@ func formatKeyHelp(binding key.Binding) string {
 		keyPart = keyColor.Render(help.Key[:1]) + help.Key[1:]
 	}
 	
-	// Format description with colored first letter
-	var descPart string
-	if len(help.Desc) > 0 {
-		descPart = keyColor.Render(string(help.Desc[0])) + descColor.Render(help.Desc[1:])
-	} else {
-		descPart = ""
-	}
-	
-	return keyPart + ":" + descPart
+	return keyPart + ":" + help.Desc
 }

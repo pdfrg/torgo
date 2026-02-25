@@ -57,7 +57,7 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 
 	// Build status line
 	left := fmt.Sprintf("%s  %s%s", connStatus, clientInfo, speedLimitStatus)
-	right := fmt.Sprintf("%s  Filter: %s  Sort: %s",
+	right := fmt.Sprintf("%s  filter: %s  sort: %s",
 		torrentInfo, appState.Filter, appState.SortBy)
 
 	// Calculate padding to reach exact width
