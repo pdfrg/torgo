@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // HintsBar displays keybinding hints
@@ -45,11 +46,21 @@ func (h *HintsBar) Render(width int) string {
 	return h.styles.HintsBar.Render(hint)
 }
 
-// formatKeyHelp formats a single key binding
+// formatKeyHelp formats a single key binding with colored key
 func formatKeyHelp(binding key.Binding) string {
 	help := binding.Help()
 	if help.Key == "" || help.Desc == "" {
 		return ""
 	}
-	return help.Key + ":" + help.Desc
+	// Color the first character of key in bright cyan, rest of description in normal color
+	keyColor := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
+	descColor := lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	
+	// For single char keys like "p", just color it
+	if len(help.Key) == 1 {
+		return keyColor.Render(help.Key) + descColor.Render(help.Desc)
+	}
+	
+	// For longer keys, color first char
+	return keyColor.Render(help.Key[:1]) + help.Key[1:] + ":" + help.Desc
 }

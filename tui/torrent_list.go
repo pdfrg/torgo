@@ -105,8 +105,8 @@ func (t *TorrentListView) Render(width, height int) string {
 	lines := []string{}
 
 	// Calculate dynamic name width based on terminal width
-	// Fixed columns: checkbox(1) + name_spacing(1) + progress(8) + spacing(2) + down(10) + spacing(2) + up(10) + spacing(2) + seeds(5) + spacing(2) + leechs(6) + spacing(2) + status(10)
-	fixedWidth := 1 + 1 + 8 + 2 + 10 + 2 + 10 + 2 + 5 + 2 + 6 + 2 + 10
+	// Fixed columns: checkbox(1) + space(1) + progress(9) + space(1) + down(10) + space(1) + up(10) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(11)
+	fixedWidth := 1 + 1 + 9 + 1 + 10 + 1 + 10 + 1 + 5 + 1 + 6 + 1 + 11
 	nameWidth := width - fixedWidth
 	if nameWidth < 10 {
 		nameWidth = 10
@@ -152,7 +152,7 @@ func (t *TorrentListView) Render(width, height int) string {
 func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 	// Format: checkbox Name | Progress | ↓Down | ↑Up | Seeds | Leechs | Status
 	return t.styles.ListHeader.Render(
-		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s  %8s  %10s  %10s  %5s  %6s  %10s",
+		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %11s",
 			"", "Name", "Progress", "↓Down", "↑Up", "Seeds", "Leechs", "Status"),
 	)
 }
@@ -170,9 +170,9 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 	upSpeed := formatSpeed(torrent.SpeedUp)
 	seeds := fmt.Sprintf("%5d", torrent.Seeds)
 	leechs := fmt.Sprintf("%6d", torrent.Leechs)
-	status := fmt.Sprintf("%-10s", torrent.Status)
+	status := fmt.Sprintf("%-11s", torrent.Status)
 
-	row := fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s  %8s  %10s  %10s  %5s  %s  %s",
+	row := fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %11s",
 		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status)
 
 	style := t.styles.ListItem

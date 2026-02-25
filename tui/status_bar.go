@@ -35,10 +35,19 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	clientInfo := fmt.Sprintf("[%s] %s (%s)",
 		current.ID, current.Name, current.Type)
 
-	// Torrent count
+	// Torrent count and speeds
 	filtered := appState.FilteredTorrents()
-	torrentInfo := fmt.Sprintf("%d/%d torrents",
-		len(filtered), len(appState.Torrents))
+	totalDownSpeed := 0.0
+	totalUpSpeed := 0.0
+	for _, t := range appState.Torrents {
+		totalDownSpeed += t.SpeedDown
+		totalUpSpeed += t.SpeedUp
+	}
+	
+	downSpeedStr := formatSpeedForBar(totalDownSpeed)
+	upSpeedStr := formatSpeedForBar(totalUpSpeed)
+	torrentInfo := fmt.Sprintf("%d/%d torrents  ↓%s ↑%s",
+		len(filtered), len(appState.Torrents), downSpeedStr, upSpeedStr)
 
 	// Build status line
 	left := fmt.Sprintf("%s  %s", connStatus, clientInfo)
@@ -64,4 +73,18 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	}
 
 	return s.styles.StatusBar.Render(status)
+}
+
+// formatSpeedForBar formats speed for the status bar (more compact than torrent list)
+func formatSpeedForBar(speed float64) string {
+	if speed == 0 {
+		return "0"
+	}
+	if speed < 1024 {
+		return fmt.Sprintf("%.0fB", speed)
+	}
+	if speed < 1024*1024 {
+		return fmt.Sprintf("%.1fKB", speed/1024)
+	}
+	return fmt.Sprintf("%.1fMB", speed/(1024*1024))
 }
