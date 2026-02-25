@@ -152,7 +152,7 @@ func (t *TorrentListView) Render(width, height int) string {
 func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 	// Format: checkbox Name | Progress | ↓Down | ↑Up | Seeds | Leechs | Status
 	return t.styles.ListHeader.Render(
-		fmt.Sprintf("%s %"+fmt.Sprintf("%d", nameWidth)+"s %8s %10s %10s %5s %6s %9s",
+		fmt.Sprintf("%s%-"+fmt.Sprintf("%d", nameWidth)+"s  %8s  %10s  %10s  %5s  %6s  %10s",
 			"", "Name", "Progress", "↓Down", "↑Up", "Seeds", "Leechs", "Status"),
 	)
 }
@@ -170,9 +170,9 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 	upSpeed := formatSpeed(torrent.SpeedUp)
 	seeds := fmt.Sprintf("%5d", torrent.Seeds)
 	leechs := fmt.Sprintf("%6d", torrent.Leechs)
-	status := fmt.Sprintf("%9s", torrent.Status)
+	status := fmt.Sprintf("%-10s", torrent.Status)
 
-	row := fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %8s %10s %10s %5s %s %s",
+	row := fmt.Sprintf("%s%-"+fmt.Sprintf("%d", nameWidth)+"s  %8s  %10s  %10s  %5s  %s  %s",
 		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status)
 
 	style := t.styles.ListItem

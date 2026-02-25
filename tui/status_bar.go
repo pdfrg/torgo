@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"tqbtui/state"
 )
 
@@ -21,7 +22,7 @@ func NewStatusBar(styles *Styles) *StatusBar {
 func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	current := appState.CurrentClient()
 	if current == nil {
-		return s.styles.StatusBar.Render("No clients configured")
+		return s.styles.StatusBar.Render(fmt.Sprintf("%-"+fmt.Sprintf("%d", width)+"s", "No clients configured"))
 	}
 
 	// Connection status
@@ -44,17 +45,22 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	right := fmt.Sprintf("%s  Filter: %s  Sort: %s",
 		torrentInfo, appState.Filter, appState.SortBy)
 
-	// Pad to width
-	padding := width - len(left) - len(right) - 4
+	// Calculate padding to reach exact width
+	contentWidth := len(left) + len(right)
+	padding := width - contentWidth
 	if padding < 1 {
 		padding = 1
 	}
 
 	status := fmt.Sprintf("%s%s%s",
-		left, fmt.Sprintf("%*s", padding, ""), right)
+		left, strings.Repeat(" ", padding), right)
 
-	if len(status) > width {
-		status = status[:width]
+	// Ensure exact width
+	runes := []rune(status)
+	if len(runes) > width {
+		status = string(runes[:width])
+	} else if len(runes) < width {
+		status = status + strings.Repeat(" ", width-len(runes))
 	}
 
 	return s.styles.StatusBar.Render(status)
