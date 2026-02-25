@@ -105,9 +105,11 @@ func (t *TorrentListView) Render(width, height int) string {
 	lines := []string{}
 
 	// Calculate dynamic name width based on terminal width
+	// Account for padding(0,1) in ListHeader/ListItem which adds 2 chars (1 on each side)
 	// Fixed columns: checkbox(1) + space(1) + progress(9) + space(1) + down(10) + space(1) + up(10) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(8)
+	effectiveWidth := width - 2 // Account for padding
 	fixedWidth := 1 + 1 + 9 + 1 + 10 + 1 + 10 + 1 + 5 + 1 + 6 + 1 + 8
-	nameWidth := width - fixedWidth
+	nameWidth := effectiveWidth - fixedWidth
 	if nameWidth < 10 {
 		nameWidth = 10
 	}

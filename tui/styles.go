@@ -55,9 +55,8 @@ func DefaultStyles() *Styles {
 		Background(lipgloss.Color("237")).
 		Padding(0, 1)
 
-	// Hints bar at bottom
+	// Hints bar at bottom (no foreground color - let individual key colors show through)
 	s.HintsBar = lipgloss.NewStyle().
-		Foreground(s.HintColor).
 		Background(lipgloss.Color("237")).
 		Padding(0, 1)
 

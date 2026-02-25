@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"tqbtui/state"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // StatusBar displays connection and application status
@@ -46,6 +48,9 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	
 	downSpeedStr := formatSpeedForBar(totalDownSpeed)
 	upSpeedStr := formatSpeedForBar(totalUpSpeed)
+	// Make speeds fixed width (9 chars each) to prevent text from jumping
+	downSpeedStr = fmt.Sprintf("%9s", downSpeedStr)
+	upSpeedStr = fmt.Sprintf("%9s", upSpeedStr)
 	torrentInfo := fmt.Sprintf("%d/%d torrents  ↓%s ↑%s",
 		len(filtered), len(appState.Torrents), downSpeedStr, upSpeedStr)
 
@@ -55,10 +60,15 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 		speedLimitStatus = "  Limit: ON"
 	}
 
+	// Format filter and sort with colored first letters
+	keyColor := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
+	filterStr := keyColor.Render("f") + "ilter: " + string(appState.Filter)
+	sortStr := keyColor.Render("s") + "ort: " + string(appState.SortBy)
+
 	// Build status line
 	left := fmt.Sprintf("%s  %s%s", connStatus, clientInfo, speedLimitStatus)
-	right := fmt.Sprintf("%s  filter: %s  sort: %s",
-		torrentInfo, appState.Filter, appState.SortBy)
+	right := fmt.Sprintf("%s  %s  %s",
+		torrentInfo, filterStr, sortStr)
 
 	// Calculate padding to reach exact width
 	contentWidth := len(left) + len(right)
