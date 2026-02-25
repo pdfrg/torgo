@@ -35,12 +35,16 @@ func (h *HintsBar) Render(width int) string {
 
 	hint := strings.Join(parts, "  ")
 
-	// Truncate or pad to fit width
+	// Account for padding(0, 1) in HintsBar style which adds 2 chars (1 on each side)
+	// So we need to reduce available width by 2 for the padding
+	availableWidth := width - 2
+	
+	// Truncate or pad to fit available width
 	runes := []rune(hint)
-	if len(runes) > width {
-		hint = string(runes[:width-3]) + "..."
-	} else if len(runes) < width {
-		hint = hint + strings.Repeat(" ", width-len(runes))
+	if len(runes) > availableWidth {
+		hint = string(runes[:availableWidth-3]) + "..."
+	} else if len(runes) < availableWidth {
+		hint = hint + strings.Repeat(" ", availableWidth-len(runes))
 	}
 
 	return h.styles.HintsBar.Render(hint)

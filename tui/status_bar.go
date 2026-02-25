@@ -77,16 +77,27 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 		padding = 1
 	}
 
+	// Account for padding(0, 1) in StatusBar style which adds 2 chars (1 on each side)
+	// So actual available width is width - 2
+	availableWidth := width - 2
+	
+	// Recalculate padding based on available width (not including style padding)
+	contentWidth = len(left) + len(right)
+	padding = availableWidth - contentWidth
+	if padding < 1 {
+		padding = 1
+	}
+
 	// Build final status with padding
 	status := fmt.Sprintf("%s%s%s",
 		left, strings.Repeat(" ", padding), right)
 
-	// Ensure exact width
+	// Ensure exact available width (without style padding)
 	runes := []rune(status)
-	if len(runes) > width {
-		status = string(runes[:width])
-	} else if len(runes) < width {
-		status = status + strings.Repeat(" ", width-len(runes))
+	if len(runes) > availableWidth {
+		status = string(runes[:availableWidth])
+	} else if len(runes) < availableWidth {
+		status = status + strings.Repeat(" ", availableWidth-len(runes))
 	}
 
 	// Now apply colors to the final string (after width is correct)
