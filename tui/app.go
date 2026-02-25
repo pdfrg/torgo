@@ -105,19 +105,13 @@ func (a *App) View() string {
 		return "Loading..."
 	}
 
-	lines := []string{}
-
-	// Title
-	titleText := "tqbtui – Torrent Client TUI"
-	lines = append(lines, a.styles.Title.Render(titleText))
-	lines = append(lines, "")
-
-	// Calculate heights for each section
-	hintsHeight := 0
+	// Fixed overhead: title(1) + blank(1) + status(1) + hints(0-1)
+	fixedHeight := 3
 	if a.showHints {
-		hintsHeight = 1
+		fixedHeight = 4
 	}
 
+	// Error and input heights
 	errorHeight := 0
 	if a.lastError != "" {
 		errorHeight = 2
@@ -128,12 +122,21 @@ func (a *App) View() string {
 		inputHeight = 3
 	}
 
-	// Available height = total - title(1) - blank(1) - status(1) - hints - error - input
-	listHeight := a.height - 3 - hintsHeight - errorHeight - inputHeight
+	// List height = total - fixed - error - input
+	listHeight := a.height - fixedHeight - errorHeight - inputHeight
 	if listHeight < 3 {
 		listHeight = 3
 	}
 
+	// Build output
+	lines := []string{}
+
+	// Title
+	titleText := "tqbtui – Torrent Client TUI"
+	lines = append(lines, a.styles.Title.Render(titleText))
+	lines = append(lines, "")
+
+	// List
 	listView := a.list.Render(a.width, listHeight)
 	lines = append(lines, listView)
 
@@ -153,18 +156,19 @@ func (a *App) View() string {
 			Render("Error: "+a.lastError))
 	}
 
-	// Build output line by line
+	// Join content
 	output := strings.Join(lines, "\n")
 
-	// Calculate how many lines we've used
-	contentLines := len(lines)
-	statusLinesNeeded := 1 // status bar
+	// Count actual lines in output (handle multi-line list view)
+	actualLineCount := strings.Count(output, "\n") + 1
+
+	// Calculate padding to push status/hints to bottom
+	statusLinesNeeded := 1
 	if a.showHints {
-		statusLinesNeeded++ // hints bar
+		statusLinesNeeded = 2
 	}
 
-	// Calculate padding needed to push status/hints to bottom
-	paddingNeeded := a.height - contentLines - statusLinesNeeded
+	paddingNeeded := a.height - actualLineCount - statusLinesNeeded
 	if paddingNeeded < 0 {
 		paddingNeeded = 0
 	}
