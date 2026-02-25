@@ -1,0 +1,45 @@
+# Example configuration file
+# Copy to ~/.config/tqbtui/config.toml and customize
+
+[ui]
+default_client = "qbt-local"
+show_hints = true
+color_scheme = "default"  # Options: "default", "colors.toml", or path
+
+# Multiple qBittorrent instances
+[[clients]]
+type = "qbittorrent"
+id = "qbt-local"
+name = "Local qBittorrent"
+host = "localhost"
+port = 8080
+username = "admin"
+password = "admin"
+
+[[clients]]
+type = "qbittorrent"
+id = "qbt-remote"
+name = "Remote qBittorrent"
+host = "192.168.1.50"
+port = 8080
+username = "user"
+password = "$QBT_PASS"
+
+# Multiple Transmission instances
+[[clients]]
+type = "transmission"
+id = "trans-local"
+name = "Local Transmission"
+host = "localhost"
+port = 6969
+username = "transmission"
+password = "transmission"
+
+[[clients]]
+type = "transmission"
+id = "trans-remote"
+name = "Remote Transmission"
+host = "10.0.0.5"
+port = 6969
+username = "user"
+password = "$TRANS_PASS"

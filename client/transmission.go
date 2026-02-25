@@ -1,0 +1,343 @@
+package client
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// TransmissionAdapter implements ClientAdapter for Transmission
+type TransmissionAdapter struct {
+	host      string
+	port      int
+	username  string
+	password  string
+	connected bool
+	client    *http.Client
+	sessionID string // X-Transmission-Session-Id header
+}
+
+// trTorrent represents a Transmission torrent
+type trTorrent struct {
+	ID              int64   `json:"id"`
+	Name            string  `json:"name"`
+	PercentDone     float64 `json:"percentDone"` // 0-1
+	RateDownload    float64 `json:"rateDownload"`
+	RateUpload      float64 `json:"rateUpload"`
+	Status          int     `json:"status"` // 0=stopped, 1=check waiting, 2=checking, 3=downloading, 4=seeding, 5=seed waiting, 6=stopped
+	PeersSendingToUs int     `json:"peersSendingToUs"`
+	PeersGettingFromUs int  `json:"peersGettingFromUs"`
+	TotalSize       int64   `json:"totalSize"`
+	DownloadedEver  int64   `json:"downloadedEver"`
+	UploadedEver    int64   `json:"uploadedEver"`
+	Hash            string  `json:"hashString"`
+}
+
+// trResponse is the wrapper for Transmission RPC responses
+type trResponse struct {
+	Result  string        `json:"result"`
+	Torrents []trTorrent  `json:"torrents"`
+}
+
+// NewTransmissionAdapter creates a new Transmission adapter
+func NewTransmissionAdapter(host string, port int, username, password string) *TransmissionAdapter {
+	return &TransmissionAdapter{
+		host:     host,
+		port:     port,
+		username: username,
+		password: password,
+		client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
+	}
+}
+
+// Connect tests connection to the Transmission instance
+func (ta *TransmissionAdapter) Connect(ctx context.Context) error {
+	// First request to get session ID
+	payload := `{"method":"session-get"}`
+	req, err := ta.buildRPCRequest(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("failed to build request: %w", err)
+	}
+
+	resp, err := ta.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("connection test failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Extract session ID from response header
+	if sessionID := resp.Header.Get("X-Transmission-Session-Id"); sessionID != "" {
+		ta.sessionID = sessionID
+	}
+
+	// 409 is expected on first request (need session ID)
+	if resp.StatusCode == http.StatusConflict {
+		// Retry with session ID
+		req, err = ta.buildRPCRequest(ctx, payload)
+		if err != nil {
+			return fmt.Errorf("failed to build retry request: %w", err)
+		}
+
+		resp, err = ta.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("retry failed: %w", err)
+		}
+		defer resp.Body.Close()
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("connection failed: %s (status %d)", string(body), resp.StatusCode)
+	}
+
+	ta.connected = true
+	return nil
+}
+
+// Disconnect closes the connection
+func (ta *TransmissionAdapter) Disconnect(ctx context.Context) error {
+	ta.connected = false
+	return nil
+}
+
+// IsConnected returns whether the adapter is connected
+func (ta *TransmissionAdapter) IsConnected() bool {
+	return ta.connected
+}
+
+// ListTorrents fetches all torrents from Transmission
+func (ta *TransmissionAdapter) ListTorrents(ctx context.Context) ([]Torrent, error) {
+	payload := `{
+		"method":"torrent-get",
+		"arguments":{
+			"fields":["id","name","percentDone","rateDownload","rateUpload","status",
+				"peersSendingToUs","peersGettingFromUs","totalSize","downloadedEver","uploadedEver","hashString"]
+		}
+	}`
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return nil, fmt.Errorf("torrent-get failed: %w", err)
+	}
+
+	torrents := make([]Torrent, len(resp.Torrents))
+	for i, tr := range resp.Torrents {
+		torrents[i] = ta.mapTorrent(tr)
+	}
+	return torrents, nil
+}
+
+// PauseTorrent pauses a single torrent
+func (ta *TransmissionAdapter) PauseTorrent(ctx context.Context, id string) error {
+	return ta.torrentAction(ctx, "torrent-stop", id)
+}
+
+// ResumeTorrent resumes a single torrent
+func (ta *TransmissionAdapter) ResumeTorrent(ctx context.Context, id string) error {
+	return ta.torrentAction(ctx, "torrent-start", id)
+}
+
+// RemoveTorrent removes a torrent without deleting files
+func (ta *TransmissionAdapter) RemoveTorrent(ctx context.Context, id string) error {
+	return ta.torrentRemove(ctx, id, false)
+}
+
+// RemoveTorrentWithData removes a torrent and deletes files
+func (ta *TransmissionAdapter) RemoveTorrentWithData(ctx context.Context, id string) error {
+	return ta.torrentRemove(ctx, id, true)
+}
+
+// AddTorrent adds a torrent from magnet link or .torrent file
+func (ta *TransmissionAdapter) AddTorrent(ctx context.Context, magnetLink string) error {
+	var payload string
+
+	if strings.HasPrefix(magnetLink, "magnet:") {
+		// Add magnet link
+		escapedMagnet := strings.ReplaceAll(magnetLink, "\"", "\\\"")
+		payload = fmt.Sprintf(`{
+			"method":"torrent-add",
+			"arguments":{"filename":"%s"}
+		}`, escapedMagnet)
+	} else {
+		// Handle file path
+		fileBytes, err := os.ReadFile(magnetLink)
+		if err != nil {
+			return fmt.Errorf("failed to read torrent file: %w", err)
+		}
+		encoded := base64.StdEncoding.EncodeToString(fileBytes)
+		payload = fmt.Sprintf(`{
+			"method":"torrent-add",
+			"arguments":{"metainfo":"%s"}
+		}`, encoded)
+	}
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("torrent-add failed: %w", err)
+	}
+
+	if resp.Result != "success" {
+		return fmt.Errorf("torrent-add failed: %s", resp.Result)
+	}
+
+	return nil
+}
+
+// PauseAll pauses all torrents
+func (ta *TransmissionAdapter) PauseAll(ctx context.Context) error {
+	payload := `{"method":"torrent-stop","arguments":{"ids":"recently-active"}}`
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("torrent-stop-all failed: %w", err)
+	}
+	if resp.Result != "success" {
+		return fmt.Errorf("torrent-stop-all failed: %s", resp.Result)
+	}
+	return nil
+}
+
+// ResumeAll resumes all torrents
+func (ta *TransmissionAdapter) ResumeAll(ctx context.Context) error {
+	payload := `{"method":"torrent-start","arguments":{"ids":"recently-active"}}`
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("torrent-start-all failed: %w", err)
+	}
+	if resp.Result != "success" {
+		return fmt.Errorf("torrent-start-all failed: %s", resp.Result)
+	}
+	return nil
+}
+
+// Helper methods
+
+func (ta *TransmissionAdapter) getRPCURL() string {
+	return fmt.Sprintf("http://%s:%d/transmission/rpc", ta.host, ta.port)
+}
+
+func (ta *TransmissionAdapter) buildRPCRequest(ctx context.Context, payload string) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, "POST", ta.getRPCURL(), strings.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if ta.sessionID != "" {
+		req.Header.Set("X-Transmission-Session-Id", ta.sessionID)
+	}
+
+	// Add basic auth if credentials provided
+	if ta.username != "" || ta.password != "" {
+		auth := base64.StdEncoding.EncodeToString([]byte(ta.username + ":" + ta.password))
+		req.Header.Set("Authorization", "Basic "+auth)
+	}
+
+	return req, nil
+}
+
+func (ta *TransmissionAdapter) sendRPC(ctx context.Context, payload string) (*trResponse, error) {
+	req, err := ta.buildRPCRequest(ctx, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := ta.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Handle session ID updates
+	if sessionID := resp.Header.Get("X-Transmission-Session-Id"); sessionID != "" {
+		ta.sessionID = sessionID
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("RPC failed: status %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	var trResp trResponse
+	if err := decodeJSON(resp.Body, &trResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &trResp, nil
+}
+
+func (ta *TransmissionAdapter) torrentAction(ctx context.Context, method, id string) error {
+	payload := fmt.Sprintf(`{"method":"%s","arguments":{"ids":[%s]}}`, method, id)
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("%s failed: %w", method, err)
+	}
+	if resp.Result != "success" {
+		return fmt.Errorf("%s failed: %s", method, resp.Result)
+	}
+	return nil
+}
+
+func (ta *TransmissionAdapter) torrentRemove(ctx context.Context, id string, deleteData bool) error {
+	deleteFlag := "false"
+	if deleteData {
+		deleteFlag = "true"
+	}
+	payload := fmt.Sprintf(`{
+		"method":"torrent-remove",
+		"arguments":{"ids":[%s],"delete-local-data":%s}
+	}`, id, deleteFlag)
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("torrent-remove failed: %w", err)
+	}
+	if resp.Result != "success" {
+		return fmt.Errorf("torrent-remove failed: %s", resp.Result)
+	}
+	return nil
+}
+
+func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
+	return Torrent{
+		ID:         strconv.FormatInt(tr.ID, 10),
+		Name:       tr.Name,
+		Progress:   uint8(tr.PercentDone * 100),
+		SpeedDown:  tr.RateDownload,
+		SpeedUp:    tr.RateUpload,
+		Status:     ta.mapStatus(tr.Status),
+		Seeds:      tr.PeersSendingToUs,
+		Leechs:     tr.PeersGettingFromUs,
+		Size:       tr.TotalSize,
+		Downloaded: tr.DownloadedEver,
+		Uploaded:   tr.UploadedEver,
+	}
+}
+
+func (ta *TransmissionAdapter) mapStatus(trStatus int) TorrentStatus {
+	switch trStatus {
+	case 0: // TR_STATUS_STOPPED
+		return StatusPaused
+	case 1, 2: // TR_STATUS_CHECK_WAIT, TR_STATUS_CHECK
+		return StatusQueued
+	case 3: // TR_STATUS_DOWNLOAD
+		return StatusDownloading
+	case 4, 5: // TR_STATUS_SEED, TR_STATUS_SEED_WAIT
+		return StatusSeeding
+	default:
+		return StatusError
+	}
+}
+
+// decodeJSON decodes JSON from a reader
+func decodeJSON(r io.Reader, v interface{}) error {
+	return json.NewDecoder(r).Decode(v)
+}

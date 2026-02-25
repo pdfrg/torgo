@@ -1,0 +1,22 @@
+# Binaries
+/tqbtui
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+/bin
+*.o
+*.a
+*.so
+.DS_Store
+go.sum
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.env
