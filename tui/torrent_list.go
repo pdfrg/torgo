@@ -142,8 +142,8 @@ func (t *TorrentListView) Render(width, height int) string {
 func (t *TorrentListView) renderHeader(width int) string {
 	// Format: [S] Name | Progress | ↓Down | ↑Up | Seeds | Leechs | Status
 	return t.styles.ListHeader.Render(
-		fmt.Sprintf("%-1s %-30s %8s %10s %10s %5s %5s %8s",
-			"[", "Name", "Progress", "↓Down", "↑Up", "Seeds", "Leechs", "Status"),
+		fmt.Sprintf("%s %-30s %8s %10s %10s %5s %6s %9s",
+			"", "Name", "Progress", "↓Down", "↑Up", "Seeds", "Leechs", "Status"),
 	)
 }
 
@@ -159,10 +159,10 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 	downSpeed := formatSpeed(torrent.SpeedDown)
 	upSpeed := formatSpeed(torrent.SpeedUp)
 	seeds := fmt.Sprintf("%5d", torrent.Seeds)
-	leechs := fmt.Sprintf("%5d", torrent.Leechs)
-	status := string(torrent.Status)
+	leechs := fmt.Sprintf("%6d", torrent.Leechs)
+	status := fmt.Sprintf("%9s", torrent.Status)
 
-	row := fmt.Sprintf("%s %-30s %8s %10s %10s %5s %5s %8s",
+	row := fmt.Sprintf("%s %-30s %8s %10s %10s %5s %s %s",
 		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status)
 
 	style := t.styles.ListItem

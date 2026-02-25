@@ -220,7 +220,16 @@ func (qa *QBittorrentAdapter) getBaseURL() string {
 }
 
 func (qa *QBittorrentAdapter) pauseResume(ctx context.Context, action, hash string) error {
-	actionURL := qa.getBaseURL() + fmt.Sprintf("/api/v2/torrents/%s", action)
+	// qBittorrent v5+ uses "stop" instead of "pause"
+	endpoint := action
+	if action == "pause" {
+		endpoint = "stop"
+	}
+	if action == "resume" {
+		endpoint = "start"
+	}
+	
+	actionURL := qa.getBaseURL() + fmt.Sprintf("/api/v2/torrents/%s", endpoint)
 	formData := url.Values{}
 	formData.Set("hashes", hash)
 
