@@ -108,19 +108,30 @@ func (a *App) View() string {
 	lines := []string{}
 
 	// Title
-	lines = append(lines, a.styles.Title.Render("tqbtui – Torrent Client TUI"))
+	titleText := "tqbtui – Torrent Client TUI"
+	lines = append(lines, a.styles.Title.Render(titleText))
 	lines = append(lines, "")
 
-	// Main list (with height calculation)
-	listHeight := a.height - 6
+	// Calculate heights for each section
+	hintsHeight := 0
 	if a.showHints {
-		listHeight -= 1
+		hintsHeight = 1
 	}
+
+	errorHeight := 0
 	if a.lastError != "" {
-		listHeight -= 2
+		errorHeight = 2
 	}
+
+	inputHeight := 0
 	if a.inputMode != "" {
-		listHeight -= 4
+		inputHeight = 3
+	}
+
+	// Available height = total - title(1) - blank(1) - status(1) - hints - error - input
+	listHeight := a.height - 3 - hintsHeight - errorHeight - inputHeight
+	if listHeight < 3 {
+		listHeight = 3
 	}
 
 	listView := a.list.Render(a.width, listHeight)
@@ -142,18 +153,25 @@ func (a *App) View() string {
 			Render("Error: "+a.lastError))
 	}
 
+	// Build the output with padding to fill terminal height
+	output := strings.Join(lines, "\n")
+	lineCount := len(lines)
+
+	// Pad with blank lines to push status/hints to bottom
+	paddingNeeded := a.height - lineCount - 2 // -2 for status and hints/spacing
+	if paddingNeeded > 0 {
+		output += strings.Repeat("\n", paddingNeeded)
+	}
+
 	// Status bar
-	lines = append(lines, "")
-	statusView := a.statusBar.Render(a.state, a.width)
-	lines = append(lines, statusView)
+	output += "\n" + a.statusBar.Render(a.state, a.width)
 
 	// Hints bar
 	if a.showHints {
-		hintsView := a.hintsBar.Render(a.width)
-		lines = append(lines, hintsView)
+		output += "\n" + a.hintsBar.Render(a.width)
 	}
 
-	return strings.Join(lines, "\n")
+	return output
 }
 
 // handleKeyPress handles keyboard input
