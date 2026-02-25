@@ -51,10 +51,24 @@ func (t *TorrentListView) ToggleSelection() {
 	}
 }
 
-// SelectAll selects all torrents
+// SelectAll toggles all torrents - if all selected, deselect all; otherwise select all
 func (t *TorrentListView) SelectAll() {
+	// Check if all are selected
+	allSelected := true
 	for _, torrent := range t.torrents {
-		t.selected[torrent.ID] = true
+		if !t.selected[torrent.ID] {
+			allSelected = false
+			break
+		}
+	}
+	
+	// If all selected, deselect all; otherwise select all
+	if allSelected {
+		t.ClearSelection()
+	} else {
+		for _, torrent := range t.torrents {
+			t.selected[torrent.ID] = true
+		}
 	}
 }
 
@@ -142,13 +156,13 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 
 	name := truncate(torrent.Name, 30)
 	progress := fmt.Sprintf("%3d%%", torrent.Progress)
-	downSpeed := formatSpeed(torrent.SpeedDown)
-	upSpeed := formatSpeed(torrent.SpeedUp)
+	downSpeed := rightAlign(formatSpeed(torrent.SpeedDown), 8)
+	upSpeed := rightAlign(formatSpeed(torrent.SpeedUp), 8)
 	seeds := fmt.Sprintf("%5d", torrent.Seeds)
 	leechs := fmt.Sprintf("%5d", torrent.Leechs)
 	status := string(torrent.Status)
 
-	row := fmt.Sprintf("%s %s %8s %8s %8s %s %s %8s",
+	row := fmt.Sprintf("%s %s %8s %s %s %s %s %8s",
 		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status)
 
 	style := t.styles.ListItem
@@ -162,10 +176,24 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 // Helper functions
 
 func truncate(s string, length int) string {
-	if len(s) > length {
-		return s[:length-3] + "..."
+	runes := []rune(s)
+	if len(runes) > length {
+		return string(runes[:length-3]) + "..."
+	}
+	// Pad to exact length
+	if len(runes) < length {
+		return s + strings.Repeat(" ", length-len(runes))
 	}
 	return s
+}
+
+func rightAlign(s string, width int) string {
+	runes := []rune(s)
+	if len(runes) >= width {
+		return s
+	}
+	padding := width - len(runes)
+	return strings.Repeat(" ", padding) + s
 }
 
 func formatSpeed(speed float64) string {

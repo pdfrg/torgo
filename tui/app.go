@@ -201,10 +201,10 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-// isKeyMatch checks if a key string matches a keybinding
+// isKeyMatch checks if a key string matches a keybinding (case-sensitive)
 func isKeyMatch(k string, binding key.Binding) bool {
 	for _, key := range binding.Keys() {
-		if strings.EqualFold(k, key) {
+		if k == key {
 			return true
 		}
 	}
