@@ -97,18 +97,27 @@ func (t *TorrentListView) Render(width, height int) string {
 	// Separator
 	lines = append(lines, strings.Repeat("─", width))
 
-	// Items
+	// Calculate visible range with scrolling
 	maxItems := height - 3
 	if maxItems < 1 {
 		maxItems = 1
 	}
 
-	for i, torrent := range t.torrents {
-		if i >= maxItems {
-			break
+	// Calculate start index for viewport
+	startIdx := t.cursor - (maxItems / 2)
+	if startIdx < 0 {
+		startIdx = 0
+	}
+	if startIdx+maxItems > len(t.torrents) {
+		startIdx = len(t.torrents) - maxItems
+		if startIdx < 0 {
+			startIdx = 0
 		}
+	}
 
-		line := t.renderTorrentRow(torrent, i == t.cursor, width)
+	// Items
+	for i := startIdx; i < startIdx+maxItems && i < len(t.torrents); i++ {
+		line := t.renderTorrentRow(t.torrents[i], i == t.cursor, width)
 		lines = append(lines, line)
 	}
 
