@@ -160,10 +160,10 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 	upSpeed := rightAlign(formatSpeed(torrent.SpeedUp), 10)
 	seeds := fmt.Sprintf("%5d", torrent.Seeds)
 	leechs := fmt.Sprintf("%5d", torrent.Leechs)
-	status := string(torrent.Status)
+	status := rightAlign(string(torrent.Status), 8)
 
-	row := fmt.Sprintf("%s %s %8s %s %s %s %s %8s",
-		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status[:8])
+	row := fmt.Sprintf("%s %s %8s %s %s %s %s %s",
+		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status)
 
 	style := t.styles.ListItem
 	if selected {
