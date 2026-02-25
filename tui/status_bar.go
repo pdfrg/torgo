@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"strings"
 	"tqbtui/state"
 
 	"github.com/charmbracelet/lipgloss"
@@ -51,8 +50,10 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	// Make speeds fixed width (9 chars each) to prevent text from jumping
 	downSpeedStr = fmt.Sprintf("%9s", downSpeedStr)
 	upSpeedStr = fmt.Sprintf("%9s", upSpeedStr)
-	torrentInfo := fmt.Sprintf("%d/%d torrents  ↓%s ↑%s",
-		len(filtered), len(appState.Torrents), downSpeedStr, upSpeedStr)
+	
+	torrentCountInfo := fmt.Sprintf("%d/%d torrents",
+		len(filtered), len(appState.Torrents))
+	speedsInfo := fmt.Sprintf("↓%s ↑%s", downSpeedStr, upSpeedStr)
 
 	// Speed limit status
 	speedLimitStatus := ""
@@ -60,50 +61,57 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 		speedLimitStatus = "  Limit: ON"
 	}
 
-	// Format filter and sort with colored first letters
-	// Note: Build plain strings first, then apply color to avoid ANSI codes breaking width calculations
-	filterPlain := "filter: " + string(appState.Filter)
-	sortPlain := "sort: " + string(appState.SortBy)
+	barBg := lipgloss.Color("237")
 
-	// Build status line (plain strings for width calculation)
-	left := fmt.Sprintf("%s  %s%s", connStatus, clientInfo, speedLimitStatus)
-	right := fmt.Sprintf("%s  %s  %s",
-		torrentInfo, filterPlain, sortPlain)
+	// Color styles for individual parts (each with background applied)
+	defaultColor := lipgloss.NewStyle().
+		Foreground(s.styles.FgColor).
+		Background(barBg)
+	keyColor := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("51")).
+		Bold(true).
+		Background(barBg)
 
-	// Calculate padding to reach exact width (using plain text length)
-	contentWidth := len(left) + len(right)
-	padding := width - contentWidth
-	if padding < 1 {
-		padding = 1
-	}
+	// Build left side (connection, client info, speed limit, torrent count)
+	left := defaultColor.Render(fmt.Sprintf("%s  %s%s    %s", connStatus, clientInfo, speedLimitStatus, torrentCountInfo))
 
-	// Account for padding(0, 1) in StatusBar style which adds 2 chars (1 on each side)
-	// So actual available width is width - 2
-	availableWidth := width - 2
+	// Build right side with speeds, filter and sort (right-aligned)
+	filterWithValue := keyColor.Render("f") + defaultColor.Render("ilter: "+string(appState.Filter))
+	sortWithValue := keyColor.Render("s") + defaultColor.Render("ort: "+string(appState.SortBy))
+	right := lipgloss.JoinHorizontal(lipgloss.Left,
+		defaultColor.Render(speedsInfo),
+		defaultColor.Render("  "),
+		filterWithValue,
+		defaultColor.Render("  "),
+		sortWithValue,
+	)
+
+	// Calculate middle padding to right-align the right content
+	leftWidth := lipgloss.Width(left)
+	rightWidth := lipgloss.Width(right)
+	paddingWidth := width - 2 - leftWidth - rightWidth // -2 for leading and trailing spaces
 	
-	// Recalculate padding based on available width (not including style padding)
-	contentWidth = len(left) + len(right)
-	padding = availableWidth - contentWidth
-	if padding < 1 {
-		padding = 1
+	// Build middle padding with background
+	middlePadding := defaultColor.Render("")
+	if paddingWidth > 0 {
+		middlePadding = defaultColor.Render(fmt.Sprintf("%*s", paddingWidth, ""))
 	}
 
-	// Build final status with padding
-	status := fmt.Sprintf("%s%s%s",
-		left, strings.Repeat(" ", padding), right)
+	// Join left, padding, and right
+	statusText := lipgloss.JoinHorizontal(lipgloss.Left,
+		defaultColor.Render(" "),
+		left,
+		middlePadding,
+		right,
+		defaultColor.Render(" "),
+	)
 
-	// Ensure exact available width (without style padding)
-	runes := []rune(status)
-	if len(runes) > availableWidth {
-		status = string(runes[:availableWidth])
-	} else if len(runes) < availableWidth {
-		status = status + strings.Repeat(" ", availableWidth-len(runes))
-	}
+	// Apply bar style: width and background (background is already on text parts)
+	barStyle := lipgloss.NewStyle().
+		Width(width).
+		Background(barBg)
 
-	// Now apply colors to the final string (after width is correct)
-	status = applyStatusBarColors(status, appState)
-
-	return s.styles.StatusBar.Render(status)
+	return barStyle.Render(statusText)
 }
 
 // formatSpeedForBar formats speed for the status bar (more compact than torrent list)
@@ -118,17 +126,4 @@ func formatSpeedForBar(speed float64) string {
 		return fmt.Sprintf("%.1fKB", speed/1024)
 	}
 	return fmt.Sprintf("%.1fMB", speed/(1024*1024))
-}
-
-// applyStatusBarColors applies cyan color to 'f' in 'filter:' and 's' in 'sort:'
-func applyStatusBarColors(status string, appState *state.AppState) string {
-	keyColor := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
-	
-	// Replace 'filter:' with colored 'f' + 'ilter:'
-	status = strings.Replace(status, "filter:", keyColor.Render("f")+"ilter:", 1)
-	
-	// Replace 'sort:' with colored 's' + 'ort:'
-	status = strings.Replace(status, "sort:", keyColor.Render("s")+"ort:", 1)
-	
-	return status
 }

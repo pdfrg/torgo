@@ -49,16 +49,11 @@ func DefaultStyles() *Styles {
 		Foreground(s.SelectColor).
 		Bold(true)
 
-	// Status bar at bottom
-	s.StatusBar = lipgloss.NewStyle().
-		Foreground(s.FgColor).
-		Background(lipgloss.Color("237")).
-		Padding(0, 1)
+	// Status bar at bottom (styled in Render method with Width, Foreground, and Background)
+	s.StatusBar = lipgloss.NewStyle()
 
-	// Hints bar at bottom (no foreground color - let individual key colors show through)
-	s.HintsBar = lipgloss.NewStyle().
-		Background(lipgloss.Color("237")).
-		Padding(0, 1)
+	// Hints bar at bottom (styled in Render method with Width, Foreground, and Background)
+	s.HintsBar = lipgloss.NewStyle()
 
 	// List header row
 	s.ListHeader = lipgloss.NewStyle().

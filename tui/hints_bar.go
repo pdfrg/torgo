@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -25,29 +23,46 @@ func NewHintsBar(styles *Styles, keys KeyMap) *HintsBar {
 func (h *HintsBar) Render(width int) string {
 	hints := h.keys.ShortHelp()
 
+	barBg := lipgloss.Color("237")
+
+	// Color styles for the hint parts (each with background applied)
+	keyColor := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("51")).
+		Bold(true).
+		Background(barBg)
+	descColor := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("252")).
+		Background(barBg)
+
+	// Build hint parts with their colors and background
 	parts := []string{}
 	for _, binding := range hints {
-		part := formatKeyHelp(binding)
-		if part != "" {
-			parts = append(parts, part)
+		help := binding.Help()
+		if help.Key == "" || help.Desc == "" {
+			continue
+		}
+		// Render key in cyan, description in default color (both with background)
+		part := keyColor.Render(help.Key) + descColor.Render(":"+help.Desc)
+		parts = append(parts, part)
+	}
+
+	// Join parts with space separators (also with background)
+	var spacedParts []string
+	for i, p := range parts {
+		spacedParts = append(spacedParts, p)
+		if i < len(parts)-1 {
+			spacedParts = append(spacedParts, descColor.Render("  "))
 		}
 	}
+	hintText := lipgloss.JoinHorizontal(lipgloss.Left, spacedParts...)
+	hintText = descColor.Render(" ") + hintText + descColor.Render(" ")
 
-	hint := strings.Join(parts, "  ")
+	// Apply bar style: width and background (background is already on text parts)
+	barStyle := lipgloss.NewStyle().
+		Width(width).
+		Background(barBg)
 
-	// Account for padding(0, 1) in HintsBar style which adds 2 chars (1 on each side)
-	// So we need to reduce available width by 2 for the padding
-	availableWidth := width - 2
-	
-	// Truncate or pad to fit available width
-	runes := []rune(hint)
-	if len(runes) > availableWidth {
-		hint = string(runes[:availableWidth-3]) + "..."
-	} else if len(runes) < availableWidth {
-		hint = hint + strings.Repeat(" ", availableWidth-len(runes))
-	}
-
-	return h.styles.HintsBar.Render(hint)
+	return barStyle.Render(hintText)
 }
 
 // formatKeyHelp formats a single key binding with colored key

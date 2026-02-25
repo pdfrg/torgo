@@ -152,11 +152,11 @@ func (t *TorrentListView) Render(width, height int) string {
 
 // renderHeader returns the header row
 func (t *TorrentListView) renderHeader(width, nameWidth int) string {
-	// Format: checkbox Name | Progress | ↓Down | ↑Up | Seeds | Leechs | Status
+	// Format: checkbox Name | Progress | ↓Down | ↑Up | Seed | Leech | Status
 	// Use checkbox placeholder (☐) to align with data rows
 	return t.styles.ListHeader.Render(
 		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %8s",
-			"☐", "Name", "Progress", "↓Down", "↑Up", "Seeds", "Leechs", "Status"),
+			"☐", "Name", "Progress", "↓Down", "↑Up", "Seed", "Leech", "Status"),
 	)
 }
 

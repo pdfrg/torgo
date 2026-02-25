@@ -63,7 +63,7 @@ func DefaultKeyMap() KeyMap {
 		),
 		PauseAll: key.NewBinding(
 			key.WithKeys("P"),
-			key.WithHelp("P", "pause all"),
+			key.WithHelp("P", "all"),
 		),
 		Resume: key.NewBinding(
 			key.WithKeys("r"),
@@ -71,25 +71,25 @@ func DefaultKeyMap() KeyMap {
 		),
 		ResumeAll: key.NewBinding(
 			key.WithKeys("R"),
-			key.WithHelp("R", "resume all"),
+			key.WithHelp("R", "all"),
 		),
 		Delete: key.NewBinding(
 			key.WithKeys("x"),
-			key.WithHelp("x", "delete"),
+			key.WithHelp("x", "del"),
 		),
 		DeleteData: key.NewBinding(
 			key.WithKeys("X"),
-			key.WithHelp("X", "delete with data"),
+			key.WithHelp("X", "w/data"),
 		),
 
 		// Client & view
 		AddTorrent: key.NewBinding(
 			key.WithKeys("a"),
-			key.WithHelp("a", "add torrent"),
+			key.WithHelp("a", "add"),
 		),
 		SwitchClient: key.NewBinding(
 			key.WithKeys("c"),
-			key.WithHelp("c", "cycle client"),
+			key.WithHelp("c", "client"),
 		),
 		Sort: key.NewBinding(
 			key.WithKeys("s"),
@@ -101,11 +101,11 @@ func DefaultKeyMap() KeyMap {
 		),
 		ToggleHints: key.NewBinding(
 			key.WithKeys("h"),
-			key.WithHelp("h", "toggle hints"),
+			key.WithHelp("h", "hints"),
 		),
 		ToggleSpeedLimit: key.NewBinding(
 			key.WithKeys("l"),
-			key.WithHelp("l", "toggle speed limit"),
+			key.WithHelp("l", "limit"),
 		),
 
 		// General
