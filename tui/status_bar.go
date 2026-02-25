@@ -61,22 +61,23 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	}
 
 	// Format filter and sort with colored first letters
-	keyColor := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
-	filterStr := keyColor.Render("f") + "ilter: " + string(appState.Filter)
-	sortStr := keyColor.Render("s") + "ort: " + string(appState.SortBy)
+	// Note: Build plain strings first, then apply color to avoid ANSI codes breaking width calculations
+	filterPlain := "filter: " + string(appState.Filter)
+	sortPlain := "sort: " + string(appState.SortBy)
 
-	// Build status line
+	// Build status line (plain strings for width calculation)
 	left := fmt.Sprintf("%s  %s%s", connStatus, clientInfo, speedLimitStatus)
 	right := fmt.Sprintf("%s  %s  %s",
-		torrentInfo, filterStr, sortStr)
+		torrentInfo, filterPlain, sortPlain)
 
-	// Calculate padding to reach exact width
+	// Calculate padding to reach exact width (using plain text length)
 	contentWidth := len(left) + len(right)
 	padding := width - contentWidth
 	if padding < 1 {
 		padding = 1
 	}
 
+	// Build final status with padding
 	status := fmt.Sprintf("%s%s%s",
 		left, strings.Repeat(" ", padding), right)
 
@@ -87,6 +88,9 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	} else if len(runes) < width {
 		status = status + strings.Repeat(" ", width-len(runes))
 	}
+
+	// Now apply colors to the final string (after width is correct)
+	status = applyStatusBarColors(status, appState)
 
 	return s.styles.StatusBar.Render(status)
 }
@@ -103,4 +107,17 @@ func formatSpeedForBar(speed float64) string {
 		return fmt.Sprintf("%.1fKB", speed/1024)
 	}
 	return fmt.Sprintf("%.1fMB", speed/(1024*1024))
+}
+
+// applyStatusBarColors applies cyan color to 'f' in 'filter:' and 's' in 'sort:'
+func applyStatusBarColors(status string, appState *state.AppState) string {
+	keyColor := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
+	
+	// Replace 'filter:' with colored 'f' + 'ilter:'
+	status = strings.Replace(status, "filter:", keyColor.Render("f")+"ilter:", 1)
+	
+	// Replace 'sort:' with colored 's' + 'ort:'
+	status = strings.Replace(status, "sort:", keyColor.Render("s")+"ort:", 1)
+	
+	return status
 }
