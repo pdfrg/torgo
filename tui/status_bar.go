@@ -31,7 +31,7 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	}
 
 	// Client info
-	clientInfo := fmt.Sprintf("[%s] %s (%s:%d)",
+	clientInfo := fmt.Sprintf("[%s] %s (%s)",
 		current.ID, current.Name, current.Type)
 
 	// Torrent count

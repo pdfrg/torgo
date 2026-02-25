@@ -53,7 +53,7 @@ func NewApp(appState *state.AppState) *App {
 
 // Init implements tea.Model
 func (a *App) Init() tea.Cmd {
-	return a.refreshTorrents()
+	return a.connectAndRefresh()
 }
 
 // Update implements tea.Model
@@ -180,7 +180,7 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKeyMatch(k, a.keys.SwitchClient):
 		a.state.SwitchClient()
 		a.list.ClearSelection()
-		return a, a.refreshTorrents()
+		return a, a.connectAndRefresh()
 
 	case isKeyMatch(k, a.keys.Sort):
 		a.state.CycleSort()
@@ -243,6 +243,30 @@ func (a *App) refreshTorrents() tea.Cmd {
 		if err := a.state.RefreshTorrents(a.ctx); err != nil {
 			return errorMsg{err: err}
 		}
+		return torrentRefreshMsg{}
+	}
+}
+
+func (a *App) connectAndRefresh() tea.Cmd {
+	return func() tea.Msg {
+		current := a.state.CurrentClient()
+		if current == nil {
+			return errorMsg{err: fmt.Errorf("no current client")}
+		}
+
+		// Disconnect from previous client if connected
+		_ = current.Adapter.Disconnect(a.ctx)
+
+		// Connect to new client
+		if err := current.Adapter.Connect(a.ctx); err != nil {
+			return errorMsg{err: fmt.Errorf("failed to connect: %v", err)}
+		}
+
+		// Refresh torrents
+		if err := a.state.RefreshTorrents(a.ctx); err != nil {
+			return errorMsg{err: err}
+		}
+
 		return torrentRefreshMsg{}
 	}
 }
