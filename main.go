@@ -1,20 +1,16 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"os"
 	"tqbtui/config"
 	"tqbtui/state"
+	"tqbtui/tui"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func main() {
-	fmt.Println("═══════════════════════════════════════════════════════════")
-	fmt.Println("              tqbtui – Torrent Client TUI")
-	fmt.Println("═══════════════════════════════════════════════════════════")
-	fmt.Println()
-
 	// Load config
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -27,43 +23,14 @@ func main() {
 		log.Fatalf("Failed to initialize app state: %v", err)
 	}
 
-	fmt.Printf("Loaded %d client(s):\n", len(appState.Clients))
-	fmt.Println()
+	// Create and run TUI
+	app := tui.NewApp(appState)
+	p := tea.NewProgram(app, tea.WithAltScreen())
 
-	// Display client info
-	fmt.Println("┌─────┬─────────────────────────┬────────────────┬──────────────────┐")
-	fmt.Println("│ Idx │ Name                    │ Type           │ Address          │")
-	fmt.Println("├─────┼─────────────────────────┼────────────────┼──────────────────┤")
-
-	for i, c := range appState.Clients {
-		fmt.Printf("│ %2d  │ %-23s │ %-14s │ ?                │\n",
-			i, c.Name, c.Type)
-	}
-	fmt.Println("└─────┴─────────────────────────┴────────────────┴──────────────────┘")
-	fmt.Println()
-
-	// Test connectivity
-	fmt.Println("Testing client connections...")
-	fmt.Println()
-	ctx := context.Background()
-
-	for i, c := range appState.Clients {
-		fmt.Printf("[%d] %s... ", i, c.Name)
-		if err := c.Adapter.Connect(ctx); err != nil {
-			fmt.Printf("✗ (error: %v)\n", err)
-		} else {
-			fmt.Printf("✓\n")
-			c.Adapter.Disconnect(ctx)
-		}
+	if _, err := p.Run(); err != nil {
+		log.Fatalf("Error running program: %v", err)
 	}
 
-	fmt.Println()
-	fmt.Println("═══════════════════════════════════════════════════════════")
-	fmt.Println("Ready to launch TUI!")
-	fmt.Println("═══════════════════════════════════════════════════════════")
-	fmt.Println()
-
-	// TODO: Initialize and run TUI
-	_ = appState
+	app.Shutdown()
 	os.Exit(0)
 }
