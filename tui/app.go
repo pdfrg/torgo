@@ -100,29 +100,41 @@ func (a *App) View() string {
 	if a.lastError != "" {
 		listHeight -= 2
 	}
+	if a.inputMode != "" {
+		listHeight -= 4
+	}
 
 	listView := a.list.Render(a.width, listHeight)
 	lines = append(lines, listView)
+
+	// Input dialog if in input mode
+	if a.inputMode != "" {
+		lines = append(lines, "")
+		if a.inputMode == "add" {
+			lines = append(lines, "Magnet link or file path (press Esc to cancel):")
+			lines = append(lines, a.inputBuffer)
+		}
+	}
 
 	// Error message if present
 	if a.lastError != "" {
 		lines = append(lines, "")
 		lines = append(lines, a.styles.ListItem.Foreground(a.styles.ErrorColor).
 			Render("Error: "+a.lastError))
-		}
+	}
 
-		// Status bar
-		lines = append(lines, "")
-		statusView := a.statusBar.Render(a.state, a.width)
-		lines = append(lines, statusView)
+	// Status bar
+	lines = append(lines, "")
+	statusView := a.statusBar.Render(a.state, a.width)
+	lines = append(lines, statusView)
 
-		// Hints bar
-		if a.showHints {
-			hintsView := a.hintsBar.Render(a.width)
-			lines = append(lines, hintsView)
-		}
+	// Hints bar
+	if a.showHints {
+		hintsView := a.hintsBar.Render(a.width)
+		lines = append(lines, hintsView)
+	}
 
-		return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n")
 }
 
 // handleKeyPress handles keyboard input
