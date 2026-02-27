@@ -22,6 +22,7 @@ type App struct {
 	width       int
 	height      int
 	showHints   bool
+	viewMode    string    // "compact" or other modes
 	inputMode   string    // "", "add", "search"
 	inputBuffer string
 	lastError   string
@@ -44,6 +45,7 @@ func NewApp(appState *state.AppState) *App {
 		statusBar: NewStatusBar(styles),
 		hintsBar:  NewHintsBar(styles, keys),
 		showHints: appState.Config.UI.ShowHints,
+		viewMode:  "compact",
 		ctx:       ctx,
 		cancel:    cancel,
 	}
@@ -262,6 +264,11 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.state.CycleFilter()
 		a.list.ClearSelection()
 		a.list.SetTorrents(a.state.FilteredTorrents())
+		return a, nil
+
+	case isKeyMatch(k, a.keys.ToggleView):
+		// Toggle between view modes (for now just one, placeholder for future)
+		// Will expand to support multiple view modes
 		return a, nil
 
 	case isKeyMatch(k, a.keys.ToggleHints):

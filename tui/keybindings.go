@@ -25,6 +25,7 @@ type KeyMap struct {
 	SwitchClient key.Binding
 	Sort         key.Binding
 	Filter       key.Binding
+	ToggleView   key.Binding
 	ToggleHints  key.Binding
 	ToggleSpeedLimit key.Binding
 
@@ -99,6 +100,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("f"),
 			key.WithHelp("f", "filter"),
 		),
+		ToggleView: key.NewBinding(
+			key.WithKeys("v"),
+			key.WithHelp("v", "view"),
+		),
 		ToggleHints: key.NewBinding(
 			key.WithKeys("h"),
 			key.WithHelp("h", "hints"),
@@ -135,7 +140,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Up, k.Down, k.Select, k.SelectAll},
 		{k.Pause, k.PauseAll, k.Resume, k.ResumeAll},
 		{k.Delete, k.DeleteData, k.AddTorrent},
-		{k.SwitchClient, k.Sort, k.Filter, k.ToggleSpeedLimit},
+		{k.SwitchClient, k.Sort, k.Filter, k.ToggleView, k.ToggleSpeedLimit},
 		{k.ToggleHints, k.Help, k.Quit},
 	}
 }

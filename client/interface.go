@@ -9,10 +9,12 @@ type TorrentStatus string
 
 const (
 	StatusDownloading TorrentStatus = "downloading"
-	StatusSeeding     TorrentStatus = "seeding"
+	StatusQueuedDL    TorrentStatus = "queuedDL"   // Queued for download
+	StatusStalledDL   TorrentStatus = "stalledDL"  // Downloading but stalled (no peers)
 	StatusPaused      TorrentStatus = "paused"
+	StatusSeeding     TorrentStatus = "seeding"
+	StatusCompleted   TorrentStatus = "completed"  // Fully downloaded, ready for removal
 	StatusError       TorrentStatus = "error"
-	StatusQueued      TorrentStatus = "queued"
 )
 
 // Torrent represents a torrent in the client

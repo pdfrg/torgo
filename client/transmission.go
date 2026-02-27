@@ -332,7 +332,7 @@ func (ta *TransmissionAdapter) mapStatus(trStatus int) TorrentStatus {
 	case 0: // TR_STATUS_STOPPED
 		return StatusPaused
 	case 1, 2: // TR_STATUS_CHECK_WAIT, TR_STATUS_CHECK
-		return StatusQueued
+		return StatusDownloading
 	case 3: // TR_STATUS_DOWNLOAD
 		return StatusDownloading
 	case 4, 5: // TR_STATUS_SEED, TR_STATUS_SEED_WAIT

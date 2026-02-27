@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"tqbtui/client"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // TorrentListView displays a list of torrents
@@ -105,10 +107,10 @@ func (t *TorrentListView) Render(width, height int) string {
 	lines := []string{}
 
 	// Calculate dynamic name width based on terminal width
-	// Account for padding(0,1) in ListHeader/ListItem which adds 2 chars (1 on each side)
-	// Fixed columns: checkbox(1) + space(1) + progress(9) + space(1) + down(10) + space(1) + up(10) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(8)
+	// Account for padding(0,1) in ListHeader which adds 2 chars (1 on each side)
+	// Fixed columns: checkbox(1) + size(7) + space(1) + progress(5) + space(1) + down(7) + space(1) + up(7) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(8)
 	effectiveWidth := width - 2 // Account for padding
-	fixedWidth := 1 + 1 + 9 + 1 + 10 + 1 + 10 + 1 + 5 + 1 + 6 + 1 + 8
+	fixedWidth := 1 + 7 + 1 + 5 + 1 + 7 + 1 + 7 + 1 + 5 + 1 + 6 + 1 + 8
 	nameWidth := effectiveWidth - fixedWidth
 	if nameWidth < 10 {
 		nameWidth = 10
@@ -152,11 +154,12 @@ func (t *TorrentListView) Render(width, height int) string {
 
 // renderHeader returns the header row
 func (t *TorrentListView) renderHeader(width, nameWidth int) string {
-	// Format: checkbox Name | Progress | ↓Down | ↑Up | Seed | Leech | Status
+	// Format: checkbox Name | Size | Prog | ↓Down | ↑Up | Seed | Leech | Status
 	// Use checkbox placeholder (☐) to align with data rows
+	// No space between name and size to match row format
 	return t.styles.ListHeader.Render(
-		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %8s",
-			"☐", "Name", "Progress", "↓Down", "↑Up", "Seed", "Leech", "Status"),
+		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
+			"☐", "Name", "Size", "Prog", "↓Down", "↑Up", "Seed", "Leech", "Status"),
 	)
 }
 
@@ -167,23 +170,84 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 		checkbox = "☑"
 	}
 
-	name := truncate(torrent.Name, nameWidth)
-	progress := fmt.Sprintf("%3d%%", torrent.Progress)
-	downSpeed := formatSpeed(torrent.SpeedDown)
-	upSpeed := formatSpeed(torrent.SpeedUp)
-	seeds := fmt.Sprintf("%5d", torrent.Seeds)
-	leechs := fmt.Sprintf("%6d", torrent.Leechs)
-	status := fmt.Sprintf("%8s", shortenStatus(string(torrent.Status)))
-
-	row := fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s %9s %10s %10s %5s %6s %8s",
-		checkbox, name, progress, downSpeed, upSpeed, seeds, leechs, status)
-
-	style := t.styles.ListItem
-	if selected {
-		style = t.styles.ListItemSelected
+	// Pad the name to exact width (using rune-aware width)
+	paddedName := truncate(torrent.Name, nameWidth)
+	
+	// Calculate progress bar fill using rune length for unicode-aware width
+	nameRunes := []rune(paddedName)
+	filledWidth := (len(nameRunes) * int(torrent.Progress)) / 100
+	if filledWidth > len(nameRunes) {
+		filledWidth = len(nameRunes)
 	}
 
-	return style.Render(row)
+	// Get progress bar colors based on torrent status and progress
+	filledColor, unfilledColor := t.styles.ProgressBarColors(string(torrent.Status), torrent.Progress)
+
+	// Render the name with progress bar background
+	filledPart := string(nameRunes[:filledWidth])
+	unfilledPart := string(nameRunes[filledWidth:])
+
+	filledStyle := lipgloss.NewStyle().Background(filledColor).Foreground(t.styles.FgColor)
+	unfilledStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor)
+	if unfilledColor != "" {
+		unfilledStyle = unfilledStyle.Background(unfilledColor)
+	}
+
+	// Render the styled name parts
+	renderedName := filledStyle.Render(filledPart) + unfilledStyle.Render(unfilledPart)
+	
+	// Note: lipgloss.Width() on styled text returns the visual width (excluding ANSI codes)
+	// We need to account for the original name width in our format string
+	nameColWidth := lipgloss.Width(renderedName)
+
+	baseStyle := t.styles.ListItem
+	if selected {
+		baseStyle = t.styles.ListItemSelected
+	}
+
+	// Create a style for individual fields without padding (ListItem has Padding(0,1))
+	fieldStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor)
+	if selected {
+		fieldStyle = lipgloss.NewStyle().Foreground(t.styles.BgColor).Background(t.styles.SelectColor)
+	}
+
+	// Format field values with proper alignment BEFORE applying style
+	// Match the header format exactly: %s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
+	sizeStr := fmt.Sprintf("%7s", formatSize(torrent.Size))
+	progressStr := fmt.Sprintf("%5s", fmt.Sprintf("%d%%", torrent.Progress))
+	downSpeedStr := fmt.Sprintf("%7s", formatSpeed(torrent.SpeedDown))
+	upSpeedStr := fmt.Sprintf("%7s", formatSpeed(torrent.SpeedUp))
+	seedsStr := fmt.Sprintf("%5d", torrent.Seeds)
+	leechsStr := fmt.Sprintf("%6d", torrent.Leechs)
+	statusStr := fmt.Sprintf("%8s", shortenStatus(string(torrent.Status)))
+	
+	// Apply fieldStyle (without padding) to the formatted strings for consistent text color
+	size := fieldStyle.Render(sizeStr)
+	progress := fieldStyle.Render(progressStr)
+	downSpeed := fieldStyle.Render(downSpeedStr)
+	upSpeed := fieldStyle.Render(upSpeedStr)
+	seeds := fieldStyle.Render(seedsStr)
+	leechs := fieldStyle.Render(leechsStr)
+	status := fieldStyle.Render(statusStr)
+	
+	// Apply baseStyle (with padding) to checkbox
+	checkboxStyled := baseStyle.Render(checkbox)
+
+	// Build format string with dynamic padding to account for styled name
+	// Account for the difference between rendered width and byte length due to ANSI codes
+	paddingAfterName := nameWidth - nameColWidth
+	if paddingAfterName < 0 {
+		paddingAfterName = 0
+	}
+
+	// Build row to match header format: %s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
+	// The renderedName already includes ANSI codes, so we use padding to account for visual width
+	// checkboxStyled already has padding(0,1) so it includes a trailing space, don't add another
+	// No space after padding since each field is pre-formatted with width
+	row := fmt.Sprintf("%s%s%*s%s %s %s %s %s %s %s",
+		checkboxStyled, renderedName, paddingAfterName, "", size, progress, downSpeed, upSpeed, seeds, leechs, status)
+
+	return row
 }
 
 // Helper functions
@@ -209,31 +273,61 @@ func rightAlign(s string, width int) string {
 	return strings.Repeat(" ", padding) + s
 }
 
+func formatSize(bytes int64) string {
+	const (
+		KB = 1024
+		MB = 1024 * KB
+		GB = 1024 * MB
+		TB = 1024 * GB
+	)
+	
+	if bytes == 0 {
+		return "0"
+	}
+	if bytes >= TB {
+		return fmt.Sprintf("%.1fT", float64(bytes)/float64(TB))
+	}
+	if bytes >= GB {
+		return fmt.Sprintf("%.1fG", float64(bytes)/float64(GB))
+	}
+	if bytes >= MB {
+		return fmt.Sprintf("%.0fM", float64(bytes)/float64(MB))
+	}
+	if bytes >= KB {
+		return fmt.Sprintf("%.0fK", float64(bytes)/float64(KB))
+	}
+	return fmt.Sprintf("%dB", bytes)
+}
+
 func formatSpeed(speed float64) string {
 	if speed == 0 {
 		return "-"
 	}
 	if speed < 1024 {
-		return fmt.Sprintf("%.0fB/s", speed)
+		return fmt.Sprintf("%.0fB", speed)
 	}
 	if speed < 1024*1024 {
-		return fmt.Sprintf("%.1fKB/s", speed/1024)
+		return fmt.Sprintf("%.1fK", speed/1024)
 	}
-	return fmt.Sprintf("%.1fMB/s", speed/(1024*1024))
+	return fmt.Sprintf("%.1fM", speed/(1024*1024))
 }
 
 func shortenStatus(status string) string {
 	switch status {
 	case "downloading":
 		return "d/l"
-	case "seeding":
-		return "seed"
+	case "queuedDL":
+		return "queue"
+	case "stalledDL":
+		return "stall"
 	case "paused":
 		return "paused"
+	case "seeding":
+		return "seed"
+	case "completed":
+		return "done"
 	case "error":
 		return "error"
-	case "queued":
-		return "queue"
 	default:
 		return status
 	}

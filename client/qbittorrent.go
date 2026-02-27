@@ -294,16 +294,37 @@ func (qa *QBittorrentAdapter) mapTorrent(qb qbTorrent) Torrent {
 
 func (qa *QBittorrentAdapter) mapStatus(qbState string) TorrentStatus {
 	switch qbState {
-	case "downloading", "metaDL", "forcedDL", "allocating", "forcedMetaDL":
+	// Actively downloading
+	case "downloading", "metaDL", "forcedDL", "allocating", "checkingDL", "checkingResumeData", "moving":
 		return StatusDownloading
-	case "uploading", "forcedUP", "queuedForChecking", "checkingUP", "checkingDL", "checkingResumeData":
-		return StatusSeeding
-	case "paused_DL", "paused_UP":
+	
+	// Queued for download (blocked, needs slot)
+	case "queuedDL":
+		return StatusQueuedDL
+	
+	// Stalled during download (no peers)
+	case "stalledDL":
+		return StatusStalledDL
+	
+	// Paused state (both download and upload paused)
+	case "pausedDL", "pausedUP":
 		return StatusPaused
-	case "missingFiles", "error":
+	
+	// Seeding (uploading, at 100%)
+	case "uploading", "forcedUP", "checkingUP", "queuedUP", "stalledUP":
+		return StatusSeeding
+	
+	// Fully downloaded and stopped
+	case "stoppedUP":
+		return StatusCompleted
+	
+	// Error states
+	case "error", "missingFiles":
 		return StatusError
+	
+	// Unknown/unmapped states treat as error
 	default:
-		return StatusQueued
+		return StatusError
 	}
 }
 
