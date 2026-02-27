@@ -108,9 +108,9 @@ func (t *TorrentListView) Render(width, height int) string {
 
 	// Calculate dynamic name width based on terminal width
 	// Account for padding(0,1) in ListHeader which adds 2 chars (1 on each side)
-	// Fixed columns: checkbox(1) + size(7) + space(1) + progress(5) + space(1) + down(7) + space(1) + up(7) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(8)
+	// Fixed columns: number(3) + indicator(1) + space(1) + size(7) + space(1) + progress(5) + space(1) + down(7) + space(1) + up(7) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(8)
 	effectiveWidth := width - 2 // Account for padding
-	fixedWidth := 1 + 7 + 1 + 5 + 1 + 7 + 1 + 7 + 1 + 5 + 1 + 6 + 1 + 8
+	fixedWidth := 3 + 1 + 1 + 7 + 1 + 5 + 1 + 7 + 1 + 7 + 1 + 5 + 1 + 6 + 1 + 8
 	nameWidth := effectiveWidth - fixedWidth
 	if nameWidth < 10 {
 		nameWidth = 10
@@ -145,7 +145,7 @@ func (t *TorrentListView) Render(width, height int) string {
 
 	// Items
 	for i := startIdx; i < startIdx+maxItems && i < len(t.torrents); i++ {
-		line := t.renderTorrentRow(t.torrents[i], i == t.cursor, nameWidth)
+		line := t.renderTorrentRow(t.torrents[i], i == t.cursor, nameWidth, i+1)
 		lines = append(lines, line)
 	}
 
@@ -154,21 +154,39 @@ func (t *TorrentListView) Render(width, height int) string {
 
 // renderHeader returns the header row
 func (t *TorrentListView) renderHeader(width, nameWidth int) string {
-	// Format: checkbox Name | Size | Prog | ↓Down | ↑Up | Seed | Leech | Status
-	// Use checkbox placeholder (☐) to align with data rows
+	// Format: # Name | Size | Prog | ↓Down | ↑Up | Seed | Leech | Status
+	// Use "#" as column header for sequential numbering (right-aligned in 2 chars)
 	// No space between name and size to match row format
 	return t.styles.ListHeader.Render(
-		fmt.Sprintf("%s %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
-			"☐", "Name", "Size", "Prog", "↓Down", "↑Up", "Seed", "Leech", "Status"),
+		fmt.Sprintf("%2s  %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
+			"#", "Name", "Size", "Prog", "↓Down", "↑Up", "Seed", "Leech", "Status"),
 	)
 }
 
 // renderTorrentRow returns a formatted torrent row
-func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool, nameWidth int) string {
-	checkbox := "☐"
-	if t.selected[torrent.ID] {
-		checkbox = "☑"
+func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, nameWidth int, rowNum int) string {
+	// Format the row number with optional selection indicator
+	// Cursor position: cyan number
+	// Selected: add dot indicator (●)
+	// If both: cyan number with dot indicator
+	isSelected := t.selected[torrent.ID]
+	
+	numStr := fmt.Sprintf("%3d", rowNum)
+	numberStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor)
+	
+	// Cursor position gets cyan color
+	if cursor {
+		numberStyle = lipgloss.NewStyle().Foreground(t.styles.SelectColor)
 	}
+	
+	numberStyled := numberStyle.Render(numStr)
+	
+	// Add dot indicator for selected items
+	indicator := " "
+	if isSelected {
+		indicator = "●"
+	}
+	numberWithIndicator := numberStyled + indicator
 
 	// Pad the name to exact width (using rune-aware width)
 	paddedName := truncate(torrent.Name, nameWidth)
@@ -200,19 +218,12 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 	// We need to account for the original name width in our format string
 	nameColWidth := lipgloss.Width(renderedName)
 
-	baseStyle := t.styles.ListItem
-	if selected {
-		baseStyle = t.styles.ListItemSelected
-	}
-
-	// Create a style for individual fields without padding (ListItem has Padding(0,1))
+	// Create a style for individual fields without padding or highlighting
+	// Only the number gets the highlight styling based on selection state
 	fieldStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor)
-	if selected {
-		fieldStyle = lipgloss.NewStyle().Foreground(t.styles.BgColor).Background(t.styles.SelectColor)
-	}
 
 	// Format field values with proper alignment BEFORE applying style
-	// Match the header format exactly: %s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
+	// Match the header format exactly: %3s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
 	sizeStr := fmt.Sprintf("%7s", formatSize(torrent.Size))
 	progressStr := fmt.Sprintf("%5s", fmt.Sprintf("%d%%", torrent.Progress))
 	downSpeedStr := fmt.Sprintf("%7s", formatSpeed(torrent.SpeedDown))
@@ -229,9 +240,6 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 	seeds := fieldStyle.Render(seedsStr)
 	leechs := fieldStyle.Render(leechsStr)
 	status := fieldStyle.Render(statusStr)
-	
-	// Apply baseStyle (with padding) to checkbox
-	checkboxStyled := baseStyle.Render(checkbox)
 
 	// Build format string with dynamic padding to account for styled name
 	// Account for the difference between rendered width and byte length due to ANSI codes
@@ -240,12 +248,11 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, selected bool
 		paddingAfterName = 0
 	}
 
-	// Build row to match header format: %s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
+	// Build row to match header format: %4s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
 	// The renderedName already includes ANSI codes, so we use padding to account for visual width
-	// checkboxStyled already has padding(0,1) so it includes a trailing space, don't add another
-	// No space after padding since each field is pre-formatted with width
-	row := fmt.Sprintf("%s%s%*s%s %s %s %s %s %s %s",
-		checkboxStyled, renderedName, paddingAfterName, "", size, progress, downSpeed, upSpeed, seeds, leechs, status)
+	// numberWithIndicator is 4 chars (3 for number + 1 for indicator)
+	row := fmt.Sprintf("%s %s%*s%s %s %s %s %s %s %s",
+		numberWithIndicator, renderedName, paddingAfterName, "", size, progress, downSpeed, upSpeed, seeds, leechs, status)
 
 	return row
 }
