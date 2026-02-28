@@ -400,3 +400,42 @@ func (ta *TransmissionAdapter) SetSpeedLimitEnabled(ctx context.Context, enabled
 	}
 	return nil
 }
+
+// GetSpeedLimits returns the speed limits in KB/s
+func (ta *TransmissionAdapter) GetSpeedLimits(ctx context.Context) (downKBs, upKBs int, err error) {
+	payload := `{
+		"method":"session-get",
+		"arguments":{}
+	}`
+
+	req, err := ta.buildRPCRequest(ctx, payload)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to build request: %w", err)
+	}
+
+	resp, err := ta.client.Do(req)
+	if err != nil {
+		return 0, 0, fmt.Errorf("session-get request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, 0, fmt.Errorf("session-get failed: status %d", resp.StatusCode)
+	}
+
+	var sessionResp map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&sessionResp); err != nil {
+		return 0, 0, fmt.Errorf("failed to decode session response: %w", err)
+	}
+
+	// Extract speed limits
+	if args, ok := sessionResp["arguments"].(map[string]interface{}); ok {
+		if down, ok := args["speed-limit-down"].(float64); ok {
+			downKBs = int(down)
+		}
+		if up, ok := args["speed-limit-up"].(float64); ok {
+			upKBs = int(up)
+		}
+	}
+	return downKBs, upKBs, nil
+}

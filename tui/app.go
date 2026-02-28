@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"tqbtui/state"
@@ -58,6 +59,7 @@ func (a *App) Init() tea.Cmd {
 	return tea.Batch(
 		a.connectAndRefresh(),
 		a.startRefreshTicker(),
+		a.startSpeedLimitTicker(),
 		a.refreshSpeedLimitStatus(),
 	)
 }
@@ -69,8 +71,18 @@ func (a *App) startRefreshTicker() tea.Cmd {
 	})
 }
 
-// tickMsg is used for periodic refresh
+// startSpeedLimitTicker periodically checks speed limit status every 12 seconds
+func (a *App) startSpeedLimitTicker() tea.Cmd {
+	return tea.Tick(12*time.Second, func(t time.Time) tea.Msg {
+		return speedLimitTickMsg{}
+	})
+}
+
+// tickMsg is used for torrent refresh (every 2 seconds)
 type tickMsg struct{}
+
+// speedLimitTickMsg is used for speed limit polling (every 12 seconds)
+type speedLimitTickMsg struct{}
 
 // Update implements tea.Model
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -96,10 +108,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Speed limit toggled, UI will update on next render
 		return a, nil
 	case tickMsg:
-		// Refresh and re-schedule the ticker
+		// Refresh torrents and re-schedule the ticker
 		return a, tea.Batch(
 			a.refreshTorrents(),
 			a.startRefreshTicker(),
+		)
+	case speedLimitTickMsg:
+		// Check speed limit status periodically to catch external changes (scheduler, etc.)
+		return a, tea.Batch(
+			a.refreshSpeedLimitStatus(),
+			a.startSpeedLimitTicker(),
 		)
 	}
 	return a, nil
@@ -146,12 +164,31 @@ func (a *App) View() string {
 	listView := a.list.Render(a.width, listHeight)
 	lines = append(lines, listView)
 
-	// Input dialog if in input mode
+	// Input dialog if in input mode - render as a centered popup box
 	if a.inputMode != "" {
 		lines = append(lines, "")
 		if a.inputMode == "add" {
-			lines = append(lines, "Magnet link or file path (press Esc to cancel):")
-			lines = append(lines, a.inputBuffer)
+			// Create a dialog box for adding torrent
+			dialogWidth := 60
+			if a.width < 60 {
+				dialogWidth = a.width - 4
+			}
+			if dialogWidth < 20 {
+				dialogWidth = 20
+			}
+
+			// Build the dialog content
+			title := "Add Torrent"
+			prompt := "Magnet link or .torrent file path:"
+			hint := "(Ctrl+P to paste from clipboard, Esc to cancel)"
+
+			// Create the box
+			dialogBox := a.styles.Dialog.
+				Width(dialogWidth).
+				Render(
+					fmt.Sprintf("%s\n\n%s\n> %s\n\n%s",
+						title, prompt, a.inputBuffer, hint))
+			lines = append(lines, dialogBox)
 		}
 	}
 
@@ -311,6 +348,17 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.inputBuffer = a.inputBuffer[:len(a.inputBuffer)-1]
 		}
 		return a, nil
+	case "ctrl+c":
+		a.inputMode = ""
+		a.inputBuffer = ""
+		return a, nil
+	case "ctrl+p":
+		// Paste from clipboard
+		if text, err := clipboard.ReadAll(); err == nil {
+			// Remove trailing newlines that often come from clipboard
+			a.inputBuffer += strings.TrimSpace(text)
+		}
+		return a, nil
 	default:
 		if len(msg.String()) == 1 {
 			a.inputBuffer += msg.String()
@@ -318,6 +366,8 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 	}
 }
+
+
 
 // Command builders
 
@@ -457,8 +507,10 @@ func (a *App) toggleSpeedLimit() tea.Cmd {
 func (a *App) refreshSpeedLimitStatus() tea.Cmd {
 	return func() tea.Msg {
 		if err := a.state.RefreshSpeedLimitStatus(a.ctx); err != nil {
-			// Silent failure - speed limit feature may not be supported by all clients
-			return nil
+			// Speed limit fetch failed, but don't break the app
+			// Just log it and return a message to trigger update
+			// This allows the UI to still refresh even if speed limit fetch fails
+			return speedLimitToggledMsg{}
 		}
 		return speedLimitToggledMsg{}
 	}

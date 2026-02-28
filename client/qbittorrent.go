@@ -330,58 +330,93 @@ func (qa *QBittorrentAdapter) mapStatus(qbState string) TorrentStatus {
 
 // GetSpeedLimitEnabled returns whether alternative speed limit is enabled
 func (qa *QBittorrentAdapter) GetSpeedLimitEnabled(ctx context.Context) (bool, error) {
-	prefsURL := qa.getBaseURL() + "/api/v2/app/preferences"
+	syncURL := qa.getBaseURL() + "/api/v2/sync/maindata"
 
-	req, err := http.NewRequestWithContext(ctx, "GET", prefsURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", syncURL, nil)
 	if err != nil {
-		return false, fmt.Errorf("failed to create preferences request: %w", err)
+		return false, fmt.Errorf("failed to create sync request: %w", err)
 	}
 
 	resp, err := qa.client.Do(req)
 	if err != nil {
-		return false, fmt.Errorf("preferences request failed: %w", err)
+		return false, fmt.Errorf("sync request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return false, fmt.Errorf("get preferences failed: status %d", resp.StatusCode)
+		return false, fmt.Errorf("get sync failed: status %d", resp.StatusCode)
 	}
 
-	var prefs map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&prefs); err != nil {
-		return false, fmt.Errorf("failed to decode preferences: %w", err)
+	var syncData map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&syncData); err != nil {
+		return false, fmt.Errorf("failed to decode sync data: %w", err)
 	}
 
-	// Check if alt_speed_enabled key exists and is true
-	if val, ok := prefs["alt_speed_enabled"]; ok {
-		if enabled, ok := val.(bool); ok {
-			return enabled, nil
+	// Check server_state for use_alt_speed_limits
+	if serverState, ok := syncData["server_state"].(map[string]interface{}); ok {
+		if val, ok := serverState["use_alt_speed_limits"]; ok {
+			if enabled, ok := val.(bool); ok {
+				return enabled, nil
+			}
 		}
 	}
 	return false, nil
 }
 
-// SetSpeedLimitEnabled enables or disables alternative speed limit
+// SetSpeedLimitEnabled toggles alternative speed limit (doesn't matter what `enabled` value is - it just toggles)
 func (qa *QBittorrentAdapter) SetSpeedLimitEnabled(ctx context.Context, enabled bool) error {
-	prefsURL := qa.getBaseURL() + "/api/v2/app/setPreferences"
-	
-	// Create the preference update payload
-	payload := fmt.Sprintf(`{"alt_speed_enabled": %v}`, enabled)
+	toggleURL := qa.getBaseURL() + "/api/v2/transfer/toggleSpeedLimitsMode"
 
-	req, err := http.NewRequestWithContext(ctx, "POST", prefsURL, strings.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, "POST", toggleURL, nil)
 	if err != nil {
-		return fmt.Errorf("failed to create preferences request: %w", err)
+		return fmt.Errorf("failed to create toggle request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := qa.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("set preferences request failed: %w", err)
+		return fmt.Errorf("toggle speed limits request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("set preferences failed: status %d", resp.StatusCode)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("toggle speed limits failed: status %d - %s", resp.StatusCode, string(body))
 	}
 	return nil
+}
+
+// GetSpeedLimits returns the alternative speed limits in KB/s
+func (qa *QBittorrentAdapter) GetSpeedLimits(ctx context.Context) (downKBs, upKBs int, err error) {
+	syncURL := qa.getBaseURL() + "/api/v2/sync/maindata"
+
+	req, err := http.NewRequestWithContext(ctx, "GET", syncURL, nil)
+	if err != nil {
+		return 0, 0, fmt.Errorf("failed to create sync request: %w", err)
+	}
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return 0, 0, fmt.Errorf("sync request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, 0, fmt.Errorf("get sync failed: status %d", resp.StatusCode)
+	}
+
+	var syncData map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&syncData); err != nil {
+		return 0, 0, fmt.Errorf("failed to decode sync data: %w", err)
+	}
+
+	// Extract speed limits from server_state (in bytes/sec, convert to KB/s)
+	if serverState, ok := syncData["server_state"].(map[string]interface{}); ok {
+		if val, ok := serverState["dl_rate_limit"].(float64); ok {
+			downKBs = int(val / 1024)
+		}
+		if val, ok := serverState["up_rate_limit"].(float64); ok {
+			upKBs = int(val / 1024)
+		}
+	}
+	return downKBs, upKBs, nil
 }

@@ -55,10 +55,12 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 		len(filtered), len(appState.Torrents))
 	speedsInfo := fmt.Sprintf("↓%s ↑%s", downSpeedStr, upSpeedStr)
 
-	// Speed limit status
+	// Speed limit status with turtle icon and actual limits
 	speedLimitStatus := ""
 	if appState.SpeedLimitEnabled {
-		speedLimitStatus = "  Limit: ON"
+		downStr := formatSpeedForBar(float64(appState.SpeedLimitDownKBs * 1024))
+		upStr := formatSpeedForBar(float64(appState.SpeedLimitUpKBs * 1024))
+		speedLimitStatus = fmt.Sprintf("  🐢▼%s ▲%s", downStr, upStr)
 	}
 
 	barBg := lipgloss.Color("237")

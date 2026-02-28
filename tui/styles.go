@@ -84,6 +84,7 @@ func DefaultStyles() *Styles {
 
 	// Dialog
 	s.Dialog = lipgloss.NewStyle().
+		Foreground(s.FgColor).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(s.SelectColor).
 		Padding(1)

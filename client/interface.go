@@ -73,4 +73,7 @@ type ClientAdapter interface {
 
 	// SetSpeedLimitEnabled enables or disables the speed limit
 	SetSpeedLimitEnabled(ctx context.Context, enabled bool) error
+
+	// GetSpeedLimits returns the download and upload speed limits (KB/s), or 0 if not set
+	GetSpeedLimits(ctx context.Context) (downKBs, upKBs int, err error)
 }

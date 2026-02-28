@@ -29,6 +29,8 @@ type AppState struct {
 	InputMode            string // "", "add", "search", "command"
 	Config               *config.Config
 	SpeedLimitEnabled    bool   // Cache of speed limit status
+	SpeedLimitDownKBs    int    // Cache of down speed limit
+	SpeedLimitUpKBs      int    // Cache of up speed limit
 }
 
 // FilterType represents torrent filtering options
@@ -222,7 +224,7 @@ func (as *AppState) CycleSort() {
 	}
 }
 
-// RefreshSpeedLimitStatus updates the cached speed limit status from the current client
+// RefreshSpeedLimitStatus updates the cached speed limit status and values from the current client
 func (as *AppState) RefreshSpeedLimitStatus(ctx context.Context) error {
 	current := as.CurrentClient()
 	if current == nil {
@@ -235,6 +237,13 @@ func (as *AppState) RefreshSpeedLimitStatus(ctx context.Context) error {
 	}
 
 	as.SpeedLimitEnabled = enabled
+
+	// Also fetch the actual speed limit values
+	downKBs, upKBs, err := current.Adapter.GetSpeedLimits(ctx)
+	if err == nil {
+		as.SpeedLimitDownKBs = downKBs
+		as.SpeedLimitUpKBs = upKBs
+	}
 	return nil
 }
 
@@ -251,5 +260,12 @@ func (as *AppState) ToggleSpeedLimit(ctx context.Context) error {
 	}
 
 	as.SpeedLimitEnabled = newState
+	
+	// Also fetch the speed limit values after toggling
+	downKBs, upKBs, err := current.Adapter.GetSpeedLimits(ctx)
+	if err == nil {
+		as.SpeedLimitDownKBs = downKBs
+		as.SpeedLimitUpKBs = upKBs
+	}
 	return nil
 }
