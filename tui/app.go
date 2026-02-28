@@ -434,10 +434,29 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Handle detail view specific keys
 	if a.screenMode == "detail" && a.detailView != nil {
+		// Handle edit mode first
+		if a.detailView.editMode != "" {
+			if a.detailView.HandleEditKey(k) {
+				if k == "enter" && a.detailView.editMode != "" {
+					// Save edit (implement API call later)
+					a.detailView.CancelEdit()
+				}
+				return a, nil
+			}
+			// If not handled as edit key, consume most keys while editing
+			if k != "esc" {
+				return a, nil
+			}
+		}
+
 		switch {
 		case k == "esc":
-			a.screenMode = "list"
-			a.detailView = nil
+			if a.detailView.editMode != "" {
+				a.detailView.CancelEdit()
+			} else {
+				a.screenMode = "list"
+				a.detailView = nil
+			}
 			return a, nil
 
 		case isKeyMatch(k, a.keys.Up):
@@ -458,6 +477,12 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		case k == "]":
 			a.detailView.ExpandAll()
+			return a, nil
+
+		case k == "e":
+			// Start editing the current field (name, category, etc.)
+			// For now, just start editing name
+			a.detailView.StartEdit("name")
 			return a, nil
 		}
 		// Other keys fall through to be handled in list view context (for consistency)

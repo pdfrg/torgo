@@ -9,15 +9,19 @@ import (
 
 // DetailView represents the torrent detail view
 type DetailView struct {
-	styles     *Styles
-	detail     *client.TorrentDetail
-	files      []client.TorrentFile
-	fileTree   []*FileTreeNode // Hierarchical tree of files
-	width      int
-	height     int
-	cursorPos  int // Current cursor position in the view
-	expanded   map[string]bool // Track which directories are expanded
-	scrollPos  int // Vertical scroll position
+	styles      *Styles
+	detail      *client.TorrentDetail
+	files       []client.TorrentFile
+	fileTree    []*FileTreeNode // Hierarchical tree of files
+	width       int
+	height      int
+	cursorPos   int // Current cursor position in the view
+	expanded    map[string]bool // Track which directories are expanded
+	scrollPos   int // Vertical scroll position
+	editMode    string // "", "name", "category", "tags", "comments", "location"
+	editValue   string // Current edit field value
+	editCursorX int    // Cursor position within edit field
+	editError   string // Error message during edit
 }
 
 // FileTreeNode represents a node in the file tree (either file or directory)
@@ -194,31 +198,54 @@ func (dv *DetailView) renderInfoSection() string {
 	var lines []string
 
 	// Name
-	lines = append(lines, fmt.Sprintf("Name:             %s", dv.detail.Name))
+	if dv.editMode == "name" {
+		lines = append(lines, dv.renderEditField("Name", dv.editValue))
+	} else {
+		lines = append(lines, fmt.Sprintf("Name:             %s", dv.detail.Name))
+	}
 
 	// Category
-	category := dv.detail.Category
-	if category == "" {
-		category = "(none)"
+	if dv.editMode == "category" {
+		lines = append(lines, dv.renderEditField("Category", dv.editValue))
+	} else {
+		category := dv.detail.Category
+		if category == "" {
+			category = "(none)"
+		}
+		lines = append(lines, fmt.Sprintf("Category:         %s", category))
 	}
-	lines = append(lines, fmt.Sprintf("Category:         %s", category))
 
 	// Tags (if any)
-	tags := "(none)"
-	if len(dv.detail.Tags) > 0 {
-		tags = strings.Join(dv.detail.Tags, ", ")
+	if dv.editMode == "tags" {
+		lines = append(lines, dv.renderEditField("Tags", dv.editValue))
+	} else {
+		tags := "(none)"
+		if len(dv.detail.Tags) > 0 {
+			tags = strings.Join(dv.detail.Tags, ", ")
+		}
+		lines = append(lines, fmt.Sprintf("Tags:             %s", tags))
 	}
-	lines = append(lines, fmt.Sprintf("Tags:             %s", tags))
 
 	// Comments
-	comments := dv.detail.Comments
-	if comments == "" {
-		comments = "(none)"
+	if dv.editMode == "comments" {
+		lines = append(lines, dv.renderEditField("Comments", dv.editValue))
+	} else {
+		comments := dv.detail.Comments
+		if comments == "" {
+			comments = "(none)"
+		}
+		lines = append(lines, fmt.Sprintf("Comments:         %s", comments))
 	}
-	lines = append(lines, fmt.Sprintf("Comments:         %s", comments))
 
 	// Save path
-	lines = append(lines, fmt.Sprintf("Download Path:    %s", dv.detail.SavePath))
+	if dv.editMode == "location" {
+		lines = append(lines, dv.renderEditField("Download Path", dv.editValue))
+		if dv.editError != "" {
+			lines = append(lines, fmt.Sprintf("  Error: %s", dv.editError))
+		}
+	} else {
+		lines = append(lines, fmt.Sprintf("Download Path:    %s", dv.detail.SavePath))
+	}
 
 	// Size info
 	totalStr := formatBytes(dv.detail.TotalSize)
@@ -229,7 +256,32 @@ func (dv *DetailView) renderInfoSection() string {
 	}
 	lines = append(lines, fmt.Sprintf("Size:             %s / %s (%d%%)", downloadedStr, totalStr, progress))
 
+	// Edit mode hint
+	if dv.editMode != "" {
+		lines = append(lines, "")
+		lines = append(lines, "  [Enter] save  [Esc] cancel")
+	}
+
 	return strings.Join(lines, "\n")
+}
+
+// renderEditField renders a field in edit mode
+func (dv *DetailView) renderEditField(label, value string) string {
+	// Pad label to consistent width
+	padding := 18 - len(label) - 1 // -1 for the colon
+	padStr := strings.Repeat(" ", padding)
+	
+	// Build the cursor line
+	cursorLine := value
+	if dv.editCursorX < len(value) {
+		// Cursor is within the text
+		cursorLine = value[:dv.editCursorX] + "|" + value[dv.editCursorX:]
+	} else {
+		// Cursor is at the end
+		cursorLine = value + "|"
+	}
+
+	return fmt.Sprintf("%s:%s%s", label, padStr, cursorLine)
 }
 
 // renderFilesSection renders the file tree
@@ -480,4 +532,98 @@ func (dv *DetailView) GetCurrentFile() *client.TorrentFile {
 		}
 	}
 	return nil
+}
+
+// StartEdit starts editing a field
+func (dv *DetailView) StartEdit(field string) {
+	dv.editMode = field
+	dv.editError = ""
+	dv.editCursorX = 0
+
+	// Initialize edit value based on field
+	switch field {
+	case "name":
+		dv.editValue = dv.detail.Name
+		dv.editCursorX = len(dv.editValue)
+	case "category":
+		dv.editValue = dv.detail.Category
+		dv.editCursorX = len(dv.editValue)
+	case "tags":
+		dv.editValue = strings.Join(dv.detail.Tags, ", ")
+		dv.editCursorX = len(dv.editValue)
+	case "comments":
+		dv.editValue = dv.detail.Comments
+		dv.editCursorX = len(dv.editValue)
+	case "location":
+		dv.editValue = dv.detail.SavePath
+		dv.editCursorX = len(dv.editValue)
+	}
+}
+
+// CancelEdit cancels the current edit
+func (dv *DetailView) CancelEdit() {
+	dv.editMode = ""
+	dv.editValue = ""
+	dv.editError = ""
+	dv.editCursorX = 0
+}
+
+// HandleEditKey handles keyboard input while in edit mode
+func (dv *DetailView) HandleEditKey(key string) bool {
+	if dv.editMode == "" {
+		return false
+	}
+
+	switch key {
+	case "enter":
+		// Save edit (will be handled by app)
+		return true
+
+	case "esc":
+		dv.CancelEdit()
+		return true
+
+	case "backspace":
+		if dv.editCursorX > 0 {
+			dv.editValue = dv.editValue[:dv.editCursorX-1] + dv.editValue[dv.editCursorX:]
+			dv.editCursorX--
+		}
+		return true
+
+	case "delete":
+		if dv.editCursorX < len(dv.editValue) {
+			dv.editValue = dv.editValue[:dv.editCursorX] + dv.editValue[dv.editCursorX+1:]
+		}
+		return true
+
+	case "home":
+		dv.editCursorX = 0
+		return true
+
+	case "end":
+		dv.editCursorX = len(dv.editValue)
+		return true
+
+	case "left":
+		if dv.editCursorX > 0 {
+			dv.editCursorX--
+		}
+		return true
+
+	case "right":
+		if dv.editCursorX < len(dv.editValue) {
+			dv.editCursorX++
+		}
+		return true
+
+	default:
+		// Handle regular character input
+		if len(key) == 1 && key >= " " && key <= "~" {
+			dv.editValue = dv.editValue[:dv.editCursorX] + key + dv.editValue[dv.editCursorX:]
+			dv.editCursorX++
+			return true
+		}
+	}
+
+	return false
 }
