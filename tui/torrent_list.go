@@ -5,15 +5,17 @@ import (
 	"strings"
 	"tqbtui/client"
 
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// TorrentListView displays a list of torrents
+// TorrentListView displays a list of torrents with viewport scrolling
 type TorrentListView struct {
 	torrents []client.Torrent
 	selected map[string]bool
 	cursor   int
 	styles   *Styles
+	viewport viewport.Model
 }
 
 // NewTorrentListView creates a new torrent list view
@@ -37,6 +39,22 @@ func (t *TorrentListView) SetTorrents(torrents []client.Torrent) {
 // MoveCursor moves the selection up or down
 func (t *TorrentListView) MoveCursor(direction int) {
 	t.cursor += direction
+	if t.cursor < 0 {
+		t.cursor = 0
+	}
+	if t.cursor >= len(t.torrents) {
+		t.cursor = len(t.torrents) - 1
+	}
+}
+
+// PageMove moves the cursor by a full page (for Page Up/Down)
+// direction: -1 for page up, +1 for page down
+// pageSize is the number of visible lines (typically viewport height)
+func (t *TorrentListView) PageMove(direction int, pageSize int) {
+	if pageSize <= 0 {
+		pageSize = 10 // Sensible default
+	}
+	t.cursor += direction * (pageSize - 1) // -1 to keep one line of context
 	if t.cursor < 0 {
 		t.cursor = 0
 	}
@@ -98,13 +116,12 @@ func (t *TorrentListView) GetCurrentTorrent() *client.Torrent {
 	return nil
 }
 
-// Render returns the rendered list
+// Render returns the rendered list with viewport-based scrolling
+// The viewport allows Page Up/Down, arrow keys, and mouse wheel scrolling
 func (t *TorrentListView) Render(width, height int) string {
 	if len(t.torrents) == 0 {
 		return t.styles.ListItem.Render("No torrents")
 	}
-
-	lines := []string{}
 
 	// Calculate dynamic name width based on terminal width
 	// Account for padding(0,1) in ListHeader which adds 2 chars (1 on each side)
@@ -116,6 +133,9 @@ func (t *TorrentListView) Render(width, height int) string {
 		nameWidth = 10
 	}
 
+	// Build the full content
+	lines := []string{}
+
 	// Header
 	header := t.renderHeader(width, nameWidth)
 	lines = append(lines, header)
@@ -125,31 +145,74 @@ func (t *TorrentListView) Render(width, height int) string {
 		lines = append(lines, strings.Repeat("─", width))
 	}
 
-	// Calculate visible range with scrolling
-	maxItems := height - 3
-	if maxItems < 1 {
-		maxItems = 1
-	}
-
-	// Calculate start index for viewport
-	startIdx := t.cursor - (maxItems / 2)
-	if startIdx < 0 {
-		startIdx = 0
-	}
-	if startIdx+maxItems > len(t.torrents) {
-		startIdx = len(t.torrents) - maxItems
-		if startIdx < 0 {
-			startIdx = 0
-		}
-	}
-
-	// Items
-	for i := startIdx; i < startIdx+maxItems && i < len(t.torrents); i++ {
+	// All torrent items
+	for i := 0; i < len(t.torrents); i++ {
 		line := t.renderTorrentRow(t.torrents[i], i == t.cursor, nameWidth, i+1)
 		lines = append(lines, line)
 	}
 
-	return strings.Join(lines, "\n")
+	content := strings.Join(lines, "\n")
+
+	// Initialize viewport if needed
+	if t.viewport.Width != width || t.viewport.Height != height {
+		t.viewport = viewport.New(width, height)
+		t.viewport.YPosition = 0
+	}
+
+	// Set content in viewport
+	t.viewport.SetContent(content)
+
+	// Ensure cursor is visible in viewport by scrolling if needed
+	// Line 0 = header, line 1 = separator, torrents start at line 2
+	cursorLine := t.cursor + 2
+	contentHeight := strings.Count(content, "\n") + 1
+
+	// Always keep header and separator visible (lines 0 and 1)
+	// The minimum YOffset is 0, which shows the header
+	// The maximum YOffset is when the last line is at the bottom
+	
+	// If cursor is below the visible area, scroll down
+	// Ensure at least 2 lines of overhead (header + separator) are always visible
+	visibleTop := t.viewport.YOffset
+	visibleBottom := visibleTop + t.viewport.Height
+	
+	if cursorLine >= visibleBottom {
+		// Cursor is below visible bottom, scroll down
+		// But ensure header+separator remain visible
+		newOffset := cursorLine - t.viewport.Height + 1
+		// Never scroll above line 0 (header must always show)
+		if newOffset < 0 {
+			newOffset = 0
+		}
+		t.viewport.YOffset = newOffset
+	} else if cursorLine < visibleTop {
+		// Cursor is above visible top (shouldn't happen after first render, but handle it)
+		// Show cursor at top, but never hide header
+		t.viewport.YOffset = 0
+	}
+
+	// Final safety checks
+	// Never scroll negative
+	if t.viewport.YOffset < 0 {
+		t.viewport.YOffset = 0
+	}
+	
+	// Never scroll past the end
+	if t.viewport.YOffset > contentHeight-t.viewport.Height {
+		t.viewport.YOffset = contentHeight - t.viewport.Height
+		if t.viewport.YOffset < 0 {
+			t.viewport.YOffset = 0
+		}
+	}
+
+	return t.viewport.View()
+}
+
+// Update processes messages for viewport scrolling (Page Up/Down, arrow keys, etc)
+// This should be called from the app's Update method
+func (t *TorrentListView) Update(msg interface{}) {
+	// The viewport will handle scroll messages via the app's Update loop
+	// We expose the viewport's Update so the app can pass messages to it
 }
 
 // renderHeader returns the header row

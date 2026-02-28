@@ -5,8 +5,10 @@ import "github.com/charmbracelet/bubbles/key"
 // KeyMap defines all keybindings for the application
 type KeyMap struct {
 	// Navigation
-	Up   key.Binding
-	Down key.Binding
+	Up       key.Binding
+	Down     key.Binding
+	PageUp   key.Binding
+	PageDown key.Binding
 
 	// Selection
 	Select    key.Binding
@@ -28,6 +30,7 @@ type KeyMap struct {
 	ToggleView   key.Binding
 	ToggleHints  key.Binding
 	ToggleSpeedLimit key.Binding
+	Search       key.Binding
 
 	// General
 	Quit key.Binding
@@ -45,6 +48,14 @@ func DefaultKeyMap() KeyMap {
 		Down: key.NewBinding(
 			key.WithKeys("down", "j"),
 			key.WithHelp("↓/j", "down"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("pgup", "ctrl+u"),
+			key.WithHelp("PgUp/^U", "page up"),
+		),
+		PageDown: key.NewBinding(
+			key.WithKeys("pgdown", "ctrl+d"),
+			key.WithHelp("PgDn/^D", "page down"),
 		),
 
 		// Selection
@@ -112,6 +123,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("l"),
 			key.WithHelp("l", "limit"),
 		),
+		Search: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "search"),
+		),
 
 		// General
 		Quit: key.NewBinding(
@@ -130,17 +145,17 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.Pause, k.PauseAll, k.Resume, k.ResumeAll,
 		k.Delete, k.DeleteData, k.AddTorrent,
-		k.SwitchClient, k.ToggleSpeedLimit, k.ToggleHints, k.ToggleView, k.Help, k.Quit,
+		k.SwitchClient, k.Search, k.ToggleSpeedLimit, k.ToggleHints, k.ToggleView, k.Help, k.Quit,
 	}
 }
 
 // FullHelp returns full help text
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{k.Up, k.Down, k.Select, k.SelectAll},
+		{k.Up, k.Down, k.PageUp, k.PageDown, k.Select, k.SelectAll},
 		{k.Pause, k.PauseAll, k.Resume, k.ResumeAll},
 		{k.Delete, k.DeleteData, k.AddTorrent},
-		{k.SwitchClient, k.Sort, k.Filter, k.ToggleView, k.ToggleSpeedLimit},
+		{k.SwitchClient, k.Sort, k.Filter, k.Search, k.ToggleView, k.ToggleSpeedLimit},
 		{k.ToggleHints, k.Help, k.Quit},
 	}
 }
@@ -148,25 +163,28 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 // GetFullHelpText returns the full descriptive text for a key
 func GetFullHelpText(keyName string) string {
 	fullHelpMap := map[string]string{
-		"↑/k":   "move cursor up",
-		"↓/j":   "move cursor down",
-		"P":     "pause all",
-		"R":     "resume all",
-		"x":     "delete",
-		"X":     "delete with data",
-		"a":     "add torrent",
-		"c":     "cycle clients",
-		"v":     "cycle views",
-		"h":     "toggle hints bar",
-		"l":     "toggle speed limit",
-		"space": "toggle select",
-		"A":     "select all",
-		"p":     "pause",
-		"r":     "resume",
-		"s":     "sort",
-		"f":     "filter",
-		"?":     "help",
-		"q":     "quit",
+		"↑/k":     "move cursor up",
+		"↓/j":     "move cursor down",
+		"PgUp/^U": "page up",
+		"PgDn/^D": "page down",
+		"P":       "pause all",
+		"R":       "resume all",
+		"x":       "delete",
+		"X":       "delete with data",
+		"a":       "add torrent",
+		"c":       "cycle clients",
+		"v":       "cycle views",
+		"h":       "toggle hints bar",
+		"l":       "toggle speed limit",
+		"space":   "toggle select",
+		"A":       "select all",
+		"p":       "pause",
+		"r":       "resume",
+		"s":       "sort",
+		"f":       "filter",
+		"/":       "search",
+		"?":       "help",
+		"q":       "quit",
 	}
 	if full, ok := fullHelpMap[keyName]; ok {
 		return full

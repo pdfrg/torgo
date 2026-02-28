@@ -39,6 +39,10 @@ type App struct {
 	torrentInput       textinput.Model
 	categoryList       list.Model
 	lastError          string
+	inputValidationErr string        // validation error for the add dialog
+	searchInput        textinput.Model
+	searchFilter       *SearchFilter
+	searchMode         bool          // true if in search mode
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -50,10 +54,17 @@ func NewApp(appState *state.AppState) *App {
 	styles := DefaultStyles()
 	keys := DefaultKeyMap()
 
-	// Initialize text input
+	// Initialize text inputs
 	ti := textinput.New()
 	ti.Placeholder = "Magnet link, URL, or .torrent file path"
 	ti.CharLimit = 1024
+
+	si := textinput.New()
+	si.Placeholder = "Search torrents..."
+	si.CharLimit = 256
+
+	// Initialize search filter
+	searchFilter := NewSearchFilter()
 
 	// Initialize category list with compact delegate
 	delegate := list.NewDefaultDelegate()
@@ -77,6 +88,9 @@ func NewApp(appState *state.AppState) *App {
 		viewMode:     "default",
 		torrentInput: ti,
 		categoryList: categoryList,
+		searchInput:  si,
+		searchFilter: searchFilter,
+		searchMode:   false,
 		ctx:          ctx,
 		cancel:       cancel,
 	}
@@ -116,6 +130,11 @@ type speedLimitTickMsg struct{}
 
 // Update implements tea.Model
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Handle search mode separately
+	if a.searchMode {
+		return a.handleSearchMode(msg)
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		return a.handleKeyPress(msg)
@@ -159,20 +178,31 @@ func (a *App) View() string {
 		return "Loading..."
 	}
 
-	// Fixed overhead: title(1) + blank(1) + status(1) + hints(0-1)
-	fixedHeight := 3
-	if a.showHints {
-		fixedHeight = 4
+	// Calculate heights for layout
+	// Fixed overhead: title(1) + blank(1) = 2 lines (status and hints go at bottom separately)
+	headerHeight := 2
+	
+	// Search mode height (search status + blank line)
+	searchHeight := 0
+	if a.searchMode || (a.searchFilter != nil && a.searchFilter.IsActive()) {
+		searchHeight = 2
 	}
 
-	// Error height
+	// Error height (blank + error)
 	errorHeight := 0
 	if a.lastError != "" {
 		errorHeight = 2
 	}
 
-	// List height = total - fixed - error (no input height since dialog is modal)
-	listHeight := a.height - fixedHeight - errorHeight
+	// Status bar and hints bar at bottom
+	// Note: actual output includes blank line before status, then status, then optional hints
+	bottomHeight := 2 // blank + status bar
+	if a.showHints {
+		bottomHeight = 3 // + hints bar
+	}
+
+	// List height = total - header - search - error - bottom
+	listHeight := a.height - headerHeight - searchHeight - errorHeight - bottomHeight
 	if listHeight < 3 {
 		listHeight = 3
 	}
@@ -184,6 +214,52 @@ func (a *App) View() string {
 	titleText := "tqbtui – Torrent Client TUI"
 	lines = append(lines, a.styles.Title.Render(titleText))
 	lines = append(lines, "")
+
+	// Show search status if in search mode (editing) or if search is active (results shown)
+	if a.searchMode || (a.searchFilter != nil && a.searchFilter.IsActive()) {
+		// Use search filter's query for display (not input field, which might be empty)
+		query := ""
+		matches := 0
+		if a.searchFilter != nil {
+			query = a.searchFilter.GetQuery()
+			matches = a.searchFilter.GetMatchCount()
+		}
+		
+		// Create match count text with proper pluralization
+		matchText := "match"
+		if matches != 1 {
+			matchText = "matches"
+		}
+		
+		// Different visual style depending on mode
+		var searchStatus string
+		var searchStatusStyle lipgloss.Style
+		
+		if a.searchMode {
+			// Actively editing search - bright purple with instruction
+			// Use input field value since we're typing
+			inputQuery := a.searchInput.Value()
+			searchStatus = fmt.Sprintf(" 🔍 SEARCH: %s  (%d %s)  [Enter to confirm, ESC to clear] ",
+				inputQuery, matches, matchText)
+			searchStatusStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("62")).  // Purple background
+				Foreground(lipgloss.Color("255")). // White text
+				Bold(true).
+				Padding(0, 1)
+		} else {
+			// Search results active - subtle grey with instruction
+			searchStatus = fmt.Sprintf(" 🔍 %s (%d %s) — / to edit, ESC to clear ",
+				query, matches, matchText)
+			searchStatusStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("240")).  // Darker grey background
+				Foreground(lipgloss.Color("255")). // White text
+				Padding(0, 1)
+		}
+		
+		// Ensure it renders to full width
+		lines = append(lines, searchStatusStyle.Width(a.width).Render(searchStatus))
+		lines = append(lines, "")
+	}
 
 	// List or placeholder view
 	var listView string
@@ -201,35 +277,69 @@ func (a *App) View() string {
 			Render("Error: "+a.lastError))
 	}
 
-	// Join content
-	output := strings.Join(lines, "\n")
-
-	// Count actual lines in output (handle multi-line list view)
-	actualLineCount := strings.Count(output, "\n") + 1
-
-	// Calculate padding to push status/hints to bottom
-	statusLinesNeeded := 1
+	// Status bar and hints bar at bottom
+	statusBarOutput := a.statusBar.Render(a.state, a.width)
+	hintsBarOutput := ""
 	if a.showHints {
-		statusLinesNeeded = 2
+		hintsBarOutput = a.hintsBar.Render(a.width)
 	}
 
-	paddingNeeded := a.height - actualLineCount - statusLinesNeeded
-	if paddingNeeded < 0 {
-		paddingNeeded = 0
-	}
-
-	// Add padding
-	if paddingNeeded > 0 {
-		output += strings.Repeat("\n", paddingNeeded)
-	}
-
-	// Status bar
-	output += "\n" + a.statusBar.Render(a.state, a.width)
-
-	// Hints bar
+	// Build final output line by line to ensure title is at top
+	finalLines := lines
+	
+	// Add status and hints at the end
+	finalLines = append(finalLines, "")
+	finalLines = append(finalLines, statusBarOutput)
 	if a.showHints {
-		output += "\n" + a.hintsBar.Render(a.width)
+		finalLines = append(finalLines, hintsBarOutput)
 	}
+
+	// Join all lines
+	output := strings.Join(finalLines, "\n")
+	
+	// Ensure output doesn't exceed terminal height
+	// We need to keep title at top and status/hints at bottom
+	outputLines := strings.Split(output, "\n")
+	
+	if len(outputLines) > a.height {
+		// Need to trim: keep title (2 lines) + status/hints (1-3 lines) + trim middle intelligently
+		// Count lines we need at bottom: blank + status + hints
+		bottomLinesNeeded := 2 // blank + status
+		if a.showHints {
+			bottomLinesNeeded += 1 // + hints
+		}
+		
+		// Keep title (2 lines) + middle content + bottom
+		maxMiddleLines := a.height - 2 - bottomLinesNeeded
+		if maxMiddleLines < 1 {
+			maxMiddleLines = 1
+		}
+		
+		// Middle content is everything between line 2 and the last bottomLinesNeeded lines
+		middleStart := 2
+		middleEnd := len(outputLines) - bottomLinesNeeded
+		
+		if middleEnd <= middleStart {
+			// Not enough space, show title and status only
+			outputLines = append(outputLines[:2], outputLines[len(outputLines)-bottomLinesNeeded:]...)
+		} else {
+			// Trim middle if needed
+			middleLines := outputLines[middleStart:middleEnd]
+			if len(middleLines) > maxMiddleLines {
+				// For the list portion (which includes header/separator at top), preserve the top lines
+				// Search status is at the beginning of middle, list viewport with headers follows
+				// We want to keep the list headers visible, so trim from the bottom of the list
+				middleLines = middleLines[:maxMiddleLines] // Keep first lines to preserve headers
+			}
+			outputLines = append(outputLines[:2], append(middleLines, outputLines[middleEnd:]...)...)
+		}
+	} else if len(outputLines) < a.height {
+		// Pad with blank lines to fill terminal
+		padding := a.height - len(outputLines)
+		outputLines = append(outputLines, make([]string, padding)...)
+	}
+	
+	output = strings.Join(outputLines, "\n")
 
 	// Overlay modals
 	if a.showHelp {
@@ -263,6 +373,15 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 	// Render torrent input
 	inputSection := a.torrentInput.View()
 
+	// Build content lines with validation error if present
+	contentLines := []string{title, "", inputSection}
+
+	// Add validation error in red if present
+	if a.inputValidationErr != "" {
+		errorText := a.styles.ListItem.Foreground(a.styles.ErrorColor).Render("✗ " + a.inputValidationErr)
+		contentLines = append(contentLines, errorText)
+	}
+
 	// Render category list
 	categoryView := ""
 	if len(a.state.Categories) > 0 {
@@ -272,7 +391,6 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 	}
 
 	// Assemble dialog content
-	contentLines := []string{title, "", inputSection}
 	if categoryView != "" {
 		contentLines = append(contentLines, "", categoryView)
 	}
@@ -304,6 +422,16 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	k := msg.String()
 
+	// Handle ESC to clear search filter if active
+	if k == "esc" && a.searchFilter.IsActive() {
+		a.searchMode = false
+		a.searchInput.Blur()
+		a.searchInput.Reset()
+		a.searchFilter.Clear()
+		a.list.SetTorrents(a.state.FilteredTorrents())
+		return a, nil
+	}
+
 	switch {
 	case isKeyMatch(k, a.keys.Quit):
 		return a, tea.Quit
@@ -314,6 +442,14 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case isKeyMatch(k, a.keys.Down):
 		a.list.MoveCursor(1)
+		return a, nil
+
+	case isKeyMatch(k, a.keys.PageUp):
+		a.list.PageMove(-1, a.height)
+		return a, nil
+
+	case isKeyMatch(k, a.keys.PageDown):
+		a.list.PageMove(1, a.height)
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Select):
@@ -367,6 +503,23 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.list.SetTorrents(a.state.FilteredTorrents())
 		return a, nil
 
+	case isKeyMatch(k, a.keys.Search):
+		if a.searchMode {
+			// Already in search mode, toggle off
+			a.searchMode = false
+			a.searchInput.Blur()
+		} else if a.searchFilter.IsActive() {
+			// Have active search results, enter edit mode
+			a.searchMode = true
+			a.searchInput.Focus()
+		} else {
+			// No search, enter new search mode
+			a.searchMode = true
+			a.searchInput.Focus()
+			a.searchInput.Reset()
+		}
+		return a, nil
+
 	case isKeyMatch(k, a.keys.ToggleView):
 		if a.viewMode == "default" {
 			a.viewMode = "multiline"
@@ -405,12 +558,17 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		a.inputMode = ""
+		a.inputValidationErr = ""
 		a.torrentInput.Blur()
 		return a, nil
 	case "enter":
 		if a.inputMode == "add" {
 			input := a.torrentInput.Value()
-			if input == "" {
+			
+			// Validate before submitting
+			validationErr := IsValidForSubmit(input)
+			if validationErr != "" {
+				a.inputValidationErr = validationErr
 				return a, nil
 			}
 			
@@ -422,20 +580,26 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					category = a.state.Categories[idx-1]
 				}
 			}
+			a.inputValidationErr = ""
 			return a, a.addTorrent(input, category)
 		}
 		a.inputMode = ""
+		a.inputValidationErr = ""
 		a.torrentInput.Blur()
 		return a, nil
 	case "ctrl+c":
 		a.inputMode = ""
+		a.inputValidationErr = ""
 		a.torrentInput.Blur()
 		return a, nil
 	case "ctrl+p":
 		// Paste from clipboard
 		if text, err := clipboard.ReadAll(); err == nil {
 			// Remove trailing newlines that often come from clipboard
-			a.torrentInput.SetValue(a.torrentInput.Value() + strings.TrimSpace(text))
+			newValue := a.torrentInput.Value() + strings.TrimSpace(text)
+			a.torrentInput.SetValue(newValue)
+			// Validate as user types
+			a.inputValidationErr = ValidateInput(newValue)
 		}
 		return a, nil
 	case "up", "down":
@@ -447,11 +611,70 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Route to text input
 		var cmd tea.Cmd
 		a.torrentInput, cmd = a.torrentInput.Update(msg)
+		// Validate as user types (except for backspace, which is always ok)
+		if msg.String() != "backspace" {
+			a.inputValidationErr = ValidateInput(a.torrentInput.Value())
+		} else {
+			// Still validate after backspace for when field becomes empty
+			a.inputValidationErr = ValidateInput(a.torrentInput.Value())
+		}
 		return a, cmd
 	}
 }
 
+// handleSearchMode handles keyboard input while in search mode
+func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			// Exit search mode
+			a.searchMode = false
+			a.searchInput.Blur()
+			a.searchInput.Reset()
+			a.searchFilter.Clear()
+			// Show all torrents again
+			a.list.SetTorrents(a.state.FilteredTorrents())
+			return a, nil
 
+		case "enter":
+			// Confirm search and exit search mode, keeping filtered results
+			// User can now interact with filtered results using normal commands
+			// Press / again to modify search, or ESC to clear
+			a.searchMode = false
+			a.searchInput.Blur()
+			return a, nil
+
+		case "ctrl+c":
+			// Exit search mode
+			a.searchMode = false
+			a.searchInput.Blur()
+			a.searchInput.Reset()
+			a.searchFilter.Clear()
+			a.list.SetTorrents(a.state.FilteredTorrents())
+			return a, nil
+
+		default:
+			// Update search input and filter in real-time
+			var cmd tea.Cmd
+			a.searchInput, cmd = a.searchInput.Update(msg)
+			query := a.searchInput.Value()
+			a.searchFilter.SetQuery(query, a.state.FilteredTorrents())
+			a.list.SetTorrents(a.searchFilter.GetResults())
+			a.list.ClearSelection() // Clear selection when search changes
+			return a, cmd
+		}
+
+	case tea.WindowSizeMsg:
+		a.width = msg.Width
+		a.height = msg.Height
+		return a, nil
+
+	// Pass other message types through
+	default:
+		return a, nil
+	}
+}
 
 // Command builders
 
@@ -701,9 +924,17 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 
 	content := strings.Join(lines, "\n")
 
+	// Calculate actual content height to avoid extra padding
+	contentHeight := strings.Count(content, "\n") + 1
+	// Add some breathing room but don't exceed dialog height
+	boxHeight := contentHeight + 2 // +2 for top/bottom padding
+	if boxHeight > dialogHeight-2 {
+		boxHeight = dialogHeight - 2
+	}
+
 	helpBox := a.styles.Dialog.
 		Width(dialogWidth - 2).
-		Height(dialogHeight - 2).
+		Height(boxHeight).
 		Padding(1, 2).
 		Render(content)
 
