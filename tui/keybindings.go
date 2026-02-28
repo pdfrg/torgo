@@ -21,6 +21,7 @@ type KeyMap struct {
 	ResumeAll  key.Binding
 	Delete     key.Binding
 	DeleteData key.Binding
+	Details    key.Binding  // View torrent details
 
 	// Client & view
 	AddTorrent   key.Binding
@@ -93,6 +94,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("X"),
 			key.WithHelp("X", "w/data"),
 		),
+		Details: key.NewBinding(
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "details"),
+		),
 
 		// Client & view
 		AddTorrent: key.NewBinding(
@@ -144,7 +149,7 @@ func DefaultKeyMap() KeyMap {
 func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.Pause, k.PauseAll, k.Resume, k.ResumeAll,
-		k.Delete, k.DeleteData, k.AddTorrent,
+		k.Delete, k.DeleteData, k.Details, k.AddTorrent,
 		k.SwitchClient, k.Search, k.ToggleSpeedLimit, k.ToggleHints, k.ToggleView, k.Help, k.Quit,
 	}
 }
@@ -154,7 +159,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Select, k.SelectAll},
 		{k.Pause, k.PauseAll, k.Resume, k.ResumeAll},
-		{k.Delete, k.DeleteData, k.AddTorrent},
+		{k.Delete, k.DeleteData, k.Details, k.AddTorrent},
 		{k.SwitchClient, k.Sort, k.Filter, k.Search, k.ToggleView, k.ToggleSpeedLimit},
 		{k.ToggleHints, k.Help, k.Quit},
 	}
@@ -171,6 +176,7 @@ func GetFullHelpText(keyName string) string {
 		"R":       "resume all",
 		"x":       "delete",
 		"X":       "delete with data",
+		"enter":   "view details",
 		"a":       "add torrent",
 		"c":       "cycle clients",
 		"v":       "cycle views",

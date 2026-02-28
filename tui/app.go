@@ -28,6 +28,7 @@ type App struct {
 	styles             *Styles
 	keys               KeyMap
 	list               *TorrentListView
+	detailView         *DetailView         // Detail view for selected torrent
 	statusBar          *StatusBar
 	hintsBar           *HintsBar
 	width              int
@@ -35,6 +36,7 @@ type App struct {
 	showHints          bool
 	showHelp           bool
 	viewMode           string        // "default" or "multiline"
+	screenMode         string        // "list" or "detail"
 	inputMode          string        // "", "add", "search"
 	torrentInput       textinput.Model
 	categoryList       list.Model
@@ -81,11 +83,13 @@ func NewApp(appState *state.AppState) *App {
 		styles:       styles,
 		keys:         keys,
 		list:         NewTorrentListView(styles),
+		detailView:   nil,
 		statusBar:    NewStatusBar(styles),
 		hintsBar:     NewHintsBar(styles, keys),
 		showHints:    appState.Config.UI.ShowHints,
 		showHelp:     false,
 		viewMode:     "default",
+		screenMode:   "list",
 		torrentInput: ti,
 		categoryList: categoryList,
 		searchInput:  si,
@@ -211,7 +215,7 @@ func (a *App) View() string {
 	lines := []string{}
 
 	// Title
-	titleText := "tqbtui – Torrent Client TUI"
+	titleText := "󰁇  󰁇  tqbtui – Torrent Multi-Client TUI"
 	lines = append(lines, a.styles.Title.Render(titleText))
 	lines = append(lines, "")
 
@@ -261,14 +265,20 @@ func (a *App) View() string {
 		lines = append(lines, "")
 	}
 
-	// List or placeholder view
-	var listView string
-	if a.viewMode == "multiline" {
-		listView = a.renderMultilineViewPlaceholder(a.width, listHeight)
+	// Show either list or detail view based on screenMode
+	var mainView string
+	if a.screenMode == "detail" && a.detailView != nil {
+		// In detail view
+		mainView = a.detailView.Render(a.width, listHeight)
 	} else {
-		listView = a.list.Render(a.width, listHeight)
+		// In list view
+		if a.viewMode == "multiline" {
+			mainView = a.renderMultilineViewPlaceholder(a.width, listHeight)
+		} else {
+			mainView = a.list.Render(a.width, listHeight)
+		}
 	}
-	lines = append(lines, listView)
+	lines = append(lines, mainView)
 
 	// Error message if present
 	if a.lastError != "" {
@@ -422,8 +432,15 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	k := msg.String()
 
-	// Handle ESC to clear search filter if active
-	if k == "esc" && a.searchFilter.IsActive() {
+	// Handle ESC in detail view to go back to list
+	if k == "esc" && a.screenMode == "detail" {
+		a.screenMode = "list"
+		a.detailView = nil
+		return a, nil
+	}
+
+	// Handle ESC to clear search filter if active (only in list view)
+	if k == "esc" && a.screenMode == "list" && a.searchFilter.IsActive() {
 		a.searchMode = false
 		a.searchInput.Blur()
 		a.searchInput.Reset()
@@ -477,6 +494,18 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case isKeyMatch(k, a.keys.DeleteData):
 		return a, a.deleteSelected(true)
+
+	case isKeyMatch(k, a.keys.Details):
+		// Open detail view for current torrent
+		if a.screenMode == "detail" {
+			// Already in detail view, ignore
+			return a, nil
+		}
+		torrent := a.list.GetCurrentTorrent()
+		if torrent != nil {
+			return a, a.openTorrentDetail(torrent.ID)
+		}
+		return a, nil
 
 	case isKeyMatch(k, a.keys.AddTorrent):
 		a.inputMode = "add"
@@ -943,6 +972,29 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 		lipgloss.Center, lipgloss.Center,
 		helpBox,
 	)
+}
+
+// openTorrentDetail opens the detail view for a specific torrent
+func (a *App) openTorrentDetail(id string) tea.Cmd {
+	return func() tea.Msg {
+		// Fetch torrent detail
+		detail, err := a.state.CurrentClient().Adapter.GetTorrentDetail(a.ctx, id)
+		if err != nil {
+			return errorMsg{err: err}
+		}
+
+		// Fetch torrent files
+		files, err := a.state.CurrentClient().Adapter.GetTorrentFiles(a.ctx, id)
+		if err != nil {
+			return errorMsg{err: err}
+		}
+
+		// Create detail view
+		a.detailView = NewDetailView(a.styles, detail, files)
+		a.screenMode = "detail"
+
+		return nil
+	}
 }
 
 // Shutdown cleans up resources

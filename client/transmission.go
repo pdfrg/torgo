@@ -39,6 +39,24 @@ type trTorrent struct {
 	DownloadedEver  int64   `json:"downloadedEver"`
 	UploadedEver    int64   `json:"uploadedEver"`
 	Hash            string  `json:"hashString"`
+	DownloadDir     string  `json:"downloadDir"`
+	Labels          []string `json:"labels"`
+	Comment         string  `json:"comment"`
+	Files           []trFile `json:"files"`
+	FileStats       []trFileStat `json:"fileStats"`
+}
+
+// trFile represents a file in a Transmission torrent
+type trFile struct {
+	Name   string `json:"name"`
+	Length int64  `json:"length"`
+}
+
+// trFileStat represents the stats for a file in a Transmission torrent
+type trFileStat struct {
+	BytesCompleted int64  `json:"bytesCompleted"`
+	Wanted         bool   `json:"wanted"`
+	Priority       int    `json:"priority"` // -1=low, 0=normal, 1=high
 }
 
 // trResponse is the wrapper for Transmission RPC responses
@@ -483,4 +501,91 @@ func (ta *TransmissionAdapter) GetSpeedLimits(ctx context.Context) (downKBs, upK
 		}
 	}
 	return downKBs, upKBs, nil
+}
+
+// GetTorrentDetail fetches detailed information about a specific torrent
+func (ta *TransmissionAdapter) GetTorrentDetail(ctx context.Context, id string) (*TorrentDetail, error) {
+	payload := fmt.Sprintf(`{
+		"method":"torrent-get",
+		"arguments":{
+			"ids":[%s],
+			"fields":["name","downloadDir","labels","comment","files","fileStats","totalSize","downloadedEver"]
+		}
+	}`, id)
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return nil, fmt.Errorf("torrent-get failed: %w", err)
+	}
+
+	if len(resp.Arguments.Torrents) == 0 {
+		return nil, fmt.Errorf("torrent not found")
+	}
+
+	tr := resp.Arguments.Torrents[0]
+
+	// Combine labels into a single category (Transmission uses multiple labels, but we'll show them comma-separated)
+	category := ""
+	if len(tr.Labels) > 0 {
+		category = tr.Labels[0]
+	}
+
+	return &TorrentDetail{
+		ID:          strconv.FormatInt(tr.ID, 10),
+		Name:        tr.Name,
+		Category:    category,
+		Tags:        tr.Labels, // In Transmission, labels are used like tags
+		Comments:    tr.Comment,
+		SavePath:    tr.DownloadDir,
+		TotalSize:   tr.TotalSize,
+		Downloaded:  tr.DownloadedEver,
+	}, nil
+}
+
+// GetTorrentFiles fetches the list of files in a torrent
+func (ta *TransmissionAdapter) GetTorrentFiles(ctx context.Context, id string) ([]TorrentFile, error) {
+	payload := fmt.Sprintf(`{
+		"method":"torrent-get",
+		"arguments":{
+			"ids":[%s],
+			"fields":["files","fileStats"]
+		}
+	}`, id)
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return nil, fmt.Errorf("torrent-get failed: %w", err)
+	}
+
+	if len(resp.Arguments.Torrents) == 0 {
+		return nil, fmt.Errorf("torrent not found")
+	}
+
+	tr := resp.Arguments.Torrents[0]
+
+	// Build file list from files and fileStats
+	files := make([]TorrentFile, len(tr.Files))
+	for i, f := range tr.Files {
+		downloaded := int64(0)
+		wanted := true
+		if i < len(tr.FileStats) {
+			downloaded = tr.FileStats[i].BytesCompleted
+			wanted = tr.FileStats[i].Wanted
+		}
+
+		priority := 0 // Download (1 = normal in Transmission)
+		if !wanted {
+			priority = 0 // Do not download (0 = wanted=false)
+		}
+
+		files[i] = TorrentFile{
+			Index:      i,
+			Name:       f.Name,
+			Size:       f.Length,
+			Downloaded: downloaded,
+			Priority:   priority,
+		}
+	}
+
+	return files, nil
 }

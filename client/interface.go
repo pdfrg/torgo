@@ -32,6 +32,29 @@ type Torrent struct {
 	Uploaded   int64 // bytes
 }
 
+// TorrentFile represents a file in a torrent
+type TorrentFile struct {
+	Index      int
+	Name       string // Relative path (e.g., "dir/subdir/file.txt")
+	Size       int64  // File size in bytes
+	Downloaded int64  // Bytes downloaded
+	Priority   int    // 0=do not download, 1=normal, 6=high, 7=maximal (qBittorrent only)
+}
+
+// TorrentDetail contains detailed information about a torrent
+type TorrentDetail struct {
+	ID           string         // Torrent ID/Hash
+	Name         string         // Torrent name
+	Category     string         // Category/Label
+	Tags         []string       // Tags (qBittorrent only)
+	Comments     string         // Torrent comments (from metadata)
+	SavePath     string         // Download location
+	Files        []TorrentFile  // All files in torrent
+	TotalSize    int64          // Total size of all files
+	Downloaded   int64          // Total downloaded bytes
+	ContentPath  string         // Actual content path (qBittorrent)
+}
+
 // ClientAdapter is the interface all torrent clients must implement
 type ClientAdapter interface {
 	// Connect tests the connection to the client
@@ -80,4 +103,10 @@ type ClientAdapter interface {
 
 	// GetSpeedLimits returns the download and upload speed limits (KB/s), or 0 if not set
 	GetSpeedLimits(ctx context.Context) (downKBs, upKBs int, err error)
+
+	// GetTorrentDetail returns detailed information about a specific torrent
+	GetTorrentDetail(ctx context.Context, id string) (*TorrentDetail, error)
+
+	// GetTorrentFiles returns the list of files in a torrent
+	GetTorrentFiles(ctx context.Context, id string) ([]TorrentFile, error)
 }

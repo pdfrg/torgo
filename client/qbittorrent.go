@@ -37,6 +37,20 @@ type qbTorrent struct {
 	TotalSize  int64   `json:"total_size"`
 	Downloaded int64   `json:"downloaded"`
 	Uploaded   int64   `json:"uploaded"`
+	Category   string  `json:"category"`
+	Tags       string  `json:"tags"`          // Comma-separated
+	Comment    string  `json:"comment"`
+	SavePath   string  `json:"save_path"`
+	ContentPath string `json:"content_path"`
+}
+
+// qbFile represents a file in a torrent (from /api/v2/torrents/files)
+type qbFile struct {
+	Index    int     `json:"index"`
+	Name     string  `json:"name"`
+	Size     int64   `json:"size"`
+	Progress float64 `json:"progress"` // 0-1
+	Priority int     `json:"priority"`
 }
 
 // NewQBittorrentAdapter creates a new qBittorrent adapter
@@ -462,4 +476,94 @@ func (qa *QBittorrentAdapter) GetSpeedLimits(ctx context.Context) (downKBs, upKB
 		}
 	}
 	return downKBs, upKBs, nil
+}
+
+// GetTorrentDetail fetches detailed information about a specific torrent
+func (qa *QBittorrentAdapter) GetTorrentDetail(ctx context.Context, id string) (*TorrentDetail, error) {
+	infoURL := qa.getBaseURL() + "/api/v2/torrents/info?hashes=" + id
+
+	req, err := http.NewRequestWithContext(ctx, "GET", infoURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get torrent info failed: status %d", resp.StatusCode)
+	}
+
+	var qbTorrents []qbTorrent
+	if err := json.NewDecoder(resp.Body).Decode(&qbTorrents); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(qbTorrents) == 0 {
+		return nil, fmt.Errorf("torrent not found")
+	}
+
+	qb := qbTorrents[0]
+
+	// Parse tags (comma-separated string)
+	tags := []string{}
+	if qb.Tags != "" {
+		tags = strings.Split(qb.Tags, ",")
+		for i, tag := range tags {
+			tags[i] = strings.TrimSpace(tag)
+		}
+	}
+
+	return &TorrentDetail{
+		ID:          qb.Hash,
+		Name:        qb.Name,
+		Category:    qb.Category,
+		Tags:        tags,
+		Comments:    qb.Comment,
+		SavePath:    qb.SavePath,
+		TotalSize:   qb.TotalSize,
+		Downloaded:  qb.Downloaded,
+		ContentPath: qb.ContentPath,
+	}, nil
+}
+
+// GetTorrentFiles fetches the list of files in a torrent
+func (qa *QBittorrentAdapter) GetTorrentFiles(ctx context.Context, id string) ([]TorrentFile, error) {
+	filesURL := qa.getBaseURL() + "/api/v2/torrents/files?hash=" + id
+
+	req, err := http.NewRequestWithContext(ctx, "GET", filesURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get files failed: status %d", resp.StatusCode)
+	}
+
+	var qbFiles []qbFile
+	if err := json.NewDecoder(resp.Body).Decode(&qbFiles); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	files := make([]TorrentFile, len(qbFiles))
+	for i, qbFile := range qbFiles {
+		files[i] = TorrentFile{
+			Index:      qbFile.Index,
+			Name:       qbFile.Name,
+			Size:       qbFile.Size,
+			Downloaded: int64(float64(qbFile.Size) * qbFile.Progress),
+			Priority:   qbFile.Priority,
+		}
+	}
+
+	return files, nil
 }
