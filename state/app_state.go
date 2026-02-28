@@ -31,6 +31,7 @@ type AppState struct {
 	SpeedLimitEnabled    bool   // Cache of speed limit status
 	SpeedLimitDownKBs    int    // Cache of down speed limit
 	SpeedLimitUpKBs      int    // Cache of up speed limit
+	Categories           []string // Cache of category/label names for current client
 }
 
 // FilterType represents torrent filtering options

@@ -130,7 +130,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.Pause, k.PauseAll, k.Resume, k.ResumeAll,
 		k.Delete, k.DeleteData, k.AddTorrent,
-		k.SwitchClient, k.ToggleSpeedLimit, k.ToggleHints, k.Quit,
+		k.SwitchClient, k.ToggleSpeedLimit, k.ToggleHints, k.ToggleView, k.Help, k.Quit,
 	}
 }
 
@@ -143,4 +143,33 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.SwitchClient, k.Sort, k.Filter, k.ToggleView, k.ToggleSpeedLimit},
 		{k.ToggleHints, k.Help, k.Quit},
 	}
+}
+
+// GetFullHelpText returns the full descriptive text for a key
+func GetFullHelpText(keyName string) string {
+	fullHelpMap := map[string]string{
+		"↑/k":   "move cursor up",
+		"↓/j":   "move cursor down",
+		"P":     "pause all",
+		"R":     "resume all",
+		"x":     "delete",
+		"X":     "delete with data",
+		"a":     "add torrent",
+		"c":     "cycle clients",
+		"v":     "cycle views",
+		"h":     "toggle hints bar",
+		"l":     "toggle speed limit",
+		"space": "toggle select",
+		"A":     "select all",
+		"p":     "pause",
+		"r":     "resume",
+		"s":     "sort",
+		"f":     "filter",
+		"?":     "help",
+		"q":     "quit",
+	}
+	if full, ok := fullHelpMap[keyName]; ok {
+		return full
+	}
+	return keyName
 }

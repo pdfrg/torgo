@@ -58,9 +58,13 @@ type ClientAdapter interface {
 	// RemoveTorrentWithData removes a torrent and deletes its files
 	RemoveTorrentWithData(ctx context.Context, id string) error
 
-	// AddTorrent adds a torrent from a magnet link or file path
-	// magnetLink: magnet:// URI or path to .torrent file
-	AddTorrent(ctx context.Context, magnetLink string) error
+	// AddTorrent adds a torrent from a magnet link, URL, or file path with optional category/label
+	// input: magnet:// URI, http(s):// URL, or path to .torrent file
+	// category: optional category/label name (empty string to skip)
+	AddTorrent(ctx context.Context, input string, category string) error
+
+	// GetCategories returns available categories/labels for organizing torrents
+	GetCategories(ctx context.Context) ([]string, error)
 
 	// PauseAll pauses all torrents
 	PauseAll(ctx context.Context) error

@@ -8,27 +8,39 @@ import (
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"tqbtui/state"
 )
 
+// simpleItem is a minimal list item for categories
+type simpleItem string
+
+func (i simpleItem) FilterValue() string { return string(i) }
+func (i simpleItem) Title() string       { return string(i) }
+func (i simpleItem) Description() string { return "" }
+
 // App is the main TUI application model
 type App struct {
-	state       *state.AppState
-	styles      *Styles
-	keys        KeyMap
-	list        *TorrentListView
-	statusBar   *StatusBar
-	hintsBar    *HintsBar
-	width       int
-	height      int
-	showHints   bool
-	viewMode    string    // "compact" or other modes
-	inputMode   string    // "", "add", "search"
-	inputBuffer string
-	lastError   string
-	ctx         context.Context
-	cancel      context.CancelFunc
+	state              *state.AppState
+	styles             *Styles
+	keys               KeyMap
+	list               *TorrentListView
+	statusBar          *StatusBar
+	hintsBar           *HintsBar
+	width              int
+	height             int
+	showHints          bool
+	showHelp           bool
+	viewMode           string        // "default" or "multiline"
+	inputMode          string        // "", "add", "search"
+	torrentInput       textinput.Model
+	categoryList       list.Model
+	lastError          string
+	ctx                context.Context
+	cancel             context.CancelFunc
 }
 
 // NewApp creates a new TUI application
@@ -38,17 +50,35 @@ func NewApp(appState *state.AppState) *App {
 	styles := DefaultStyles()
 	keys := DefaultKeyMap()
 
+	// Initialize text input
+	ti := textinput.New()
+	ti.Placeholder = "Magnet link, URL, or .torrent file path"
+	ti.CharLimit = 1024
+
+	// Initialize category list with compact delegate
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = false
+	delegate.SetHeight(1)
+	categoryList := list.New([]list.Item{}, delegate, 0, 6)
+	categoryList.SetShowHelp(false)
+	categoryList.SetShowStatusBar(false)
+	categoryList.SetShowTitle(true)
+	categoryList.Title = "Category"
+
 	app := &App{
-		state:     appState,
-		styles:    styles,
-		keys:      keys,
-		list:      NewTorrentListView(styles),
-		statusBar: NewStatusBar(styles),
-		hintsBar:  NewHintsBar(styles, keys),
-		showHints: appState.Config.UI.ShowHints,
-		viewMode:  "compact",
-		ctx:       ctx,
-		cancel:    cancel,
+		state:        appState,
+		styles:       styles,
+		keys:         keys,
+		list:         NewTorrentListView(styles),
+		statusBar:    NewStatusBar(styles),
+		hintsBar:     NewHintsBar(styles, keys),
+		showHints:    appState.Config.UI.ShowHints,
+		showHelp:     false,
+		viewMode:     "default",
+		torrentInput: ti,
+		categoryList: categoryList,
+		ctx:          ctx,
+		cancel:       cancel,
 	}
 
 	return app
@@ -135,19 +165,14 @@ func (a *App) View() string {
 		fixedHeight = 4
 	}
 
-	// Error and input heights
+	// Error height
 	errorHeight := 0
 	if a.lastError != "" {
 		errorHeight = 2
 	}
 
-	inputHeight := 0
-	if a.inputMode != "" {
-		inputHeight = 3
-	}
-
-	// List height = total - fixed - error - input
-	listHeight := a.height - fixedHeight - errorHeight - inputHeight
+	// List height = total - fixed - error (no input height since dialog is modal)
+	listHeight := a.height - fixedHeight - errorHeight
 	if listHeight < 3 {
 		listHeight = 3
 	}
@@ -160,37 +185,14 @@ func (a *App) View() string {
 	lines = append(lines, a.styles.Title.Render(titleText))
 	lines = append(lines, "")
 
-	// List
-	listView := a.list.Render(a.width, listHeight)
-	lines = append(lines, listView)
-
-	// Input dialog if in input mode - render as a centered popup box
-	if a.inputMode != "" {
-		lines = append(lines, "")
-		if a.inputMode == "add" {
-			// Create a dialog box for adding torrent
-			dialogWidth := 60
-			if a.width < 60 {
-				dialogWidth = a.width - 4
-			}
-			if dialogWidth < 20 {
-				dialogWidth = 20
-			}
-
-			// Build the dialog content
-			title := "Add Torrent"
-			prompt := "Magnet link or .torrent file path:"
-			hint := "(Ctrl+P to paste from clipboard, Esc to cancel)"
-
-			// Create the box
-			dialogBox := a.styles.Dialog.
-				Width(dialogWidth).
-				Render(
-					fmt.Sprintf("%s\n\n%s\n> %s\n\n%s",
-						title, prompt, a.inputBuffer, hint))
-			lines = append(lines, dialogBox)
-		}
+	// List or placeholder view
+	var listView string
+	if a.viewMode == "multiline" {
+		listView = a.renderMultilineViewPlaceholder(a.width, listHeight)
+	} else {
+		listView = a.list.Render(a.width, listHeight)
 	}
+	lines = append(lines, listView)
 
 	// Error message if present
 	if a.lastError != "" {
@@ -229,7 +231,68 @@ func (a *App) View() string {
 		output += "\n" + a.hintsBar.Render(a.width)
 	}
 
+	// Overlay modals
+	if a.showHelp {
+		output = a.overlayHelpDialog(output)
+	}
+
+	if a.inputMode == "add" {
+		output = a.overlayAddDialog(output)
+	}
+
 	return output
+}
+
+// overlayAddDialog renders the add torrent dialog as a centered modal overlay on top
+func (a *App) overlayAddDialog(baseOutput string) string {
+	// Dimensions
+	dialogWidth := 80
+	dialogHeight := 10 // actual height depends on a.categoryList.SetHeight(13) ...
+	// larger values can make dialog box taller, but smaller values are overridden
+	if a.width < 80 {
+		dialogWidth = a.width - 4
+	}
+	if dialogWidth < 40 {
+		dialogWidth = 40
+	}
+
+	// Build dialog content
+	title := "Add Torrent"
+	hint := "(Ctrl+P to paste, Esc to cancel)"
+
+	// Render torrent input
+	inputSection := a.torrentInput.View()
+
+	// Render category list
+	categoryView := ""
+	if len(a.state.Categories) > 0 {
+		a.categoryList.SetWidth(dialogWidth - 4)
+		a.categoryList.SetHeight(13) // This is not items, I think it's lines. 13 is min to see 5 items.
+		categoryView = a.categoryList.View()
+	}
+
+	// Assemble dialog content
+	contentLines := []string{title, "", inputSection}
+	if categoryView != "" {
+		contentLines = append(contentLines, "", categoryView)
+	}
+	contentLines = append(contentLines, "", hint)
+
+	content := strings.Join(contentLines, "\n")
+	
+	// Render dialog box with fixed dimensions using lipgloss
+	dialogBox := a.styles.Dialog.
+		Width(dialogWidth - 2). // Account for padding
+		Height(dialogHeight - 2). // Account for padding
+		Padding(1, 2).
+		Render(content)
+
+	// Use lipgloss.Place to center the popup properly
+	return lipgloss.Place(
+		a.width, a.height,
+		lipgloss.Center, lipgloss.Center,
+		dialogBox,
+	)
 }
 
 // handleKeyPress handles keyboard input
@@ -281,8 +344,9 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case isKeyMatch(k, a.keys.AddTorrent):
 		a.inputMode = "add"
-		a.inputBuffer = ""
-		return a, nil
+		a.torrentInput.Reset()
+		a.torrentInput.Focus()
+		return a, a.refreshCategories()
 
 	case isKeyMatch(k, a.keys.SwitchClient):
 		a.state.SwitchClient()
@@ -304,8 +368,15 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case isKeyMatch(k, a.keys.ToggleView):
-		// Toggle between view modes (for now just one, placeholder for future)
-		// Will expand to support multiple view modes
+		if a.viewMode == "default" {
+			a.viewMode = "multiline"
+		} else {
+			a.viewMode = "default"
+		}
+		return a, nil
+
+	case isKeyMatch(k, a.keys.Help):
+		a.showHelp = !a.showHelp
 		return a, nil
 
 	case isKeyMatch(k, a.keys.ToggleHints):
@@ -334,36 +405,49 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		a.inputMode = ""
-		a.inputBuffer = ""
+		a.torrentInput.Blur()
 		return a, nil
 	case "enter":
 		if a.inputMode == "add" {
-			return a, a.addTorrent(a.inputBuffer)
+			input := a.torrentInput.Value()
+			if input == "" {
+				return a, nil
+			}
+			
+			// Get selected category from list
+			var category string
+			if a.categoryList.Index() >= 0 && len(a.state.Categories) > 0 {
+				idx := a.categoryList.Index()
+				if idx > 0 { // idx 0 is "None"
+					category = a.state.Categories[idx-1]
+				}
+			}
+			return a, a.addTorrent(input, category)
 		}
 		a.inputMode = ""
-		a.inputBuffer = ""
-		return a, nil
-	case "backspace":
-		if len(a.inputBuffer) > 0 {
-			a.inputBuffer = a.inputBuffer[:len(a.inputBuffer)-1]
-		}
+		a.torrentInput.Blur()
 		return a, nil
 	case "ctrl+c":
 		a.inputMode = ""
-		a.inputBuffer = ""
+		a.torrentInput.Blur()
 		return a, nil
 	case "ctrl+p":
 		// Paste from clipboard
 		if text, err := clipboard.ReadAll(); err == nil {
 			// Remove trailing newlines that often come from clipboard
-			a.inputBuffer += strings.TrimSpace(text)
+			a.torrentInput.SetValue(a.torrentInput.Value() + strings.TrimSpace(text))
 		}
 		return a, nil
+	case "up", "down":
+		// Route to category list
+		var cmd tea.Cmd
+		a.categoryList, cmd = a.categoryList.Update(msg)
+		return a, cmd
 	default:
-		if len(msg.String()) == 1 {
-			a.inputBuffer += msg.String()
-		}
-		return a, nil
+		// Route to text input
+		var cmd tea.Cmd
+		a.torrentInput, cmd = a.torrentInput.Update(msg)
+		return a, cmd
 	}
 }
 
@@ -479,18 +563,20 @@ func (a *App) deleteSelected(withData bool) tea.Cmd {
 	}
 }
 
-func (a *App) addTorrent(magnetOrPath string) tea.Cmd {
+func (a *App) addTorrent(input string, category string) tea.Cmd {
 	return func() tea.Msg {
-		if magnetOrPath == "" {
-			return errorMsg{err: fmt.Errorf("empty magnet link or path")}
+		if input == "" {
+			return errorMsg{err: fmt.Errorf("empty magnet link, URL, or path")}
 		}
 
-		if err := a.state.CurrentClient().Adapter.AddTorrent(a.ctx, magnetOrPath); err != nil {
+		if err := a.state.CurrentClient().Adapter.AddTorrent(a.ctx, input, category); err != nil {
 			return errorMsg{err: err}
 		}
 
 		a.inputMode = ""
-		a.inputBuffer = ""
+		a.torrentInput.Blur()
+		a.torrentInput.Reset()
+		a.categoryList.ResetSelected()
 		return a.refreshTorrents()()
 	}
 }
@@ -501,6 +587,29 @@ func (a *App) toggleSpeedLimit() tea.Cmd {
 			return errorMsg{err: err}
 		}
 		return speedLimitToggledMsg{}
+	}
+}
+
+func (a *App) refreshCategories() tea.Cmd {
+	return func() tea.Msg {
+		categories, err := a.state.CurrentClient().Adapter.GetCategories(a.ctx)
+		if err != nil {
+			// Categories fetch failed, continue with empty list
+			a.state.Categories = []string{}
+		} else {
+			a.state.Categories = categories
+		}
+		
+		// Build category list items: "None" first, then actual categories
+		items := []list.Item{}
+		items = append(items, simpleItem("None"))
+		for _, cat := range a.state.Categories {
+			items = append(items, simpleItem(cat))
+		}
+		a.categoryList.SetItems(items)
+		a.categoryList.ResetSelected()
+		
+		return nil
 	}
 }
 
@@ -531,6 +640,79 @@ func (e errorMsg) Error() string {
 type errorClearedMsg struct{}
 
 type speedLimitToggledMsg struct{}
+
+// renderMultilineViewPlaceholder renders a placeholder for multiline view
+func (a *App) renderMultilineViewPlaceholder(width, height int) string {
+	msg := "Multi-line view under development\nPress 'v' again to return to default single-line view"
+	box := a.styles.Dialog.
+		Width(width - 2).
+		Height(height - 2).
+		Padding(1, 2).
+		Render(msg)
+	return box
+}
+
+// overlayHelpDialog renders a help popup with all keybindings
+func (a *App) overlayHelpDialog(baseOutput string) string {
+	dialogWidth := 55
+	dialogHeight := 35
+
+	if a.width < 55 {
+		dialogWidth = a.width - 4
+	}
+	if dialogWidth < 40 {
+		dialogWidth = 40
+	}
+
+	// Flatten all bindings from FullHelp into a single list
+	help := a.keys.FullHelp()
+	var allBindings []struct{ key, desc string }
+
+	for _, row := range help {
+		for _, binding := range row {
+			k, d := binding.Help().Key, binding.Help().Desc
+			if k != "" && d != "" {
+				allBindings = append(allBindings, struct{ key, desc string }{k, d})
+			}
+		}
+	}
+
+	// Calculate max key width for alignment
+	maxKeyWidth := 0
+	for _, b := range allBindings {
+		if len(b.key) > maxKeyWidth {
+			maxKeyWidth = len(b.key)
+		}
+	}
+
+	// Build help content with 2-column layout (key | desc)
+	var lines []string
+	lines = append(lines, "Help - Keybindings")
+	lines = append(lines, "")
+
+	for _, binding := range allBindings {
+		fullDesc := GetFullHelpText(binding.key)
+		line := fmt.Sprintf("%-*s  %s", maxKeyWidth, binding.key, fullDesc)
+		lines = append(lines, line)
+	}
+
+	lines = append(lines, "")
+	lines = append(lines, "(Press '?' to close)")
+
+	content := strings.Join(lines, "\n")
+
+	helpBox := a.styles.Dialog.
+		Width(dialogWidth - 2).
+		Height(dialogHeight - 2).
+		Padding(1, 2).
+		Render(content)
+
+	return lipgloss.Place(
+		a.width, a.height,
+		lipgloss.Center, lipgloss.Center,
+		helpBox,
+	)
+}
 
 // Shutdown cleans up resources
 func (a *App) Shutdown() {

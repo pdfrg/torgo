@@ -84,8 +84,10 @@ tqbtui/
 - [x] Transmission adapter (full JSON-RPC implementation)
 - [x] Application state management
 - [x] Unit & integration tests
-- [ ] TUI implementation with bubbletea
-- [ ] Keybinding system
+- [x] TUI implementation with bubbletea
+- [x] Keybinding system with hints bar
+- [x] Help dialog with full keybinding list
+- [x] Multi-view support (default single-line, placeholder multi-line)
 - [ ] omarchy colors.toml integration
 
 ## Usage

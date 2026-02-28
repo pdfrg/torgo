@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"time"
 )
@@ -142,15 +143,18 @@ func (qa *QBittorrentAdapter) RemoveTorrentWithData(ctx context.Context, id stri
 	return qa.delete(ctx, id, true)
 }
 
-// AddTorrent adds a torrent from magnet link or .torrent file
-func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, magnetLink string) error {
+// AddTorrent adds a torrent from magnet link, URL, or .torrent file with optional category
+func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, input string, category string) error {
 	addURL := qa.getBaseURL() + "/api/v2/torrents/add"
 
-	// Check if it's a magnet link or file path
-	if strings.HasPrefix(magnetLink, "magnet:") {
-		// Add magnet link
+	// Check if it's a magnet link or URL
+	if strings.HasPrefix(input, "magnet:") || strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
+		// Add magnet link or URL
 		formData := url.Values{}
-		formData.Set("urls", magnetLink)
+		formData.Set("urls", input)
+		if category != "" {
+			formData.Set("category", category)
+		}
 
 		req, err := http.NewRequestWithContext(ctx, "POST", addURL, strings.NewReader(formData.Encode()))
 		if err != nil {
@@ -160,18 +164,18 @@ func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, magnetLink string)
 
 		resp, err := qa.client.Do(req)
 		if err != nil {
-			return fmt.Errorf("add magnet failed: %w", err)
+			return fmt.Errorf("add failed: %w", err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("add magnet failed: status %d", resp.StatusCode)
+			return fmt.Errorf("add failed: status %d", resp.StatusCode)
 		}
 		return nil
 	}
 
 	// Handle file path
-	file, err := os.Open(magnetLink)
+	file, err := os.Open(input)
 	if err != nil {
 		return fmt.Errorf("failed to open torrent file: %w", err)
 	}
@@ -184,6 +188,9 @@ func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, magnetLink string)
 
 	formData := url.Values{}
 	formData.Set("filedata", string(fileBytes))
+	if category != "" {
+		formData.Set("category", category)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", addURL, strings.NewReader(formData.Encode()))
 	if err != nil {
@@ -201,6 +208,42 @@ func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, magnetLink string)
 		return fmt.Errorf("add torrent file failed: status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// GetCategories fetches available categories from qBittorrent
+func (qa *QBittorrentAdapter) GetCategories(ctx context.Context) ([]string, error) {
+	syncURL := qa.getBaseURL() + "/api/v2/sync/maindata"
+
+	req, err := http.NewRequestWithContext(ctx, "GET", syncURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch categories: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch categories: status %d", resp.StatusCode)
+	}
+
+	var result struct {
+		Categories map[string]interface{} `json:"categories"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Extract category names and sort them
+	categories := make([]string, 0, len(result.Categories))
+	for name := range result.Categories {
+		categories = append(categories, name)
+	}
+	
+	sort.Strings(categories)
+	return categories, nil
 }
 
 // PauseAll pauses all torrents

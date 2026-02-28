@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -161,28 +162,37 @@ func (ta *TransmissionAdapter) RemoveTorrentWithData(ctx context.Context, id str
 	return ta.torrentRemove(ctx, id, true)
 }
 
-// AddTorrent adds a torrent from magnet link or .torrent file
-func (ta *TransmissionAdapter) AddTorrent(ctx context.Context, magnetLink string) error {
+// AddTorrent adds a torrent from magnet link, URL, or .torrent file with optional labels
+func (ta *TransmissionAdapter) AddTorrent(ctx context.Context, input string, label string) error {
 	var payload string
+	var args string
 
-	if strings.HasPrefix(magnetLink, "magnet:") {
-		// Add magnet link
-		escapedMagnet := strings.ReplaceAll(magnetLink, "\"", "\\\"")
-		payload = fmt.Sprintf(`{
-			"method":"torrent-add",
-			"arguments":{"filename":"%s"}
-		}`, escapedMagnet)
+	if strings.HasPrefix(input, "magnet:") || strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
+		// Add magnet link or URL
+		escapedInput := strings.ReplaceAll(input, "\"", "\\\"")
+		args = fmt.Sprintf(`"filename":"%s"`, escapedInput)
 	} else {
 		// Handle file path
-		fileBytes, err := os.ReadFile(magnetLink)
+		fileBytes, err := os.ReadFile(input)
 		if err != nil {
 			return fmt.Errorf("failed to read torrent file: %w", err)
 		}
 		encoded := base64.StdEncoding.EncodeToString(fileBytes)
+		args = fmt.Sprintf(`"metainfo":"%s"`, encoded)
+	}
+
+	// Build arguments with optional labels
+	if label != "" {
+		escapedLabel := strings.ReplaceAll(label, "\"", "\\\"")
 		payload = fmt.Sprintf(`{
 			"method":"torrent-add",
-			"arguments":{"metainfo":"%s"}
-		}`, encoded)
+			"arguments":{%s,"labels":["%s"]}
+		}`, args, escapedLabel)
+	} else {
+		payload = fmt.Sprintf(`{
+			"method":"torrent-add",
+			"arguments":{%s}
+		}`, args)
 	}
 
 	resp, err := ta.sendRPC(ctx, payload)
@@ -195,6 +205,41 @@ func (ta *TransmissionAdapter) AddTorrent(ctx context.Context, magnetLink string
 	}
 
 	return nil
+}
+
+// GetCategories returns available labels from Transmission
+func (ta *TransmissionAdapter) GetCategories(ctx context.Context) ([]string, error) {
+	// Transmission doesn't have a direct way to get all labels
+	// We need to fetch all torrents and extract unique labels
+	payload := `{
+		"method":"torrent-get",
+		"arguments":{"fields":["labels"]}
+	}`
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch torrents: %w", err)
+	}
+
+	if resp.Result != "success" {
+		return nil, fmt.Errorf("failed to fetch torrents: %s", resp.Result)
+	}
+
+	// Extract unique labels from all torrents
+	labelSet := make(map[string]struct{})
+	for range resp.Arguments.Torrents {
+		// TODO: Extract labels once trTorrent struct is updated to include Labels field
+	}
+
+	// Convert to sorted slice
+	labels := make([]string, 0, len(labelSet))
+	for label := range labelSet {
+		if label != "" { // Skip empty labels
+			labels = append(labels, label)
+		}
+	}
+	sort.Strings(labels)
+	return labels, nil
 }
 
 // PauseAll pauses all torrents
