@@ -432,11 +432,35 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	k := msg.String()
 
-	// Handle ESC in detail view to go back to list
-	if k == "esc" && a.screenMode == "detail" {
-		a.screenMode = "list"
-		a.detailView = nil
-		return a, nil
+	// Handle detail view specific keys
+	if a.screenMode == "detail" && a.detailView != nil {
+		switch {
+		case k == "esc":
+			a.screenMode = "list"
+			a.detailView = nil
+			return a, nil
+
+		case isKeyMatch(k, a.keys.Up):
+			a.detailView.MoveCursor(-1)
+			return a, nil
+
+		case isKeyMatch(k, a.keys.Down):
+			a.detailView.MoveCursor(1)
+			return a, nil
+
+		case k == "right":
+			a.detailView.ToggleExpanded()
+			return a, nil
+
+		case k == "left":
+			a.detailView.CollapseAll()
+			return a, nil
+
+		case k == "]":
+			a.detailView.ExpandAll()
+			return a, nil
+		}
+		// Other keys fall through to be handled in list view context (for consistency)
 	}
 
 	// Handle ESC to clear search filter if active (only in list view)

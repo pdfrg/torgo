@@ -12,7 +12,7 @@ type DetailView struct {
 	styles     *Styles
 	detail     *client.TorrentDetail
 	files      []client.TorrentFile
-	fileTree   []FileTreeNode // Hierarchical tree of files
+	fileTree   []*FileTreeNode // Hierarchical tree of files
 	width      int
 	height     int
 	cursorPos  int // Current cursor position in the view
@@ -27,11 +27,20 @@ type FileTreeNode struct {
 	Size         int64
 	Downloaded   int64
 	Priority     int
-	Index        int // Original file index (for files only)
-	Level        int // Depth in tree
-	Children     []FileTreeNode
+	Index        int          // Original file index (for files only)
+	Level        int          // Depth in tree
+	Children     []*FileTreeNode
 	Parent       *FileTreeNode
 	Expanded     bool
+	Path         string       // Full path for sorting and identification
+}
+
+// FlattenedNode is used for rendering: represents a node with its visual state
+type FlattenedNode struct {
+	Node     *FileTreeNode
+	Depth    int
+	IsLast   bool    // Last child in parent's children
+	Siblings []bool  // Track which ancestors are last children (for tree lines)
 }
 
 // NewDetailView creates a new detail view
@@ -53,20 +62,97 @@ func NewDetailView(styles *Styles, detail *client.TorrentDetail, files []client.
 
 // buildFileTree builds a hierarchical tree from the flat file list
 func (dv *DetailView) buildFileTree() {
-	// For now, create a simple flat list
-	// TODO: Build proper directory tree with expansion support
-	dv.fileTree = make([]FileTreeNode, len(dv.files))
-	for i, f := range dv.files {
-		dv.fileTree[i] = FileTreeNode{
-			Name:       f.Name,
-			IsDirectory: false,
-			Size:       f.Size,
-			Downloaded: f.Downloaded,
-			Priority:   f.Priority,
-			Index:      f.Index,
-			Level:      0,
+	if len(dv.files) == 0 {
+		dv.fileTree = []*FileTreeNode{}
+		return
+	}
+
+	// Create a map to track directories we've seen
+	dirMap := make(map[string]*FileTreeNode)
+
+	// Create root nodes for top-level files and directories
+	var rootNodes []*FileTreeNode
+
+	for _, f := range dv.files {
+		// Split the path to get directory components
+		parts := strings.Split(f.Name, "/")
+
+		if len(parts) == 1 {
+			// Top-level file
+			node := &FileTreeNode{
+				Name:       parts[0],
+				IsDirectory: false,
+				Size:       f.Size,
+				Downloaded: f.Downloaded,
+				Priority:   f.Priority,
+				Index:      f.Index,
+				Level:      0,
+				Path:       f.Name,
+				Expanded:   false,
+			}
+			rootNodes = append(rootNodes, node)
+		} else {
+			// File in a subdirectory - build the directory tree
+			currentPath := ""
+			var parentNode *FileTreeNode
+
+			for i, part := range parts[:len(parts)-1] {
+				if currentPath == "" {
+					currentPath = part
+				} else {
+					currentPath = currentPath + "/" + part
+				}
+
+				// Check if this directory already exists
+				if dirNode, exists := dirMap[currentPath]; exists {
+					parentNode = dirNode
+				} else {
+					// Create new directory node
+					dirNode := &FileTreeNode{
+						Name:        part,
+						IsDirectory: true,
+						Level:       i,
+						Path:        currentPath,
+						Expanded:    false,
+					}
+
+					dirMap[currentPath] = dirNode
+
+					// Add to parent or root
+					if parentNode == nil {
+						rootNodes = append(rootNodes, dirNode)
+					} else {
+						parentNode.Children = append(parentNode.Children, dirNode)
+						dirNode.Parent = parentNode
+					}
+
+					parentNode = dirNode
+				}
+			}
+
+			// Add the file to its parent directory
+			fileName := parts[len(parts)-1]
+			fileNode := &FileTreeNode{
+				Name:       fileName,
+				IsDirectory: false,
+				Size:       f.Size,
+				Downloaded: f.Downloaded,
+				Priority:   f.Priority,
+				Index:      f.Index,
+				Level:      len(parts) - 1,
+				Path:       f.Name,
+				Expanded:   false,
+			}
+
+			if parentNode != nil {
+				parentNode.Children = append(parentNode.Children, fileNode)
+				fileNode.Parent = parentNode
+			}
 		}
 	}
+
+	// Start with all directories collapsed
+	dv.fileTree = rootNodes
 }
 
 // Render renders the detail view
@@ -157,46 +243,126 @@ func (dv *DetailView) renderFilesSection(width, maxLines int) string {
 		return strings.Join(lines, "\n")
 	}
 
-	// Render file tree (simple flat list for now)
-	for i, node := range dv.fileTree {
-		if i >= maxLines-1 {
-			lines = append(lines, "  ... (more files)")
-			break
-		}
+	// Flatten the tree to a list of visible nodes
+	flattened := dv.flattenTree()
 
-		fileLine := dv.renderFileNode(node, width-4)
-		lines = append(lines, "  "+fileLine)
+	// Apply scroll offset
+	startIdx := dv.scrollPos
+	endIdx := startIdx + maxLines - 1
+	if endIdx >= len(flattened) {
+		endIdx = len(flattened)
+	}
+
+	// Render visible nodes
+	for i := startIdx; i < endIdx && i < len(flattened); i++ {
+		fnode := flattened[i]
+		line := dv.renderTreeNode(fnode, width-4)
+		lines = append(lines, "  "+line)
+	}
+
+	// Show count if there are more items
+	if len(flattened) > endIdx {
+		remaining := len(flattened) - endIdx
+		lines = append(lines, fmt.Sprintf("  ... (%d more items)", remaining))
 	}
 
 	return strings.Join(lines, "\n")
 }
 
-// renderFileNode renders a single file or directory node
-func (dv *DetailView) renderFileNode(node FileTreeNode, width int) string {
-	// Priority indicator
-	priority := "[ ]"
-	if node.Priority != 0 {
-		priority = "[x]"
+// flattenTree converts the tree to a flat list of visible nodes (respecting expanded state)
+func (dv *DetailView) flattenTree() []*FlattenedNode {
+	var result []*FlattenedNode
+
+	for _, rootNode := range dv.fileTree {
+		dv.flattenNode(rootNode, 0, nil, &result)
 	}
 
-	// Size
-	sizeStr := formatBytes(node.Size)
+	return result
+}
 
-	// Progress
+// flattenNode recursively flattens a node and its children
+func (dv *DetailView) flattenNode(node *FileTreeNode, depth int, siblings []bool, result *[]*FlattenedNode) {
+	isLast := false
+	if node.Parent != nil {
+		isLast = len(node.Parent.Children) > 0 && node.Parent.Children[len(node.Parent.Children)-1] == node
+	}
+
+	fnode := &FlattenedNode{
+		Node:     node,
+		Depth:    depth,
+		IsLast:   isLast,
+		Siblings: append([]bool{}, siblings...),
+	}
+
+	*result = append(*result, fnode)
+
+	// Recursively add children if expanded
+	if node.IsDirectory && node.Expanded {
+		for _, child := range node.Children {
+			newSiblings := append(siblings, isLast)
+			dv.flattenNode(child, depth+1, newSiblings, result)
+		}
+	}
+}
+
+// renderTreeNode renders a single node with tree formatting
+func (dv *DetailView) renderTreeNode(fnode *FlattenedNode, width int) string {
+	node := fnode.Node
+
+	// Build tree prefix (├─, └─, │, etc.)
+	var prefix string
+	for i := 0; i < fnode.Depth; i++ {
+		if i < len(fnode.Siblings) && fnode.Siblings[i] {
+			prefix += "  "
+		} else {
+			prefix += "│ "
+		}
+	}
+
+	// Add the branch character
+	if fnode.Depth > 0 {
+		if fnode.IsLast {
+			prefix += "└─"
+		} else {
+			prefix += "├─"
+		}
+	}
+
+	// Directory/file indicator and expand marker
+	var indicator string
+	if node.IsDirectory {
+		if node.Expanded {
+			indicator = "[-]"
+		} else {
+			indicator = "[+]"
+		}
+	} else {
+		// File priority indicator
+		if node.Priority != 0 {
+			indicator = "[x]"
+		} else {
+			indicator = "[ ]"
+		}
+	}
+
+	// Size and progress
+	sizeStr := formatBytes(node.Size)
 	downloaded := node.Downloaded
 	progress := 0
 	if node.Size > 0 {
 		progress = int((float64(downloaded) / float64(node.Size)) * 100)
 	}
 
-	// Build the line (simplified format)
-	// [x] filename                                   12.3 MB [75%]
+	// Truncate name if needed
+	maxNameWidth := width - len(prefix) - len(indicator) - len(sizeStr) - 10
 	name := node.Name
-	if len(name) > width-30 {
-		name = name[:width-30] + "…"
+	if len(name) > maxNameWidth {
+		name = name[:maxNameWidth-1] + "…"
 	}
 
-	line := fmt.Sprintf("%s %-*s %8s [%3d%%]", priority, width-30, name, sizeStr, progress)
+	// Build the line
+	// Format: [+] name                                   12.3 MB [75%]
+	line := fmt.Sprintf("%s%s %-*s %8s [%3d%%]", prefix, indicator, maxNameWidth, name, sizeStr, progress)
 	return line
 }
 
@@ -220,22 +386,98 @@ func formatBytes(bytes int64) string {
 	}
 }
 
-// MoveCursor moves the cursor up or down
+// MoveCursor moves the cursor up or down in the flattened tree
 func (dv *DetailView) MoveCursor(delta int) {
+	flattened := dv.flattenTree()
+
 	newPos := dv.cursorPos + delta
 	if newPos < 0 {
 		newPos = 0
 	}
-	if newPos >= len(dv.fileTree) {
-		newPos = len(dv.fileTree) - 1
+	if newPos >= len(flattened) {
+		newPos = len(flattened) - 1
 	}
 	dv.cursorPos = newPos
+
+	// Keep cursor visible in viewport
+	dv.ensureCursorVisible(len(flattened))
 }
 
-// GetCurrentFile returns the currently selected file (or nil)
+// ToggleExpanded toggles the expanded state of the current node if it's a directory
+func (dv *DetailView) ToggleExpanded() {
+	flattened := dv.flattenTree()
+	if dv.cursorPos >= 0 && dv.cursorPos < len(flattened) {
+		node := flattened[dv.cursorPos].Node
+		if node.IsDirectory {
+			node.Expanded = !node.Expanded
+		}
+	}
+}
+
+// ExpandAll expands all directories
+func (dv *DetailView) ExpandAll() {
+	for _, root := range dv.fileTree {
+		dv.expandAllRecursive(root)
+	}
+}
+
+// expandAllRecursive recursively expands all directories
+func (dv *DetailView) expandAllRecursive(node *FileTreeNode) {
+	if node.IsDirectory {
+		node.Expanded = true
+		for _, child := range node.Children {
+			dv.expandAllRecursive(child)
+		}
+	}
+}
+
+// CollapseAll collapses all directories
+func (dv *DetailView) CollapseAll() {
+	for _, root := range dv.fileTree {
+		dv.collapseAllRecursive(root)
+	}
+}
+
+// collapseAllRecursive recursively collapses all directories
+func (dv *DetailView) collapseAllRecursive(node *FileTreeNode) {
+	if node.IsDirectory {
+		node.Expanded = false
+		for _, child := range node.Children {
+			dv.collapseAllRecursive(child)
+		}
+	}
+}
+
+// ensureCursorVisible adjusts scroll position to keep cursor visible
+func (dv *DetailView) ensureCursorVisible(treeSize int) {
+	// Simple scrolling: keep cursor roughly centered if possible
+	viewportHeight := 10 // Estimated viewport height for files section
+	
+	if dv.cursorPos < dv.scrollPos {
+		// Cursor moved above viewport
+		dv.scrollPos = dv.cursorPos
+	} else if dv.cursorPos >= dv.scrollPos+viewportHeight {
+		// Cursor moved below viewport
+		dv.scrollPos = dv.cursorPos - viewportHeight + 1
+	}
+
+	// Bounds check
+	if dv.scrollPos < 0 {
+		dv.scrollPos = 0
+	}
+	if dv.scrollPos > treeSize-1 {
+		dv.scrollPos = treeSize - 1
+	}
+}
+
+// GetCurrentFile returns the currently selected file (or nil if directory is selected)
 func (dv *DetailView) GetCurrentFile() *client.TorrentFile {
-	if dv.cursorPos >= 0 && dv.cursorPos < len(dv.files) {
-		return &dv.files[dv.cursorPos]
+	flattened := dv.flattenTree()
+	if dv.cursorPos >= 0 && dv.cursorPos < len(flattened) {
+		node := flattened[dv.cursorPos].Node
+		if !node.IsDirectory && node.Index >= 0 && node.Index < len(dv.files) {
+			return &dv.files[node.Index]
+		}
 	}
 	return nil
 }
