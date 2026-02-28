@@ -1,21 +1,60 @@
-# Example configuration file
+# tqbtui Configuration File
 # Copy to ~/.config/tqbtui/config.toml and customize
 
+# ============================================================================
+# UI Configuration
+# ============================================================================
 [ui]
+# default_client: Which client to connect to on startup (must match a client's 'id')
 default_client = "qbt-local"
-show_hints = true
-color_scheme = "default"  # Options: "default", "colors.toml", or path
 
-# Multiple qBittorrent instances
+# show_hints: Display keybinding hints bar at bottom of screen
+show_hints = true
+
+# color_scheme: Color theme ("default", "colors.toml", or path to custom colors.toml)
+color_scheme = "default"
+
+# ============================================================================
+# Client Configuration
+# ============================================================================
+# Each [[clients]] block defines a torrent client to connect to.
+# You can have multiple clients of each type and switch between them with 'c' key.
+#
+# Fields displayed in TUI status bar:
+#   [status] name host:port
+# Example:
+#   ✓ Online  Local qBittorrent localhost:8080  🐢▼123 ▲45    23/45 torrents
+#   ✓ Online  Work Server 10.0.0.5:6969    12/20 torrents
+
+# qBittorrent Instance 1 (Local)
 [[clients]]
+# type: REQUIRED - Must be exactly "qbittorrent" or "transmission"
 type = "qbittorrent"
+
+# id: REQUIRED - Unique identifier for this client (used internally, shown in status bar)
+#    Can be any string, must be unique across all clients
+#    Shown in TUI as: [qbt-local] ...
 id = "qbt-local"
+
+# name: REQUIRED - Display name shown in TUI status bar and client switcher
+#      Can be any descriptive text you prefer
+#      Shown in TUI as: ... Local qBittorrent ...
 name = "Local qBittorrent"
+
+# host: REQUIRED - Hostname or IP address of the torrent client
 host = "localhost"
+
+# port: REQUIRED - Port number the torrent client listens on
 port = 8080
+
+# username: OPTIONAL - Username for authentication (empty if client allows anonymous)
 username = "admin"
+
+# password: OPTIONAL - Password for authentication
+#          Can use environment variables like $QBT_PASS (will be expanded at startup)
 password = "admin"
 
+# qBittorrent Instance 2 (Remote)
 [[clients]]
 type = "qbittorrent"
 id = "qbt-remote"
@@ -23,9 +62,9 @@ name = "Remote qBittorrent"
 host = "192.168.1.50"
 port = 8080
 username = "user"
-password = "$QBT_PASS"
+password = "your-password-here"
 
-# Multiple Transmission instances
+# Transmission Instance 1 (Local)
 [[clients]]
 type = "transmission"
 id = "trans-local"
@@ -35,11 +74,12 @@ port = 6969
 username = "transmission"
 password = "transmission"
 
+# Transmission Instance 2 (Remote)
 [[clients]]
 type = "transmission"
 id = "trans-remote"
-name = "Remote Transmission"
+name = "Work Server"
 host = "10.0.0.5"
 port = 6969
 username = "user"
-password = "$TRANS_PASS"
+password = "your-password-here"

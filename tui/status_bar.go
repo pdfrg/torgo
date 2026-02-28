@@ -32,9 +32,18 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 		connStatus = "✓ Online"
 	}
 
-	// Client info
-	clientInfo := fmt.Sprintf("[%s] %s (%s)",
-		current.ID, current.Name, current.Type)
+	// Client info: name and connection details (from config)
+	clientHost := ""
+	clientPort := 0
+	for _, cfg := range appState.Config.Clients {
+		if cfg.ID == current.ID {
+			clientHost = cfg.Host
+			clientPort = cfg.Port
+			break
+		}
+	}
+	clientInfo := fmt.Sprintf("%s %s:%d",
+		current.Name, clientHost, clientPort)
 
 	// Torrent count and speeds
 	filtered := appState.FilteredTorrents()
