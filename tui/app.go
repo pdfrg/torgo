@@ -483,6 +483,15 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Start editing the default field
 			a.detailView.EditDefaultField()
 			return a, nil
+
+		case k == "tab":
+			// Switch between info and files sections
+			if a.detailView.viewSection == "info" {
+				a.detailView.viewSection = "files"
+			} else {
+				a.detailView.viewSection = "info"
+			}
+			return a, nil
 		}
 		// Other keys fall through to be handled in list view context (for consistency)
 	}

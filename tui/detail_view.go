@@ -15,15 +15,26 @@ type DetailView struct {
 	fileTree    []*FileTreeNode // Hierarchical tree of files
 	width       int
 	height      int
-	cursorPos   int // Current cursor position in the view (in info section or files)
+	viewSection string // "info" or "files" - which section has focus
+	infoCursor  int    // Cursor position in info section (0=name, 1=category, etc)
+	scrollPos   int    // Vertical scroll position in files section
 	expanded    map[string]bool // Track which directories are expanded
-	scrollPos   int // Vertical scroll position
+	fileCursor  int    // Cursor position in file tree
 	editMode    string // "", "name", "category", "tags", "comments", "location"
 	editValue   string // Current edit field value
 	editCursorX int    // Cursor position within edit field
 	editError   string // Error message during edit
-	infoScroll  int    // Scroll position in info section
 }
+
+// Info section field indices
+const (
+	InfoName = iota
+	InfoCategory
+	InfoTags
+	InfoComments
+	InfoLocation
+	InfoMaxFields
+)
 
 // FileTreeNode represents a node in the file tree (either file or directory)
 type FileTreeNode struct {
@@ -51,12 +62,14 @@ type FlattenedNode struct {
 // NewDetailView creates a new detail view
 func NewDetailView(styles *Styles, detail *client.TorrentDetail, files []client.TorrentFile) *DetailView {
 	dv := &DetailView{
-		styles:    styles,
-		detail:    detail,
-		files:     files,
-		expanded:  make(map[string]bool),
-		cursorPos: 0,
-		scrollPos: 0,
+		styles:      styles,
+		detail:      detail,
+		files:       files,
+		expanded:    make(map[string]bool),
+		viewSection: "info",
+		infoCursor:  0,
+		fileCursor:  0,
+		scrollPos:   0,
 	}
 
 	// Build file tree
@@ -202,40 +215,56 @@ func (dv *DetailView) renderInfoSection() string {
 	if dv.editMode == "name" {
 		lines = append(lines, dv.renderEditField("Name", dv.editValue))
 	} else {
-		lines = append(lines, fmt.Sprintf("Name:             %s", dv.detail.Name))
+		cursor := " "
+		if dv.viewSection == "info" && dv.infoCursor == InfoName {
+			cursor = ">"
+		}
+		lines = append(lines, fmt.Sprintf("%s Name:             %s", cursor, dv.detail.Name))
 	}
 
 	// Category
 	if dv.editMode == "category" {
 		lines = append(lines, dv.renderEditField("Category", dv.editValue))
 	} else {
+		cursor := " "
+		if dv.viewSection == "info" && dv.infoCursor == InfoCategory {
+			cursor = ">"
+		}
 		category := dv.detail.Category
 		if category == "" {
 			category = "(none)"
 		}
-		lines = append(lines, fmt.Sprintf("Category:         %s", category))
+		lines = append(lines, fmt.Sprintf("%s Category:         %s", cursor, category))
 	}
 
 	// Tags (if any)
 	if dv.editMode == "tags" {
 		lines = append(lines, dv.renderEditField("Tags", dv.editValue))
 	} else {
+		cursor := " "
+		if dv.viewSection == "info" && dv.infoCursor == InfoTags {
+			cursor = ">"
+		}
 		tags := "(none)"
 		if len(dv.detail.Tags) > 0 {
 			tags = strings.Join(dv.detail.Tags, ", ")
 		}
-		lines = append(lines, fmt.Sprintf("Tags:             %s", tags))
+		lines = append(lines, fmt.Sprintf("%s Tags:             %s", cursor, tags))
 	}
 
 	// Comments
 	if dv.editMode == "comments" {
 		lines = append(lines, dv.renderEditField("Comments", dv.editValue))
 	} else {
+		cursor := " "
+		if dv.viewSection == "info" && dv.infoCursor == InfoComments {
+			cursor = ">"
+		}
 		comments := dv.detail.Comments
 		if comments == "" {
 			comments = "(none)"
 		}
-		lines = append(lines, fmt.Sprintf("Comments:         %s", comments))
+		lines = append(lines, fmt.Sprintf("%s Comments:         %s", cursor, comments))
 	}
 
 	// Save path
@@ -245,7 +274,11 @@ func (dv *DetailView) renderInfoSection() string {
 			lines = append(lines, fmt.Sprintf("  Error: %s", dv.editError))
 		}
 	} else {
-		lines = append(lines, fmt.Sprintf("Download Path:    %s", dv.detail.SavePath))
+		cursor := " "
+		if dv.viewSection == "info" && dv.infoCursor == InfoLocation {
+			cursor = ">"
+		}
+		lines = append(lines, fmt.Sprintf("%s Download Path:    %s", cursor, dv.detail.SavePath))
 	}
 
 	// Size info
@@ -262,7 +295,11 @@ func (dv *DetailView) renderInfoSection() string {
 	if dv.editMode != "" {
 		lines = append(lines, "  [Enter] save  [Esc] cancel  |  editing: "+dv.editMode)
 	} else {
-		lines = append(lines, "  [e] edit field  [↑↓] navigate  [→] expand  [←←] collapse  []] expand all")
+		section := "info"
+		if dv.viewSection == "files" {
+			section = "files"
+		}
+		lines = append(lines, "  [e] edit  [Tab] switch section  [↑↓] navigate  [→] expand  [←←] collapse  []] expand all  |  in: "+section)
 	}
 
 	return strings.Join(lines, "\n")
@@ -315,12 +352,14 @@ func (dv *DetailView) renderFilesSection(width, maxLines int) string {
 		fnode := flattened[i]
 		line := dv.renderTreeNode(fnode, width-4)
 		
-		// Add cursor indicator for current position
-		if i == dv.cursorPos {
-			lines = append(lines, "> "+line)
+		// Add cursor indicator for current position (only if we're in files section)
+		var prefix string
+		if dv.viewSection == "files" && i == dv.fileCursor {
+			prefix = "> "
 		} else {
-			lines = append(lines, "  "+line)
+			prefix = "  "
 		}
+		lines = append(lines, prefix+line)
 	}
 
 	// Show count if there are more items
@@ -449,28 +488,44 @@ func formatBytes(bytes int64) string {
 	}
 }
 
-// MoveCursor moves the cursor up or down in the flattened tree
+// MoveCursor moves the cursor up or down based on current section
 func (dv *DetailView) MoveCursor(delta int) {
-	flattened := dv.flattenTree()
+	if dv.viewSection == "info" {
+		// Navigate info section fields
+		newPos := dv.infoCursor + delta
+		if newPos < 0 {
+			newPos = 0
+		}
+		if newPos >= InfoMaxFields {
+			newPos = InfoMaxFields - 1
+		}
+		dv.infoCursor = newPos
+	} else {
+		// Navigate file tree
+		flattened := dv.flattenTree()
 
-	newPos := dv.cursorPos + delta
-	if newPos < 0 {
-		newPos = 0
-	}
-	if newPos >= len(flattened) {
-		newPos = len(flattened) - 1
-	}
-	dv.cursorPos = newPos
+		newPos := dv.fileCursor + delta
+		if newPos < 0 {
+			newPos = 0
+		}
+		if newPos >= len(flattened) {
+			newPos = len(flattened) - 1
+		}
+		dv.fileCursor = newPos
 
-	// Keep cursor visible in viewport
-	dv.ensureCursorVisible(len(flattened))
+		// Keep cursor visible in viewport
+		dv.ensureCursorVisible(len(flattened))
+	}
 }
 
 // ToggleExpanded toggles the expanded state of the current node if it's a directory
 func (dv *DetailView) ToggleExpanded() {
+	if dv.viewSection != "files" {
+		return // Can only expand/collapse in files section
+	}
 	flattened := dv.flattenTree()
-	if dv.cursorPos >= 0 && dv.cursorPos < len(flattened) {
-		node := flattened[dv.cursorPos].Node
+	if dv.fileCursor >= 0 && dv.fileCursor < len(flattened) {
+		node := flattened[dv.fileCursor].Node
 		if node.IsDirectory {
 			node.Expanded = !node.Expanded
 		}
@@ -516,12 +571,12 @@ func (dv *DetailView) ensureCursorVisible(treeSize int) {
 	// Simple scrolling: keep cursor roughly centered if possible
 	viewportHeight := 10 // Estimated viewport height for files section
 	
-	if dv.cursorPos < dv.scrollPos {
+	if dv.fileCursor < dv.scrollPos {
 		// Cursor moved above viewport
-		dv.scrollPos = dv.cursorPos
-	} else if dv.cursorPos >= dv.scrollPos+viewportHeight {
+		dv.scrollPos = dv.fileCursor
+	} else if dv.fileCursor >= dv.scrollPos+viewportHeight {
 		// Cursor moved below viewport
-		dv.scrollPos = dv.cursorPos - viewportHeight + 1
+		dv.scrollPos = dv.fileCursor - viewportHeight + 1
 	}
 
 	// Bounds check
@@ -533,11 +588,14 @@ func (dv *DetailView) ensureCursorVisible(treeSize int) {
 	}
 }
 
-// GetCurrentFile returns the currently selected file (or nil if directory is selected)
+// GetCurrentFile returns the currently selected file (or nil if directory is selected or in info section)
 func (dv *DetailView) GetCurrentFile() *client.TorrentFile {
+	if dv.viewSection != "files" {
+		return nil
+	}
 	flattened := dv.flattenTree()
-	if dv.cursorPos >= 0 && dv.cursorPos < len(flattened) {
-		node := flattened[dv.cursorPos].Node
+	if dv.fileCursor >= 0 && dv.fileCursor < len(flattened) {
+		node := flattened[dv.fileCursor].Node
 		if !node.IsDirectory && node.Index >= 0 && node.Index < len(dv.files) {
 			return &dv.files[node.Index]
 		}
@@ -545,11 +603,25 @@ func (dv *DetailView) GetCurrentFile() *client.TorrentFile {
 	return nil
 }
 
-// EditDefaultField starts editing the appropriate field based on what makes sense
+// EditDefaultField starts editing the appropriate field based on current cursor position
 func (dv *DetailView) EditDefaultField() {
-	// For now, always edit name as the primary field
-	// In future, could be context-aware based on cursor position
-	dv.StartEdit("name")
+	if dv.viewSection != "info" {
+		return // Can only edit fields in info section
+	}
+
+	// Edit the field based on cursor position
+	switch dv.infoCursor {
+	case InfoName:
+		dv.StartEdit("name")
+	case InfoCategory:
+		dv.StartEdit("category")
+	case InfoTags:
+		dv.StartEdit("tags")
+	case InfoComments:
+		dv.StartEdit("comments")
+	case InfoLocation:
+		dv.StartEdit("location")
+	}
 }
 
 // StartEdit starts editing a specific field
