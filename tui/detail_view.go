@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -684,13 +685,33 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 // ==============================================================================
 
 type FilesTabModel struct {
-	files []client.TorrentFile
-	// TODO: Add tree-bubble component here
+	files          []client.TorrentFile
+	selectedFiles  map[int]bool // Track which file indices are selected for download
+	cursorIndex    int           // Currently focused file (for navigation)
+}
+
+// FileNode represents a file or folder in the tree
+type FileNode struct {
+	Index    int            // Original file index from TorrentFile
+	Name     string         // Display name (filename only, not full path)
+	Size     int64          // File size
+	IsFolder bool           // Whether this is a folder/directory
+	Children []*FileNode    // Child nodes if folder
+	Depth    int            // Indentation depth
 }
 
 func NewFilesTabModel(state *DetailViewState, files []client.TorrentFile) *FilesTabModel {
+	// Initialize selectedFiles based on current priority status
+	// Priority 0 = do not download, otherwise = download
+	selectedFiles := make(map[int]bool)
+	for _, f := range files {
+		selectedFiles[f.Index] = f.Priority != 0
+	}
+
 	return &FilesTabModel{
-		files: files,
+		files:         files,
+		selectedFiles: selectedFiles,
+		cursorIndex:   0,
 	}
 }
 
@@ -698,8 +719,53 @@ func (m *FilesTabModel) Init() tea.Cmd {
 	return nil
 }
 
+// GetSelectedFileIndices returns the list of file indices selected for download
+func (m *FilesTabModel) GetSelectedFileIndices() []int {
+	var selected []int
+	for fileIdx, isSelected := range m.selectedFiles {
+		if isSelected {
+			selected = append(selected, fileIdx)
+		}
+	}
+	// Sort for consistent ordering
+	sort.Ints(selected)
+	return selected
+}
+
+// HasFileChanges checks if file selections have changed from original state
+func (m *FilesTabModel) HasFileChanges() bool {
+	for _, f := range m.files {
+		originalSelected := f.Priority != 0
+		currentSelected := m.selectedFiles[f.Index]
+		if originalSelected != currentSelected {
+			return true
+		}
+	}
+	return false
+}
+
 func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
-	// TODO: Implement files tab update with tree-bubble
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "down":
+			// Move cursor down
+			if m.cursorIndex < len(m.files)-1 {
+				m.cursorIndex++
+			}
+		case "up":
+			// Move cursor up
+			if m.cursorIndex > 0 {
+				m.cursorIndex--
+			}
+		case "space", "enter":
+			// Toggle current file selection
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.files) {
+				fileIdx := m.files[m.cursorIndex].Index
+				m.selectedFiles[fileIdx] = !m.selectedFiles[fileIdx]
+			}
+		}
+	}
 	return nil
 }
 
@@ -711,71 +777,46 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 		Foreground(state.Styles.SelectColor).
 		Bold(true)
 	
+	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
+	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor)
+	
 	content.WriteString(labelStyle.Render("Files") + " (" + fmt.Sprintf("%d", len(m.files)) + " total)\n\n")
 	
 	if len(m.files) == 0 {
 		content.WriteString("No files in this torrent\n")
 	} else {
-		// Build a tree of files organized by directory
-		dirMap := make(map[string][]client.TorrentFile)
-		var topLevelDirs []string
-		seenDirs := make(map[string]bool)
-		
-		for _, file := range m.files {
-			parts := strings.Split(file.Name, "/")
-			if len(parts) > 1 {
-				// File is in a subdirectory
-				topDir := parts[0]
-				if !seenDirs[topDir] {
-					topLevelDirs = append(topLevelDirs, topDir)
-					seenDirs[topDir] = true
-				}
-				dirMap[topDir] = append(dirMap[topDir], file)
-			} else {
-				// File at root level
-				if !seenDirs[""] {
-					topLevelDirs = append(topLevelDirs, "")
-					seenDirs[""] = true
-				}
-				dirMap[""] = append(dirMap[""], file)
+		// Show all files with checkboxes
+		for i, f := range m.files {
+			isSelected := m.selectedFiles[f.Index]
+			isCursor := i == m.cursorIndex
+			
+			// Checkbox
+			checkbox := "☐"
+			if isSelected {
+				checkbox = "☑"
 			}
-		}
-		
-		// Show top-level directories and files
-		for _, dir := range topLevelDirs {
-			files := dirMap[dir]
-			if dir == "" {
-				// Root level files
-				for _, f := range files {
-					content.WriteString(fmt.Sprintf("  %s (%s)\n", f.Name, formatBytes(f.Size)))
-				}
-			} else {
-				// Directory - show expanded with first few files
-				content.WriteString(fmt.Sprintf("  📁 %s/\n", dir))
-				
-				// Show first few files in this directory
-				maxFiles := 3
-				if len(files) < maxFiles {
-					maxFiles = len(files)
-				}
-				
-				for i := 0; i < maxFiles; i++ {
-					f := files[i]
-					fileName := strings.TrimPrefix(f.Name, dir+"/")
-					content.WriteString(fmt.Sprintf("      %s (%s)\n", fileName, formatBytes(f.Size)))
-				}
-				
-				if len(files) > maxFiles {
-					hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
-					content.WriteString(hintStyle.Render(fmt.Sprintf("      ... and %d more files\n", len(files)-maxFiles)))
-				}
+			
+			// Build line with cursor indicator
+			prefix := "  "
+			if isCursor {
+				prefix = "> "
 			}
+			
+			fileName := f.Name
+			fileSize := formatBytes(f.Size)
+			
+			line := fmt.Sprintf("%s%s %s (%s)\n", prefix, checkbox, fileName, fileSize)
+			
+			// Highlight current line
+			if isCursor {
+				line = selectedStyle.Render(line)
+			}
+			
+			content.WriteString(line)
 		}
 	}
 	
-	content.WriteString("\n" + lipgloss.NewStyle().
-		Foreground(state.Styles.HintColor).
-		Render("(File priority editing coming soon)\n"))
+	content.WriteString("\n" + hintStyle.Render("↑/↓ to navigate  •  Space/Enter to toggle download  •  Tab to return to info\n"))
 	
 	return content.String()
 }

@@ -1104,6 +1104,14 @@ func (a *App) saveTorrentChanges() tea.Cmd {
 			}
 		}
 
+		// Check for file priority changes
+		if a.detailView.FilesTab != nil && a.detailView.FilesTab.HasFileChanges() {
+			selectedIndices := a.detailView.FilesTab.GetSelectedFileIndices()
+			if err := adapter.SetFilePriorities(a.ctx, torrentID, selectedIndices); err != nil {
+				return errorMsg{err: fmt.Errorf("failed to save file priorities: %w", err)}
+			}
+		}
+
 		// All changes saved successfully
 		// Clear the detail view and return to list
 		a.screenMode = "list"

@@ -121,4 +121,8 @@ type ClientAdapter interface {
 
 	// SetSavePath changes the save/download location for a torrent
 	SetSavePath(ctx context.Context, id string, path string) error
+
+	// SetFilePriorities sets which files to download in a torrent
+	// fileIndices: list of file indices to download (all others will be skipped)
+	SetFilePriorities(ctx context.Context, id string, fileIndices []int) error
 }

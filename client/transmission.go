@@ -629,3 +629,20 @@ func (ta *TransmissionAdapter) SetSavePath(ctx context.Context, id string, path 
 
 	return nil
 }
+
+// SetFilePriorities sets which files to download in a Transmission torrent
+func (ta *TransmissionAdapter) SetFilePriorities(ctx context.Context, id string, fileIndices []int) error {
+	// Transmission uses fileWanted (true/false) for each file
+	// This requires a more complex RPC call with arrays of file indices
+
+	// Create set of indices for quick lookup
+	_ = make(map[int]bool)
+	for _, idx := range fileIndices {
+		// Would be used to build files-wanted and files-unwanted arrays
+		_ = idx
+	}
+
+	// Note: Full implementation requires complex JSON array building
+	// Returning error for now to indicate the feature is not fully supported
+	return fmt.Errorf("SetFilePriorities not yet fully implemented in Transmission (requires files-wanted/files-unwanted array support)")
+}

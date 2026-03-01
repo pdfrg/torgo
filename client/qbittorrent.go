@@ -699,3 +699,77 @@ func (qa *QBittorrentAdapter) SetSavePath(ctx context.Context, id string, path s
 
 	return nil
 }
+
+// SetFilePriorities sets which files to download in a qBittorrent torrent
+func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, fileIndices []int) error {
+	// Build the priority data: all files get 0 (skip), then set selected ones to 1 (normal)
+	priorityURL := qa.getBaseURL() + "/api/v2/torrents/filePrio"
+
+	// We need to send filePrio for each file: indices that should download get priority 1, others get 0
+	// This is a bit complex in qBittorrent - we need to specify priority for each file
+
+	// First, get current file count to know how many files exist
+	filesURL := qa.getBaseURL() + "/api/v2/torrents/files?hash=" + id
+	req, err := http.NewRequestWithContext(ctx, "GET", filesURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("get files failed: status %d", resp.StatusCode)
+	}
+
+	var qbFiles []qbFile
+	if err := json.NewDecoder(resp.Body).Decode(&qbFiles); err != nil {
+		return fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	// Create a set of indices to download for quick lookup
+	downloadSet := make(map[int]bool)
+	for _, idx := range fileIndices {
+		downloadSet[idx] = true
+	}
+
+	// Build the priority string: "idx1:1|idx2:0|..." where 1=download, 0=skip
+	var priorityStr strings.Builder
+	for i := 0; i < len(qbFiles); i++ {
+		if i > 0 {
+			priorityStr.WriteString("|")
+		}
+		priorityStr.WriteString(fmt.Sprintf("%d:", i))
+		if downloadSet[i] {
+			priorityStr.WriteString("1") // Download with normal priority
+		} else {
+			priorityStr.WriteString("0") // Skip this file
+		}
+	}
+
+	// Send the priority update
+	form := url.Values{}
+	form.Set("hash", id)
+	form.Set("filePrio", priorityStr.String())
+
+	req, err = http.NewRequestWithContext(ctx, "POST", priorityURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err = qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("set file priorities failed: status %d", resp.StatusCode)
+	}
+
+	return nil
+}
