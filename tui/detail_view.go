@@ -231,7 +231,16 @@ func (dv *DetailView) View() string {
 	return tabs + "\n" + content
 }
 
-// renderTabs renders the tab bar with active tab highlighted
+// tabBorderWithBottom creates a custom tab border with specified bottom characters
+func tabBorderWithBottom(left, middle, right string) lipgloss.Border {
+	border := lipgloss.RoundedBorder()
+	border.BottomLeft = left
+	border.Bottom = middle
+	border.BottomRight = right
+	return border
+}
+
+// renderTabs renders the tab bar with active tab highlighted using lipgloss borders
 func (dv *DetailView) renderTabs() string {
 	tabLabels := map[string]string{
 		"info":     "Info",
@@ -240,59 +249,50 @@ func (dv *DetailView) renderTabs() string {
 		"files":    "Files",
 	}
 
-	// Build lines with consistent styling
-	var topLine, middleLine, bottomLine strings.Builder
-	totalWidth := 0
+	// Create tab border styles
+	inactiveTabBorder := tabBorderWithBottom("┴", "─", "┴")
+	activeTabBorder := tabBorderWithBottom("┘", " ", "└")
+
+	var renderedTabs []string
 
 	for i, tabName := range dv.TabOrder {
 		label := tabLabels[tabName]
 		isActive := tabName == dv.CurrentTab
+		isFirst := i == 0
+		isLast := i == len(dv.TabOrder)-1
 
-		paddedLabel := " " + label + " "
-		tabWidth := len(paddedLabel) + 2 // +2 for the box borders
-		
-		// Top: rounded corners
-		topBorder := "╭" + strings.Repeat("─", len(paddedLabel)) + "╮"
-		midBorder := "│" + paddedLabel + "│"
-		// Bottom: use spaces to not interfere with the connecting line below
-		bottomBorder := strings.Repeat(" ", tabWidth)
-
+		// Choose base style
+		var tabStyle lipgloss.Style
 		if isActive {
-			// Active tab in select color
-			activeStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.SelectColor)
-			topLine.WriteString(activeStyle.Render(topBorder))
-			middleLine.WriteString(activeStyle.Render("│") + activeStyle.Render(paddedLabel) + activeStyle.Render("│"))
-			bottomLine.WriteString(bottomBorder)
+			tabStyle = lipgloss.NewStyle().
+				Border(activeTabBorder, true).
+				BorderForeground(dv.State.Styles.SelectColor).
+				Padding(0, 1)
 		} else {
-			// Inactive tab in hint color
-			inactiveStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.HintColor)
-			topLine.WriteString(inactiveStyle.Render(topBorder))
-			middleLine.WriteString(inactiveStyle.Render(midBorder))
-			bottomLine.WriteString(bottomBorder)
+			tabStyle = lipgloss.NewStyle().
+				Border(inactiveTabBorder, true).
+				BorderForeground(dv.State.Styles.HintColor).
+				Padding(0, 1)
 		}
 
-		totalWidth += tabWidth
-
-		// Add spacing between tabs
-		if i < len(dv.TabOrder)-1 {
-			topLine.WriteString(" ")
-			middleLine.WriteString(" ")
-			bottomLine.WriteString(" ")
-			totalWidth += 1
+		// Adjust corners for first and last tabs
+		border, _, _, _, _ := tabStyle.GetBorder()
+		if isFirst && isActive {
+			border.BottomLeft = "│"
+		} else if isFirst && !isActive {
+			border.BottomLeft = "├"
 		}
+		if isLast && isActive {
+			border.BottomRight = "│"
+		} else if isLast && !isActive {
+			border.BottomRight = "┤"
+		}
+		tabStyle = tabStyle.Border(border)
+
+		renderedTabs = append(renderedTabs, tabStyle.Render(label))
 	}
 
-	// Build a clean connecting line across the bottom (like the edge of a folder)
-	connectingLine := "└" + strings.Repeat("─", totalWidth-1)
-	// Extend the connecting line to fill remaining width (if width is known)
-	if dv.State.Width > totalWidth {
-		connectingLine += strings.Repeat("─", dv.State.Width-totalWidth)
-	}
-	
-	// Apply color to the connecting line (use hint color as neutral)
-	connectingLineStyled := lipgloss.NewStyle().Foreground(dv.State.Styles.HintColor).Render(connectingLine)
-
-	return topLine.String() + "\n" + middleLine.String() + "\n" + connectingLineStyled
+	return lipgloss.JoinHorizontal(lipgloss.Top, renderedTabs...)
 }
 
 // ==============================================================================
