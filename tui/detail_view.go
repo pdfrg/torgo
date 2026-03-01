@@ -226,13 +226,18 @@ func (dv *DetailView) View() tea.View {
 	var content string
 	switch dv.CurrentTab {
 	case "info":
-		content = dv.InfoTab.View(dv.State, dv.FilesTab).String()
+		// Convert tea.View to string - tea.View wraps the output string
+		infoView := dv.InfoTab.View(dv.State, dv.FilesTab)
+		content = fmt.Sprintf("%s", infoView)
 	case "edit":
-		content = dv.EditTab.View(dv.State).String()
+		editView := dv.EditTab.View(dv.State)
+		content = fmt.Sprintf("%s", editView)
 	case "category":
-		content = dv.CategoryTab.View(dv.State).String()
+		catView := dv.CategoryTab.View(dv.State)
+		content = fmt.Sprintf("%s", catView)
 	case "files":
-		content = dv.FilesTab.View(dv.State).String()
+		filesView := dv.FilesTab.View(dv.State)
+		content = fmt.Sprintf("%s", filesView)
 	default:
 		content = "Unknown tab"
 	}
@@ -276,12 +281,12 @@ func (dv *DetailView) renderTabs() string {
 		if isActive {
 			tabStyle = lipgloss.NewStyle().
 				Border(activeTabBorder, true).
-				BorderForeground(dv.State.Styles.SelectColor)().
+				BorderForeground(dv.State.Styles.SelectColor()).
 				Padding(0, 1)
 		} else {
 			tabStyle = lipgloss.NewStyle().
 				Border(inactiveTabBorder, true).
-				BorderForeground(dv.State.Styles.HintColor)().
+				BorderForeground(dv.State.Styles.HintColor()).
 				Padding(0, 1)
 		}
 
@@ -344,7 +349,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) tea
 	}
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor)().
+		Foreground(state.Styles.SelectColor()).
 		Bold(true)
 
 	var content strings.Builder
@@ -708,16 +713,16 @@ func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
 
 func (m *EditTabModel) View(state *DetailViewState) tea.View {
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor)().
+		Foreground(state.Styles.SelectColor()).
 		Bold(true)
 
 	focusStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.BgColor)().
-		Background(state.Styles.SelectColor)().
+		Foreground(state.Styles.BgColor()).
+		Background(state.Styles.SelectColor()).
 		Padding(0, 1)
 
-	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)()
-	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor)()
+	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
+	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor())
 
 	var content strings.Builder
 	content.WriteString("\n")
@@ -836,7 +841,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) tea.View {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor)().
+		Foreground(state.Styles.SelectColor()).
 		Bold(true)
 	
 	content.WriteString(labelStyle.Render("Select a category:") + "\n\n")
@@ -846,7 +851,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) tea.View {
 	content.WriteString(listView)
 	
 	content.WriteString("\n" + lipgloss.NewStyle().
-		Foreground(state.Styles.HintColor)().
+		Foreground(state.Styles.HintColor()).
 		Render("↑/↓ to navigate  •  Enter to select  •  Esc to cancel\n"))
 	
 	return tea.NewView(content.String())
@@ -1234,11 +1239,11 @@ func (m *FilesTabModel) View(state *DetailViewState) tea.View {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor)().
+		Foreground(state.Styles.SelectColor()).
 		Bold(true)
 	
-	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)()
-	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor)()
+	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
+	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor())
 	
 	content.WriteString(labelStyle.Render("Files") + " (" + fmt.Sprintf("%d", len(m.files)) + " total)\n\n")
 	

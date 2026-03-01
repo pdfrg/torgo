@@ -302,7 +302,8 @@ func (a *App) View() tea.View {
 	var mainView string
 	if a.screenMode == "detail" && a.detailView != nil {
 		// In detail view - use full available height (accounting for status/hints at bottom)
-		mainView = a.detailView.View().String()
+		detailViewOutput := a.detailView.View()
+		mainView = fmt.Sprintf("%s", detailViewOutput)
 	} else {
 		// In list view
 		if a.viewMode == "multiline" {
@@ -328,7 +329,7 @@ func (a *App) View() tea.View {
 	// Error message if present
 	if a.lastError != "" {
 		lines = append(lines, "")
-		lines = append(lines, a.styles.ListItem.Foreground(a.styles.ErrorColor).
+		lines = append(lines, a.styles.ListItem.Foreground(a.styles.ErrorColor()).
 			Render("Error: "+a.lastError))
 	}
 
@@ -433,7 +434,7 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 
 	// Add validation error in red if present
 	if a.inputValidationErr != "" {
-		errorText := a.styles.ListItem.Foreground(a.styles.ErrorColor).Render("✗ " + a.inputValidationErr)
+		errorText := a.styles.ListItem.Foreground(a.styles.ErrorColor()).Render("✗ " + a.inputValidationErr)
 		contentLines = append(contentLines, errorText)
 	}
 
