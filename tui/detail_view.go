@@ -226,18 +226,13 @@ func (dv *DetailView) View() tea.View {
 	var content string
 	switch dv.CurrentTab {
 	case "info":
-		// Convert tea.View to string - tea.View wraps the output string
-		infoView := dv.InfoTab.View(dv.State, dv.FilesTab)
-		content = fmt.Sprintf("%s", infoView)
+		content = dv.InfoTab.View(dv.State, dv.FilesTab)
 	case "edit":
-		editView := dv.EditTab.View(dv.State)
-		content = fmt.Sprintf("%s", editView)
+		content = dv.EditTab.View(dv.State)
 	case "category":
-		catView := dv.CategoryTab.View(dv.State)
-		content = fmt.Sprintf("%s", catView)
+		content = dv.CategoryTab.View(dv.State)
 	case "files":
-		filesView := dv.FilesTab.View(dv.State)
-		content = fmt.Sprintf("%s", filesView)
+		content = dv.FilesTab.View(dv.State)
 	default:
 		content = "Unknown tab"
 	}
@@ -343,9 +338,9 @@ func (m *InfoTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 	return nil
 }
 
-func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) tea.View {
+func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) string {
 	if m.detail == nil {
-		return tea.NewView("No torrent selected")
+		return "No torrent selected"
 	}
 
 	labelStyle := lipgloss.NewStyle().
@@ -446,7 +441,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) tea
 		content.WriteString("\nPress 'e' to edit, Tab to switch tabs\n")
 	}
 
-	return tea.NewView(content.String())
+	return content.String()
 }
 
 // formatBytes converts bytes to human-readable format
@@ -711,7 +706,7 @@ func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
 	}
 }
 
-func (m *EditTabModel) View(state *DetailViewState) tea.View {
+func (m *EditTabModel) View(state *DetailViewState) string {
 	labelStyle := lipgloss.NewStyle().
 		Foreground(state.Styles.SelectColor()).
 		Bold(true)
@@ -771,7 +766,7 @@ func (m *EditTabModel) View(state *DetailViewState) tea.View {
 	}
 	content.WriteString("\n" + hintStyle.Render(hint) + "\n")
 	
-	return tea.NewView(content.String())
+	return content.String()
 }
 
 // ==============================================================================
@@ -836,7 +831,7 @@ func (m *CategoryTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 	return nil
 }
 
-func (m *CategoryTabModel) View(state *DetailViewState) tea.View {
+func (m *CategoryTabModel) View(state *DetailViewState) string {
 	var content strings.Builder
 	content.WriteString("\n")
 	
@@ -854,7 +849,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) tea.View {
 		Foreground(state.Styles.HintColor()).
 		Render("↑/↓ to navigate  •  Enter to select  •  Esc to cancel\n"))
 	
-	return tea.NewView(content.String())
+	return content.String()
 }
 
 // ==============================================================================
@@ -1234,7 +1229,7 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 	return nil
 }
 
-func (m *FilesTabModel) View(state *DetailViewState) tea.View {
+func (m *FilesTabModel) View(state *DetailViewState) string {
 	var content strings.Builder
 	content.WriteString("\n")
 	
@@ -1322,5 +1317,5 @@ func (m *FilesTabModel) View(state *DetailViewState) tea.View {
 	
 	content.WriteString("\n" + hintStyle.Render("↑/↓ to navigate  •  ←/→ to collapse/expand  •  Space to toggle  •  Tab to return\n"))
 	
-	return tea.NewView(content.String())
+	return content.String()
 }
