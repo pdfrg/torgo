@@ -606,10 +606,10 @@ func (m *CategoryTabModel) Init() tea.Cmd {
 }
 
 func (m *CategoryTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
-	var cmd tea.Cmd
-	m.list, cmd = m.list.Update(msg)
+	// Handle list updates
+	m.list, _ = m.list.Update(msg)
 
-	// Update state with selected category
+	// Update state with selected category whenever selection changes
 	if item := m.list.SelectedItem(); item != nil {
 		catValue := string(item.(simpleItem))
 		if catValue != "(none)" {
@@ -619,7 +619,7 @@ func (m *CategoryTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 		}
 	}
 
-	return cmd
+	return nil
 }
 
 func (m *CategoryTabModel) View(state *DetailViewState) string {
