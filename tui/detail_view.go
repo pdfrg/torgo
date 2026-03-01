@@ -15,13 +15,14 @@ type DetailView struct {
 	fileTree    []*FileTreeNode // Hierarchical tree of files
 	width       int
 	height      int
-	cursorPos   int // Current cursor position in the view
+	cursorPos   int // Current cursor position in the view (in info section or files)
 	expanded    map[string]bool // Track which directories are expanded
 	scrollPos   int // Vertical scroll position
 	editMode    string // "", "name", "category", "tags", "comments", "location"
 	editValue   string // Current edit field value
 	editCursorX int    // Cursor position within edit field
 	editError   string // Error message during edit
+	infoScroll  int    // Scroll position in info section
 }
 
 // FileTreeNode represents a node in the file tree (either file or directory)
@@ -544,7 +545,14 @@ func (dv *DetailView) GetCurrentFile() *client.TorrentFile {
 	return nil
 }
 
-// StartEdit starts editing a field
+// EditDefaultField starts editing the appropriate field based on what makes sense
+func (dv *DetailView) EditDefaultField() {
+	// For now, always edit name as the primary field
+	// In future, could be context-aware based on cursor position
+	dv.StartEdit("name")
+}
+
+// StartEdit starts editing a specific field
 func (dv *DetailView) StartEdit(field string) {
 	dv.editMode = field
 	dv.editError = ""

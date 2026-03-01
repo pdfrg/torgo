@@ -480,9 +480,8 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, nil
 
 		case k == "e":
-			// Start editing the current field (name, category, etc.)
-			// For now, just start editing name
-			a.detailView.StartEdit("name")
+			// Start editing the default field
+			a.detailView.EditDefaultField()
 			return a, nil
 		}
 		// Other keys fall through to be handled in list view context (for consistency)
