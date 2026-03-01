@@ -300,7 +300,7 @@ func (a *App) View() string {
 	// Show either list or detail view based on screenMode
 	var mainView string
 	if a.screenMode == "detail" && a.detailView != nil {
-		// In detail view
+		// In detail view - use full available height (accounting for status/hints at bottom)
 		mainView = a.detailView.View()
 	} else {
 		// In list view
@@ -311,6 +311,18 @@ func (a *App) View() string {
 		}
 	}
 	lines = append(lines, mainView)
+	
+	// Add spacing to push status/hints to bottom when in detail view
+	if a.screenMode == "detail" && a.detailView != nil {
+		// Calculate remaining height and fill with blank lines
+		currentHeight := len(lines)
+		requiredHeight := a.height - bottomHeight
+		if currentHeight < requiredHeight {
+			for i := 0; i < requiredHeight-currentHeight; i++ {
+				lines = append(lines, "")
+			}
+		}
+	}
 
 	// Error message if present
 	if a.lastError != "" {

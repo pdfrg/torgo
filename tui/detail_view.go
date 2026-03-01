@@ -240,8 +240,8 @@ func (dv *DetailView) renderTabs() string {
 		"files":    "Files",
 	}
 
-	// Build top line and middle line separately
-	var topLine, middleLine strings.Builder
+	// Build lines with consistent styling
+	var topLine, middleLine, bottomLine strings.Builder
 	totalWidth := 0
 
 	for i, tabName := range dv.TabOrder {
@@ -252,17 +252,20 @@ func (dv *DetailView) renderTabs() string {
 		tabWidth := len(paddedLabel) + 2 // +2 for the box borders
 		topBorder := "┌" + strings.Repeat("─", len(paddedLabel)) + "┐"
 		midBorder := "│" + paddedLabel + "│"
+		bottomBorder := "└" + strings.Repeat("─", len(paddedLabel)) + "┘"
 
 		if isActive {
 			// Active tab in select color
 			activeStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.SelectColor)
 			topLine.WriteString(activeStyle.Render(topBorder))
 			middleLine.WriteString(activeStyle.Render("│") + activeStyle.Render(paddedLabel) + activeStyle.Render("│"))
+			bottomLine.WriteString(activeStyle.Render(bottomBorder))
 		} else {
 			// Inactive tab in hint color
 			inactiveStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.HintColor)
 			topLine.WriteString(inactiveStyle.Render(topBorder))
 			middleLine.WriteString(inactiveStyle.Render(midBorder))
+			bottomLine.WriteString(inactiveStyle.Render(bottomBorder))
 		}
 
 		totalWidth += tabWidth
@@ -271,15 +274,12 @@ func (dv *DetailView) renderTabs() string {
 		if i < len(dv.TabOrder)-1 {
 			topLine.WriteString(" ")
 			middleLine.WriteString(" ")
+			bottomLine.WriteString(" ")
 			totalWidth += 1
 		}
 	}
 
-	// Bottom border - continuous line
-	// Use lipgloss.Width to properly calculate visible width (excluding ANSI codes)
-	bottomBorder := strings.Repeat("─", totalWidth)
-
-	return topLine.String() + "\n" + middleLine.String() + "\n" + bottomBorder
+	return topLine.String() + "\n" + middleLine.String() + "\n" + bottomLine.String()
 }
 
 // ==============================================================================
@@ -491,13 +491,13 @@ func (m *EditTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab":
+		case "tab", "down":
 			// Next field
 			m.fields[m.focusIndex].Input.Blur()
 			m.focusIndex = (m.focusIndex + 1) % len(m.fields)
 			m.fields[m.focusIndex].Input.Focus()
 			return nil
-		case "shift+tab":
+		case "shift+tab", "up":
 			// Previous field
 			m.fields[m.focusIndex].Input.Blur()
 			m.focusIndex = (m.focusIndex - 1 + len(m.fields)) % len(m.fields)
@@ -581,10 +581,11 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 	delegate.ShowDescription = false
 	delegate.SetHeight(1)
 
-	l := list.New(items, delegate, 0, 6)
+	// Width and height will be set dynamically in View based on available space
+	l := list.New(items, delegate, 50, 10)
 	l.SetShowHelp(false)
 	l.SetShowStatusBar(false)
-	l.Title = "Category"
+	l.SetShowTitle(false)
 
 	// Select current category
 	if currentCategory != "" {
