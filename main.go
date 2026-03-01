@@ -25,7 +25,7 @@ func main() {
 
 	// Create and run TUI
 	app := tui.NewApp(appState)
-	p := tea.NewProgram(app, tea.WithAltScreen())
+	p := tea.NewProgram(app)
 
 	if _, err := p.Run(); err != nil {
 		log.Fatalf("Error running program: %v", err)

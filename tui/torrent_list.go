@@ -173,7 +173,7 @@ func (t *TorrentListView) Render(width, height int) string {
 	
 	// If cursor is below the visible area, scroll down
 	// Ensure at least 2 lines of overhead (header + separator) are always visible
-	visibleTop := t.viewport.YOffset
+	visibleTop := t.viewport.YOffset()
 	visibleBottom := visibleTop + t.viewport.Height()
 	
 	if cursorLine >= visibleBottom {
@@ -191,16 +191,18 @@ func (t *TorrentListView) Render(width, height int) string {
 		t.viewport.SetYOffset(0)
 	}
 
-	// Final safety checks
+	// Final safety checks - get updated YOffset after any SetYOffset calls
+	currentYOffset := t.viewport.YOffset()
 	// Never scroll negative
-	if t.viewport.YOffset < 0 {
+	if currentYOffset < 0 {
 		t.viewport.SetYOffset(0)
 	}
 	
 	// Never scroll past the end
-	if t.viewport.YOffset > contentHeight-t.viewport.Height() {
+	currentYOffset = t.viewport.YOffset()
+	if currentYOffset > contentHeight-t.viewport.Height() {
 		t.viewport.SetYOffset(contentHeight - t.viewport.Height())
-		if t.viewport.YOffset < 0 {
+		if t.viewport.YOffset() < 0 {
 			t.viewport.SetYOffset(0)
 		}
 	}
@@ -262,17 +264,14 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	}
 
 	// Get progress bar colors based on torrent status and progress
-	filledColor, unfilledColor := t.styles.ProgressBarColors(string(torrent.Status), torrent.Progress)
+	filledColor, _ := t.styles.ProgressBarColors(string(torrent.Status), torrent.Progress)
 
 	// Render the name with progress bar background
 	filledPart := string(nameRunes[:filledWidth])
 	unfilledPart := string(nameRunes[filledWidth:])
 
-	filledStyle := lipgloss.NewStyle().Background(filledColor).Foreground(t.styles.FgColor)
-	unfilledStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor)
-	if unfilledColor != "" {
-		unfilledStyle = unfilledStyle.Background(unfilledColor)
-	}
+	filledStyle := lipgloss.NewStyle().Background(filledColor).Foreground(t.styles.FgColor())
+	unfilledStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor())
 
 	// Render the styled name parts
 	renderedName := filledStyle.Render(filledPart) + unfilledStyle.Render(unfilledPart)
@@ -283,7 +282,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 
 	// Create a style for individual fields without padding or highlighting
 	// Only the number gets the highlight styling based on selection state
-	fieldStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor)
+	fieldStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor())
 
 	// Format field values with proper alignment BEFORE applying style
 	// Match the header format exactly: %3s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
