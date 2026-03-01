@@ -772,8 +772,8 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 			if m.cursorIndex > 0 {
 				m.cursorIndex--
 			}
-		case "space", "enter":
-			// Toggle current file selection
+		case " ", "enter":
+			// Toggle current file selection (space is represented as " ")
 			if m.cursorIndex >= 0 && m.cursorIndex < len(m.files) {
 				fileIdx := m.files[m.cursorIndex].Index
 				m.selectedFiles[fileIdx] = !m.selectedFiles[fileIdx]
