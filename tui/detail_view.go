@@ -256,10 +256,12 @@ func (dv *DetailView) renderInfoSection() string {
 	}
 	lines = append(lines, fmt.Sprintf("Size:             %s / %s (%d%%)", downloadedStr, totalStr, progress))
 
-	// Edit mode hint
+	// Instructions/hints
+	lines = append(lines, "")
 	if dv.editMode != "" {
-		lines = append(lines, "")
-		lines = append(lines, "  [Enter] save  [Esc] cancel")
+		lines = append(lines, "  [Enter] save  [Esc] cancel  |  editing: "+dv.editMode)
+	} else {
+		lines = append(lines, "  [e] edit field  [↑↓] navigate  [→] expand  [←←] collapse  []] expand all")
 	}
 
 	return strings.Join(lines, "\n")
@@ -281,7 +283,9 @@ func (dv *DetailView) renderEditField(label, value string) string {
 		cursorLine = value + "|"
 	}
 
-	return fmt.Sprintf("%s:%s%s", label, padStr, cursorLine)
+	// Add visual indicator that this field is being edited
+	result := fmt.Sprintf("%s:%s%s", label, padStr, cursorLine)
+	return "▸ " + result // Triangle indicator shows this is active
 }
 
 // renderFilesSection renders the file tree
@@ -305,11 +309,17 @@ func (dv *DetailView) renderFilesSection(width, maxLines int) string {
 		endIdx = len(flattened)
 	}
 
-	// Render visible nodes
+	// Render visible nodes with cursor indicator
 	for i := startIdx; i < endIdx && i < len(flattened); i++ {
 		fnode := flattened[i]
 		line := dv.renderTreeNode(fnode, width-4)
-		lines = append(lines, "  "+line)
+		
+		// Add cursor indicator for current position
+		if i == dv.cursorPos {
+			lines = append(lines, "> "+line)
+		} else {
+			lines = append(lines, "  "+line)
+		}
 	}
 
 	// Show count if there are more items
