@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"tqbtui/state"
 )
 
@@ -210,9 +210,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements tea.Model
-func (a *App) View() string {
+func (a *App) View() tea.View {
 	if a.width == 0 || a.height == 0 {
-		return "Loading..."
+		return tea.NewView("Loading...")
 	}
 
 	// Calculate heights for layout
@@ -405,7 +405,7 @@ func (a *App) View() string {
 		output = a.overlayAddDialog(output)
 	}
 
-	return output
+	return tea.NewView(output)
 }
 
 // overlayAddDialog renders the add torrent dialog as a centered modal overlay on top
@@ -1051,7 +1051,12 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 		}
 
 		// Create detail view with categories
-		a.detailView = NewDetailView(a.styles, detail, files, categories)
+		clientHost := a.state.CurrentClient().ID
+		// Try to get actual hostname from config if available
+		if len(a.state.Config.Clients) > 0 && a.state.CurrentClientIdx < len(a.state.Config.Clients) {
+			clientHost = a.state.Config.Clients[a.state.CurrentClientIdx].Host
+		}
+		a.detailView = NewDetailViewWithHost(a.styles, detail, files, categories, clientHost)
 		a.screenMode = "detail"
 
 		return nil
@@ -1065,9 +1070,11 @@ func (a *App) saveTorrentChanges() tea.Cmd {
 			return errorMsg{err: fmt.Errorf("no torrent selected")}
 		}
 
-		adapter := a.state.CurrentClient().Adapter
+		currentClient := a.state.CurrentClient()
+		adapter := currentClient.Adapter
 		torrentID := a.detailView.Detail.ID
 		state := a.detailView.State
+		clientType := currentClient.Type
 
 		// Check for name changes
 		if newName := state.GetCurrentValue("name"); newName != state.OriginalValues["name"] && newName != "" {
@@ -1076,8 +1083,32 @@ func (a *App) saveTorrentChanges() tea.Cmd {
 			}
 		}
 
-		// Check for category changes
-		if newCategory := state.GetCurrentValue("category"); newCategory != state.OriginalValues["category"] {
+		// Check for location changes
+		newLocation := state.GetCurrentValue("location")
+		locationChanged := newLocation != state.OriginalValues["location"] && newLocation != ""
+		
+		if locationChanged {
+			if err := adapter.SetSavePath(a.ctx, torrentID, newLocation); err != nil {
+				return errorMsg{err: fmt.Errorf("failed to save location: %w", err)}
+			}
+
+			// For Transmission, derive category/label from directory name
+			if clientType == "transmission" {
+				dirName := GetSubdirectoryFromPath(newLocation)
+				if dirName != "" && dirName != "/" {
+					if err := adapter.SetCategory(a.ctx, torrentID, dirName); err != nil {
+						return errorMsg{err: fmt.Errorf("failed to save category: %w", err)}
+					}
+				}
+			}
+		}
+
+		// Check for category changes (explicit)
+		newCategory := state.GetCurrentValue("category")
+		categoryChanged := newCategory != state.OriginalValues["category"]
+		
+		if categoryChanged && !locationChanged {
+			// Only set category if location wasn't already changed
 			if err := adapter.SetCategory(a.ctx, torrentID, newCategory); err != nil {
 				return errorMsg{err: fmt.Errorf("failed to save category: %w", err)}
 			}
@@ -1094,13 +1125,6 @@ func (a *App) saveTorrentChanges() tea.Cmd {
 			}
 			if err := adapter.SetTags(a.ctx, torrentID, tagList); err != nil {
 				return errorMsg{err: fmt.Errorf("failed to save tags: %w", err)}
-			}
-		}
-
-		// Check for location changes
-		if newLocation := state.GetCurrentValue("location"); newLocation != state.OriginalValues["location"] && newLocation != "" {
-			if err := adapter.SetSavePath(a.ctx, torrentID, newLocation); err != nil {
-				return errorMsg{err: fmt.Errorf("failed to save location: %w", err)}
 			}
 		}
 

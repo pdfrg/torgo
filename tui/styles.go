@@ -1,26 +1,26 @@
 package tui
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Styles holds all UI styling
 type Styles struct {
-	// Base colors
-	FgColor    lipgloss.Color
-	BgColor    lipgloss.Color
-	SelectColor lipgloss.Color
-	HintColor  lipgloss.Color
-	ErrorColor lipgloss.Color
+	// Base colors (using string representation for v2)
+	FgColor    string
+	BgColor    string
+	SelectColor string
+	HintColor  string
+	ErrorColor string
 
 	// Status colors
-	DownloadColor     lipgloss.Color
-	QueuedDLColor     lipgloss.Color
-	StalledDLColor    lipgloss.Color
-	PauseColor        lipgloss.Color
-	SeedColor         lipgloss.Color
-	CompletedColor    lipgloss.Color
-	ErrorStatusColor  lipgloss.Color
+	DownloadColor     string
+	QueuedDLColor     string
+	StalledDLColor    string
+	PauseColor        string
+	SeedColor         string
+	CompletedColor    string
+	ErrorStatusColor  string
 
 	// Styled components
 	Title        lipgloss.Style
@@ -36,18 +36,18 @@ type Styles struct {
 // DefaultStyles returns the default dark theme
 func DefaultStyles() *Styles {
 	s := &Styles{
-		FgColor:     lipgloss.Color("252"),  // Light gray
-		BgColor:     lipgloss.Color("235"),  // Dark gray
-		SelectColor: lipgloss.Color("39"),   // Cyan
-		HintColor:   lipgloss.Color("242"),  // Medium gray
-		ErrorColor:  lipgloss.Color("196"),  // Red
-		DownloadColor:    lipgloss.Color("26"),  // Dark blue
-		QueuedDLColor:    lipgloss.Color("130"), // Dark orange
-		StalledDLColor:   lipgloss.Color("130"), // Dark orange (same as queuedDL)
-		PauseColor:       lipgloss.Color("240"), // Subdued gray
-		SeedColor:        lipgloss.Color("22"),  // Dark green
-		CompletedColor:   lipgloss.Color("178"), // Gold
-		ErrorStatusColor: lipgloss.Color("124"), // Dark red
+		FgColor:     "252",  // Light gray
+		BgColor:     "235",  // Dark gray
+		SelectColor: "39",   // Cyan
+		HintColor:   "242",  // Medium gray
+		ErrorColor:  "196",  // Red
+		DownloadColor:    "26",  // Dark blue
+		QueuedDLColor:    "130", // Dark orange
+		StalledDLColor:   "130", // Dark orange (same as queuedDL)
+		PauseColor:       "240", // Subdued gray
+		SeedColor:        "22",  // Dark green
+		CompletedColor:   "178", // Gold
+		ErrorStatusColor: "124", // Dark red
 	}
 
 	// Title
@@ -93,7 +93,7 @@ func DefaultStyles() *Styles {
 }
 
 // StatusColor returns the color for a torrent status
-func (s *Styles) StatusColor(status string) lipgloss.Color {
+func (s *Styles) StatusColor(status string) string {
 	switch status {
 	case "downloading":
 		return s.DownloadColor
@@ -116,9 +116,9 @@ func (s *Styles) StatusColor(status string) lipgloss.Color {
 
 // ProgressBarColors returns background colors for progress bar based on status and progress
 // filledColor is for the filled portion, unfilledColor for the empty portion
-func (s *Styles) ProgressBarColors(status string, progress uint8) (filledColor, unfilledColor lipgloss.Color) {
+func (s *Styles) ProgressBarColors(status string, progress uint8) (filledColor, unfilledColor string) {
 	// unfilledColor is transparent (empty string means no background, allowing terminal bg to show)
-	unfilledColor = lipgloss.Color("") // No background = transparent
+	unfilledColor = "" // No background = transparent
 	
 	// Use the status directly - we now have proper status mapping from qBittorrent API
 	// including StatusCompleted, so we don't need to override based on progress

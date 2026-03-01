@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"tqbtui/state"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // StatusBar displays connection and application status

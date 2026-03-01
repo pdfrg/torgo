@@ -5,8 +5,8 @@ import (
 	"strings"
 	"tqbtui/client"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/viewport"
+	"charm.land/lipgloss/v2"
 )
 
 // TorrentListView displays a list of torrents with viewport scrolling

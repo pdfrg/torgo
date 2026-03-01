@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"tqbtui/client"
 )
 
@@ -91,6 +92,11 @@ type DetailView struct {
 
 // NewDetailView creates a new detail view
 func NewDetailView(styles *Styles, detail *client.TorrentDetail, files []client.TorrentFile, categories []string) *DetailView {
+	return NewDetailViewWithHost(styles, detail, files, categories, "localhost")
+}
+
+// NewDetailViewWithHost creates a new detail view with client host info
+func NewDetailViewWithHost(styles *Styles, detail *client.TorrentDetail, files []client.TorrentFile, categories []string, clientHost string) *DetailView {
 	// Initialize shared state
 	originalValues := make(map[string]string)
 	originalValues["name"] = detail.Name
@@ -111,7 +117,7 @@ func NewDetailView(styles *Styles, detail *client.TorrentDetail, files []client.
 
 	// Create tab models
 	infoTab := NewInfoTabModel(state, detail)
-	editTab := NewEditTabModel(state)
+	editTab := NewEditTabModelWithHost(state, clientHost)
 	categoryTab := NewCategoryTabModel(state, categories, detail.Category)
 	filesTab := NewFilesTabModel(state, files)
 
@@ -167,6 +173,9 @@ func (dv *DetailView) Update(msg tea.Msg) tea.Cmd {
 			}
 			// Note: Closing detail view will be handled by app.go
 		}
+	case subdirectoriesMsg:
+		// Pass subdirectory message to edit tab
+		return dv.EditTab.Update(msg, dv.State)
 	}
 
 	// Delegate to current tab
@@ -481,8 +490,21 @@ func formatBytes(b int64) string {
 // ==============================================================================
 
 type EditTabModel struct {
-	fields      []EditFormField
-	focusIndex  int
+	fields                []EditFormField
+	focusIndex            int
+	subdirHelper          *SubdirectoryHelper
+	currentSubdirectories []string
+	selectedSubdirIndex   int
+	showSubdirectories    bool
+	lastLocationValue     string // Track location field changes for debouncing
+	debounceTimer         *time.Timer
+	pendingPath           string // Path being fetched
+}
+
+// subdirectoriesMsg is sent when subdirectories have been fetched
+type subdirectoriesMsg struct {
+	path          string
+	subdirectories []string
 }
 
 type EditFormField struct {
@@ -493,6 +515,10 @@ type EditFormField struct {
 }
 
 func NewEditTabModel(state *DetailViewState) *EditTabModel {
+	return NewEditTabModelWithHost(state, "localhost")
+}
+
+func NewEditTabModelWithHost(state *DetailViewState, clientHost string) *EditTabModel {
 	fields := []EditFormField{
 		{
 			Name:     "name",
@@ -525,9 +551,22 @@ func NewEditTabModel(state *DetailViewState) *EditTabModel {
 		fields[0].Input.Focus()
 	}
 
+	// Only enable subdirectory helper for local clients
+	var subdirHelper *SubdirectoryHelper
+	if IsLocalhost(clientHost) {
+		subdirHelper = NewSubdirectoryHelper()
+	}
+
 	return &EditTabModel{
-		fields:     fields,
-		focusIndex: 0,
+		fields:                fields,
+		focusIndex:            0,
+		subdirHelper:          subdirHelper,
+		currentSubdirectories: []string{},
+		selectedSubdirIndex:   0,
+		showSubdirectories:    false,
+		lastLocationValue:     fields[3].Input.Value(), // location is at index 3
+		debounceTimer:         nil,
+		pendingPath:           "",
 	}
 }
 
@@ -543,20 +582,78 @@ func (m *EditTabModel) Init() tea.Cmd {
 }
 
 func (m *EditTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
+	// Handle subdirectories fetched message
+	if subMsg, ok := msg.(subdirectoriesMsg); ok {
+		// Only update if this is for the path we're currently editing
+		if subMsg.path == m.pendingPath {
+			m.currentSubdirectories = subMsg.subdirectories
+			m.showSubdirectories = len(subMsg.subdirectories) > 0
+			m.selectedSubdirIndex = 0
+			m.pendingPath = ""
+		}
+		return nil
+	}
+
+	// Handle subdirectory selection if list is shown
+	if m.showSubdirectories {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "down":
+				if m.selectedSubdirIndex < len(m.currentSubdirectories)-1 {
+					m.selectedSubdirIndex++
+				}
+				return nil
+			case "up":
+				if m.selectedSubdirIndex > 0 {
+					m.selectedSubdirIndex--
+				}
+				return nil
+			case "enter":
+				// Select the subdirectory
+				if m.selectedSubdirIndex < len(m.currentSubdirectories) {
+					subdir := m.currentSubdirectories[m.selectedSubdirIndex]
+					basePath := GetBasePathForListing(m.lastLocationValue)
+					newPath := basePath + "/" + subdir
+					m.fields[3].Input.SetValue(newPath)
+					m.showSubdirectories = false
+					m.currentSubdirectories = []string{}
+					m.selectedSubdirIndex = 0
+					state.UpdateField("location", newPath)
+				}
+				return nil
+			case "esc":
+				// Close subdirectory list
+				m.showSubdirectories = false
+				m.currentSubdirectories = []string{}
+				m.selectedSubdirIndex = 0
+				return nil
+			}
+		}
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab", "down":
-			// Next field
-			m.fields[m.focusIndex].Input.Blur()
-			m.focusIndex = (m.focusIndex + 1) % len(m.fields)
-			m.fields[m.focusIndex].Input.Focus()
+			if !m.showSubdirectories {
+				// Next field
+				m.fields[m.focusIndex].Input.Blur()
+				m.focusIndex = (m.focusIndex + 1) % len(m.fields)
+				m.fields[m.focusIndex].Input.Focus()
+				m.showSubdirectories = false
+				m.currentSubdirectories = []string{}
+			}
 			return nil
 		case "shift+tab", "up":
-			// Previous field
-			m.fields[m.focusIndex].Input.Blur()
-			m.focusIndex = (m.focusIndex - 1 + len(m.fields)) % len(m.fields)
-			m.fields[m.focusIndex].Input.Focus()
+			if !m.showSubdirectories {
+				// Previous field
+				m.fields[m.focusIndex].Input.Blur()
+				m.focusIndex = (m.focusIndex - 1 + len(m.fields)) % len(m.fields)
+				m.fields[m.focusIndex].Input.Focus()
+				m.showSubdirectories = false
+				m.currentSubdirectories = []string{}
+			}
 			return nil
 		}
 	}
@@ -571,7 +668,42 @@ func (m *EditTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 		state.UpdateField(field.Name, value)
 	}
 
+	// Handle subdirectory debouncing for location field (only if subdirHelper is enabled)
+	if m.subdirHelper != nil && m.focusIndex == 3 { // location field
+		currentValue := m.fields[3].Input.Value()
+		if currentValue != m.lastLocationValue {
+			m.lastLocationValue = currentValue
+
+			// Check if path ends with slash
+			if IsPathWithTrailingSlash(currentValue) {
+				// Set pending path and return command to fetch subdirectories
+				m.pendingPath = currentValue
+				return m.fetchSubdirectories(currentValue)
+			} else {
+				// No trailing slash, hide subdirectories
+				m.showSubdirectories = false
+				m.currentSubdirectories = []string{}
+			}
+		}
+	}
+
 	return cmd
+}
+
+// fetchSubdirectories returns a command that fetches subdirectories asynchronously
+func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
+	return func() tea.Msg {
+		// Wait for debounce
+		time.Sleep(250 * time.Millisecond)
+		
+		// Fetch subdirectories
+		subdirs, _ := m.subdirHelper.FetchSubdirectories(path)
+		
+		return subdirectoriesMsg{
+			path:           path,
+			subdirectories: subdirs,
+		}
+	}
 }
 
 func (m *EditTabModel) View(state *DetailViewState) string {
@@ -583,6 +715,9 @@ func (m *EditTabModel) View(state *DetailViewState) string {
 		Foreground(state.Styles.BgColor).
 		Background(state.Styles.SelectColor).
 		Padding(0, 1)
+
+	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
+	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor)
 
 	var content strings.Builder
 	content.WriteString("\n")
@@ -601,8 +736,23 @@ func (m *EditTabModel) View(state *DetailViewState) string {
 		
 		// Show original value as hint
 		if field.Original != "" && field.Input.Value() != field.Original {
-			hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
 			content.WriteString("  " + hintStyle.Render("(originally: "+field.Original+")") + "\n")
+		}
+		
+		// Show subdirectory list for location field if active
+		if isFocused && i == 3 && m.showSubdirectories && len(m.currentSubdirectories) > 0 {
+			content.WriteString("\n  Available subdirectories:\n")
+			for j, subdir := range m.currentSubdirectories {
+				isSelected := j == m.selectedSubdirIndex
+				prefix := "    • "
+				if isSelected {
+					prefix = "  > "
+					content.WriteString(selectedStyle.Render(prefix + subdir) + "\n")
+				} else {
+					content.WriteString(prefix + subdir + "\n")
+				}
+			}
+			content.WriteString("  " + hintStyle.Render("(↑/↓ to select, Enter to choose, Esc to close)") + "\n")
 		}
 		
 		if i < len(m.fields)-1 {
@@ -610,9 +760,11 @@ func (m *EditTabModel) View(state *DetailViewState) string {
 		}
 	}
 	
-	content.WriteString("\n" + lipgloss.NewStyle().
-		Foreground(state.Styles.HintColor).
-		Render("↑/↓ or Tab/Shift+Tab to navigate  •  Enter to save  •  Esc to cancel\n"))
+	hint := "↑/↓ or Tab/Shift+Tab to navigate  •  Enter to save  •  Esc to cancel"
+	if m.showSubdirectories && len(m.currentSubdirectories) > 0 {
+		hint = "↑/↓ to select subdirectory  •  Enter to choose  •  Esc to close"
+	}
+	content.WriteString("\n" + hintStyle.Render(hint) + "\n")
 	
 	return content.String()
 }

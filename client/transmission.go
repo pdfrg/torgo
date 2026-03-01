@@ -597,10 +597,60 @@ func (ta *TransmissionAdapter) SetTorrentName(ctx context.Context, id string, ne
 	return fmt.Errorf("SetTorrentName not supported in Transmission")
 }
 
-// SetCategory changes the category/label of a torrent (Transmission uses download directory instead)
+// SetCategory changes the category/label of a torrent in Transmission
+// For Transmission, this sets labels (which are used as tags/categories)
 func (ta *TransmissionAdapter) SetCategory(ctx context.Context, id string, category string) error {
-	// Transmission doesn't have categories like qBittorrent, so we ignore this
-	// The user would need to manually organize by directory
+	if category == "" {
+		// Empty category, set empty labels array
+		payload := fmt.Sprintf(`{
+			"method":"torrent-set",
+			"arguments":{
+				"ids":[%s],
+				"labels":[]
+			}
+		}`, id)
+		resp, err := ta.sendRPC(ctx, payload)
+		if err != nil {
+			return fmt.Errorf("torrent-set failed: %w", err)
+		}
+		if resp.Result != "success" {
+			return fmt.Errorf("set label failed: %s", resp.Result)
+		}
+		return nil
+	}
+
+	// Split category into individual labels (Transmission supports multiple labels)
+	labels := []string{category}
+
+	// Build labels JSON array
+	labelsJSON := "["
+	for i, label := range labels {
+		if i > 0 {
+			labelsJSON += ","
+		}
+		// Escape label string
+		escaped := strings.ReplaceAll(label, "\"", "\\\"")
+		labelsJSON += "\"" + escaped + "\""
+	}
+	labelsJSON += "]"
+
+	payload := fmt.Sprintf(`{
+		"method":"torrent-set",
+		"arguments":{
+			"ids":[%s],
+			"labels":%s
+		}
+	}`, id, labelsJSON)
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("torrent-set failed: %w", err)
+	}
+
+	if resp.Result != "success" {
+		return fmt.Errorf("set label failed: %s", resp.Result)
+	}
+
 	return nil
 }
 
