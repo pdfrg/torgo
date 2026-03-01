@@ -67,25 +67,25 @@ func (s *DetailViewState) DiscardChanges() {
 // DetailView is the main coordinator for the detail view
 type DetailView struct {
 	// Tab management - manual cycling
-	currentTab string // "info", "edit", "category", "files"
-	tabOrder   []string
+	CurrentTab string // "info", "edit", "category", "files"
+	TabOrder   []string
 
 	// Torrent data
-	detail     *client.TorrentDetail
-	files      []client.TorrentFile
-	categories []string
+	Detail     *client.TorrentDetail
+	Files      []client.TorrentFile
+	Categories []string
 
 	// Shared state
-	state *DetailViewState
+	State *DetailViewState
 
 	// Tab components
-	infoTab     *InfoTabModel
-	editTab     *EditTabModel
-	categoryTab *CategoryTabModel
-	filesTab    *FilesTabModel
+	InfoTab     *InfoTabModel
+	EditTab     *EditTabModel
+	CategoryTab *CategoryTabModel
+	FilesTab    *FilesTabModel
 
 	// Error message
-	lastError string
+	LastError string
 }
 
 // NewDetailView creates a new detail view
@@ -115,26 +115,26 @@ func NewDetailView(styles *Styles, detail *client.TorrentDetail, files []client.
 	filesTab := NewFilesTabModel(state, files)
 
 	return &DetailView{
-		currentTab: "info",
-		tabOrder:   []string{"info", "edit", "category", "files"},
-		detail:     detail,
-		files:      files,
-		categories: categories,
-		state:      state,
-		infoTab:    infoTab,
-		editTab:    editTab,
-		categoryTab: categoryTab,
-		filesTab:   filesTab,
+		CurrentTab: "info",
+		TabOrder:   []string{"info", "edit", "category", "files"},
+		Detail:     detail,
+		Files:      files,
+		Categories: categories,
+		State:      state,
+		InfoTab:    infoTab,
+		EditTab:    editTab,
+		CategoryTab: categoryTab,
+		FilesTab:   filesTab,
 	}
 }
 
 // Init initializes the detail view
 func (dv *DetailView) Init() tea.Cmd {
 	return tea.Batch(
-		dv.infoTab.Init(),
-		dv.editTab.Init(),
-		dv.categoryTab.Init(),
-		dv.filesTab.Init(),
+		dv.InfoTab.Init(),
+		dv.EditTab.Init(),
+		dv.CategoryTab.Init(),
+		dv.FilesTab.Init(),
 	)
 }
 
@@ -142,8 +142,8 @@ func (dv *DetailView) Init() tea.Cmd {
 func (dv *DetailView) Update(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		dv.state.Width = msg.Width
-		dv.state.Height = msg.Height
+		dv.State.Width = msg.Width
+		dv.State.Height = msg.Height
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "tab":
@@ -154,30 +154,30 @@ func (dv *DetailView) Update(msg tea.Msg) tea.Cmd {
 			dv.prevTab()
 		case "e":
 			// Quick jump to edit tab from info
-			if dv.currentTab == "info" {
-				dv.currentTab = "edit"
+			if dv.CurrentTab == "info" {
+				dv.CurrentTab = "edit"
 			}
 		case "esc":
 			// Discard changes and return to info, or close if on info
-			if dv.currentTab != "info" {
-				dv.currentTab = "info"
-			} else if dv.state.HasChanges {
-				dv.state.DiscardChanges()
+			if dv.CurrentTab != "info" {
+				dv.CurrentTab = "info"
+			} else if dv.State.HasChanges {
+				dv.State.DiscardChanges()
 			}
 			// Note: Closing detail view will be handled by app.go
 		}
 	}
 
 	// Delegate to current tab
-	switch dv.currentTab {
+	switch dv.CurrentTab {
 	case "info":
-		return dv.infoTab.Update(msg, dv.state)
+		return dv.InfoTab.Update(msg, dv.State)
 	case "edit":
-		return dv.editTab.Update(msg, dv.state)
+		return dv.EditTab.Update(msg, dv.State)
 	case "category":
-		return dv.categoryTab.Update(msg, dv.state)
+		return dv.CategoryTab.Update(msg, dv.State)
 	case "files":
-		return dv.filesTab.Update(msg, dv.state)
+		return dv.FilesTab.Update(msg, dv.State)
 	}
 
 	return nil
@@ -186,25 +186,25 @@ func (dv *DetailView) Update(msg tea.Msg) tea.Cmd {
 // nextTab moves to the next tab
 func (dv *DetailView) nextTab() {
 	currentIndex := 0
-	for i, tab := range dv.tabOrder {
-		if tab == dv.currentTab {
+	for i, tab := range dv.TabOrder {
+		if tab == dv.CurrentTab {
 			currentIndex = i
 			break
 		}
 	}
-	dv.currentTab = dv.tabOrder[(currentIndex+1)%len(dv.tabOrder)]
+	dv.CurrentTab = dv.TabOrder[(currentIndex+1)%len(dv.TabOrder)]
 }
 
 // prevTab moves to the previous tab
 func (dv *DetailView) prevTab() {
 	currentIndex := 0
-	for i, tab := range dv.tabOrder {
-		if tab == dv.currentTab {
+	for i, tab := range dv.TabOrder {
+		if tab == dv.CurrentTab {
 			currentIndex = i
 			break
 		}
 	}
-	dv.currentTab = dv.tabOrder[(currentIndex-1+len(dv.tabOrder))%len(dv.tabOrder)]
+	dv.CurrentTab = dv.TabOrder[(currentIndex-1+len(dv.TabOrder))%len(dv.TabOrder)]
 }
 
 // View renders the detail view
@@ -214,15 +214,15 @@ func (dv *DetailView) View() string {
 
 	// Get content from active tab
 	var content string
-	switch dv.currentTab {
+	switch dv.CurrentTab {
 	case "info":
-		content = dv.infoTab.View(dv.state)
+		content = dv.InfoTab.View(dv.State)
 	case "edit":
-		content = dv.editTab.View(dv.state)
+		content = dv.EditTab.View(dv.State)
 	case "category":
-		content = dv.categoryTab.View(dv.state)
+		content = dv.CategoryTab.View(dv.State)
 	case "files":
-		content = dv.filesTab.View(dv.state)
+		content = dv.FilesTab.View(dv.State)
 	default:
 		content = "Unknown tab"
 	}
@@ -244,9 +244,9 @@ func (dv *DetailView) renderTabs() string {
 	var topLine, middleLine strings.Builder
 	totalWidth := 0
 
-	for i, tabName := range dv.tabOrder {
+	for i, tabName := range dv.TabOrder {
 		label := tabLabels[tabName]
-		isActive := tabName == dv.currentTab
+		isActive := tabName == dv.CurrentTab
 
 		paddedLabel := " " + label + " "
 		tabWidth := len(paddedLabel) + 2 // +2 for the box borders
@@ -255,12 +255,12 @@ func (dv *DetailView) renderTabs() string {
 
 		if isActive {
 			// Active tab in select color
-			activeStyle := lipgloss.NewStyle().Foreground(dv.state.Styles.SelectColor)
+			activeStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.SelectColor)
 			topLine.WriteString(activeStyle.Render(topBorder))
 			middleLine.WriteString(activeStyle.Render("│") + activeStyle.Render(paddedLabel) + activeStyle.Render("│"))
 		} else {
 			// Inactive tab in hint color
-			inactiveStyle := lipgloss.NewStyle().Foreground(dv.state.Styles.HintColor)
+			inactiveStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.HintColor)
 			topLine.WriteString(inactiveStyle.Render(topBorder))
 			middleLine.WriteString(inactiveStyle.Render(midBorder))
 		}
@@ -268,7 +268,7 @@ func (dv *DetailView) renderTabs() string {
 		totalWidth += tabWidth
 
 		// Add spacing between tabs
-		if i < len(dv.tabOrder)-1 {
+		if i < len(dv.TabOrder)-1 {
 			topLine.WriteString(" ")
 			middleLine.WriteString(" ")
 			totalWidth += 1

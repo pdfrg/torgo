@@ -134,7 +134,35 @@ type speedLimitTickMsg struct{}
 
 // Update implements tea.Model
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle search mode separately
+	// Handle detail view first if active
+	if a.screenMode == "detail" && a.detailView != nil {
+		// Update detail view and handle its commands
+		_ = a.detailView.Update(msg)
+		
+		// Check for specific keys that should be handled by app
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			k := keyMsg.String()
+			
+			// ESC exits detail view (unless already handled by detail view)
+			if k == "esc" && !a.detailView.State.HasChanges {
+				a.screenMode = "list"
+				a.detailView = nil
+				return a, nil
+			}
+			
+			// Enter saves changes (only from Info tab with changes)
+			if k == "enter" && a.detailView.CurrentTab == "info" && a.detailView.State.HasChanges {
+				// TODO: Implement saving changes via API
+				// For now, just clear the changes
+				a.detailView.State.DiscardChanges()
+				return a, nil
+			}
+		}
+		
+		return a, nil
+	}
+
+	// Handle search mode separately (only in list view)
 	if a.searchMode {
 		return a.handleSearchMode(msg)
 	}
@@ -145,6 +173,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		if a.detailView != nil {
+			a.detailView.State.Width = msg.Width
+			a.detailView.State.Height = msg.Height
+		}
 		return a, nil
 	case torrentRefreshMsg:
 		a.list.SetTorrents(a.state.FilteredTorrents())
