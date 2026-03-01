@@ -4,716 +4,562 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"tqbtui/client"
 )
 
-// DetailView represents the torrent detail view
+// DetailViewState holds shared state across all tabs
+type DetailViewState struct {
+	// Original values from when detail view opened
+	OriginalValues map[string]string
+
+	// Currently edited values
+	CurrentValues map[string]string
+
+	// Whether any value differs from original
+	HasChanges bool
+
+	// Styles
+	Styles *Styles
+
+	// Dimensions
+	Width  int
+	Height int
+}
+
+// GetCurrentValue returns the current or original value for a field
+func (s *DetailViewState) GetCurrentValue(field string) string {
+	if val, ok := s.CurrentValues[field]; ok && val != "" {
+		return val
+	}
+	if val, ok := s.OriginalValues[field]; ok {
+		return val
+	}
+	return ""
+}
+
+// UpdateField updates a field value and recalculates HasChanges
+func (s *DetailViewState) UpdateField(field, value string) {
+	s.CurrentValues[field] = value
+	s.recalculateChanges()
+}
+
+// recalculateChanges checks if any field differs from original
+func (s *DetailViewState) recalculateChanges() {
+	s.HasChanges = false
+	for field := range s.OriginalValues {
+		if s.GetCurrentValue(field) != s.OriginalValues[field] {
+			s.HasChanges = true
+			break
+		}
+	}
+}
+
+// DiscardChanges resets all edited values
+func (s *DetailViewState) DiscardChanges() {
+	s.CurrentValues = make(map[string]string)
+	s.HasChanges = false
+}
+
+// DetailView is the main coordinator for the detail view
 type DetailView struct {
-	styles      *Styles
-	detail      *client.TorrentDetail
-	files       []client.TorrentFile
-	fileTree    []*FileTreeNode // Hierarchical tree of files
-	width       int
-	height      int
-	viewSection string // "info" or "files" - which section has focus
-	infoCursor  int    // Cursor position in info section (0=name, 1=category, etc)
-	scrollPos   int    // Vertical scroll position in files section
-	expanded    map[string]bool // Track which directories are expanded
-	fileCursor  int    // Cursor position in file tree
-	editMode    string // "", "name", "category", "tags", "comments", "location"
-	editValue   string // Current edit field value
-	editCursorX int    // Cursor position within edit field
-	editError   string // Error message during edit
-}
+	// Tab management - manual cycling
+	currentTab string // "info", "edit", "category", "files"
+	tabOrder   []string
 
-// Info section field indices
-const (
-	InfoName = iota
-	InfoCategory
-	InfoTags
-	InfoComments
-	InfoLocation
-	InfoMaxFields
-)
+	// Torrent data
+	detail     *client.TorrentDetail
+	files      []client.TorrentFile
+	categories []string
 
-// FileTreeNode represents a node in the file tree (either file or directory)
-type FileTreeNode struct {
-	Name         string
-	IsDirectory  bool
-	Size         int64
-	Downloaded   int64
-	Priority     int
-	Index        int          // Original file index (for files only)
-	Level        int          // Depth in tree
-	Children     []*FileTreeNode
-	Parent       *FileTreeNode
-	Expanded     bool
-	Path         string       // Full path for sorting and identification
-}
+	// Shared state
+	state *DetailViewState
 
-// FlattenedNode is used for rendering: represents a node with its visual state
-type FlattenedNode struct {
-	Node     *FileTreeNode
-	Depth    int
-	IsLast   bool    // Last child in parent's children
-	Siblings []bool  // Track which ancestors are last children (for tree lines)
+	// Tab components
+	infoTab     *InfoTabModel
+	editTab     *EditTabModel
+	categoryTab *CategoryTabModel
+	filesTab    *FilesTabModel
+
+	// Error message
+	lastError string
 }
 
 // NewDetailView creates a new detail view
-func NewDetailView(styles *Styles, detail *client.TorrentDetail, files []client.TorrentFile) *DetailView {
-	dv := &DetailView{
-		styles:      styles,
-		detail:      detail,
-		files:       files,
-		expanded:    make(map[string]bool),
-		viewSection: "info",
-		infoCursor:  0,
-		fileCursor:  0,
-		scrollPos:   0,
+func NewDetailView(styles *Styles, detail *client.TorrentDetail, files []client.TorrentFile, categories []string) *DetailView {
+	// Initialize shared state
+	originalValues := make(map[string]string)
+	originalValues["name"] = detail.Name
+	originalValues["tags"] = ""
+	if len(detail.Tags) > 0 {
+		originalValues["tags"] = strings.Join(detail.Tags, ", ")
+	}
+	originalValues["comments"] = detail.Comments
+	originalValues["location"] = detail.SavePath
+	originalValues["category"] = detail.Category
+
+	state := &DetailViewState{
+		OriginalValues: originalValues,
+		CurrentValues:  make(map[string]string),
+		HasChanges:     false,
+		Styles:         styles,
 	}
 
-	// Build file tree
-	dv.buildFileTree()
+	// Create tab models
+	infoTab := NewInfoTabModel(state, detail)
+	editTab := NewEditTabModel(state)
+	categoryTab := NewCategoryTabModel(state, categories, detail.Category)
+	filesTab := NewFilesTabModel(state, files)
 
-	return dv
-}
-
-// buildFileTree builds a hierarchical tree from the flat file list
-func (dv *DetailView) buildFileTree() {
-	if len(dv.files) == 0 {
-		dv.fileTree = []*FileTreeNode{}
-		return
-	}
-
-	// Create a map to track directories we've seen
-	dirMap := make(map[string]*FileTreeNode)
-
-	// Create root nodes for top-level files and directories
-	var rootNodes []*FileTreeNode
-
-	for _, f := range dv.files {
-		// Split the path to get directory components
-		parts := strings.Split(f.Name, "/")
-
-		if len(parts) == 1 {
-			// Top-level file
-			node := &FileTreeNode{
-				Name:       parts[0],
-				IsDirectory: false,
-				Size:       f.Size,
-				Downloaded: f.Downloaded,
-				Priority:   f.Priority,
-				Index:      f.Index,
-				Level:      0,
-				Path:       f.Name,
-				Expanded:   false,
-			}
-			rootNodes = append(rootNodes, node)
-		} else {
-			// File in a subdirectory - build the directory tree
-			currentPath := ""
-			var parentNode *FileTreeNode
-
-			for i, part := range parts[:len(parts)-1] {
-				if currentPath == "" {
-					currentPath = part
-				} else {
-					currentPath = currentPath + "/" + part
-				}
-
-				// Check if this directory already exists
-				if dirNode, exists := dirMap[currentPath]; exists {
-					parentNode = dirNode
-				} else {
-					// Create new directory node
-					dirNode := &FileTreeNode{
-						Name:        part,
-						IsDirectory: true,
-						Level:       i,
-						Path:        currentPath,
-						Expanded:    false,
-					}
-
-					dirMap[currentPath] = dirNode
-
-					// Add to parent or root
-					if parentNode == nil {
-						rootNodes = append(rootNodes, dirNode)
-					} else {
-						parentNode.Children = append(parentNode.Children, dirNode)
-						dirNode.Parent = parentNode
-					}
-
-					parentNode = dirNode
-				}
-			}
-
-			// Add the file to its parent directory
-			fileName := parts[len(parts)-1]
-			fileNode := &FileTreeNode{
-				Name:       fileName,
-				IsDirectory: false,
-				Size:       f.Size,
-				Downloaded: f.Downloaded,
-				Priority:   f.Priority,
-				Index:      f.Index,
-				Level:      len(parts) - 1,
-				Path:       f.Name,
-				Expanded:   false,
-			}
-
-			if parentNode != nil {
-				parentNode.Children = append(parentNode.Children, fileNode)
-				fileNode.Parent = parentNode
-			}
-		}
-	}
-
-	// Start with all directories collapsed
-	dv.fileTree = rootNodes
-}
-
-// Render renders the detail view
-func (dv *DetailView) Render(width, height int) string {
-	dv.width = width
-	dv.height = height
-
-	if dv.detail == nil {
-		return "Loading..."
-	}
-
-	var lines []string
-
-	// Title with torrent name
-	titleLine := fmt.Sprintf("  %s", dv.detail.Name)
-	lines = append(lines, dv.styles.Title.Width(width).Render(titleLine))
-	lines = append(lines, strings.Repeat("─", width))
-
-	// Info section
-	lines = append(lines, "")
-	lines = append(lines, dv.renderInfoSection())
-
-	// Files section
-	lines = append(lines, "")
-	lines = append(lines, dv.renderFilesSection(width, height-len(lines)-2))
-
-	// Pad with empty lines to fill the available height
-	output := strings.Join(lines, "\n")
-	outputLines := strings.Split(output, "\n")
-	for len(outputLines) < height {
-		outputLines = append(outputLines, "")
-	}
-
-	return strings.Join(outputLines, "\n")
-}
-
-// renderInfoSection renders the basic info fields
-func (dv *DetailView) renderInfoSection() string {
-	var lines []string
-
-	// Name
-	if dv.editMode == "name" {
-		lines = append(lines, dv.renderEditField("Name", dv.editValue))
-	} else {
-		cursor := " "
-		if dv.viewSection == "info" && dv.infoCursor == InfoName {
-			cursor = ">"
-		}
-		lines = append(lines, fmt.Sprintf("%s Name:             %s", cursor, dv.detail.Name))
-	}
-
-	// Category
-	if dv.editMode == "category" {
-		lines = append(lines, dv.renderEditField("Category", dv.editValue))
-	} else {
-		cursor := " "
-		if dv.viewSection == "info" && dv.infoCursor == InfoCategory {
-			cursor = ">"
-		}
-		category := dv.detail.Category
-		if category == "" {
-			category = "(none)"
-		}
-		lines = append(lines, fmt.Sprintf("%s Category:         %s", cursor, category))
-	}
-
-	// Tags (if any)
-	if dv.editMode == "tags" {
-		lines = append(lines, dv.renderEditField("Tags", dv.editValue))
-	} else {
-		cursor := " "
-		if dv.viewSection == "info" && dv.infoCursor == InfoTags {
-			cursor = ">"
-		}
-		tags := "(none)"
-		if len(dv.detail.Tags) > 0 {
-			tags = strings.Join(dv.detail.Tags, ", ")
-		}
-		lines = append(lines, fmt.Sprintf("%s Tags:             %s", cursor, tags))
-	}
-
-	// Comments
-	if dv.editMode == "comments" {
-		lines = append(lines, dv.renderEditField("Comments", dv.editValue))
-	} else {
-		cursor := " "
-		if dv.viewSection == "info" && dv.infoCursor == InfoComments {
-			cursor = ">"
-		}
-		comments := dv.detail.Comments
-		if comments == "" {
-			comments = "(none)"
-		}
-		lines = append(lines, fmt.Sprintf("%s Comments:         %s", cursor, comments))
-	}
-
-	// Save path
-	if dv.editMode == "location" {
-		lines = append(lines, dv.renderEditField("Download Path", dv.editValue))
-		if dv.editError != "" {
-			lines = append(lines, fmt.Sprintf("  Error: %s", dv.editError))
-		}
-	} else {
-		cursor := " "
-		if dv.viewSection == "info" && dv.infoCursor == InfoLocation {
-			cursor = ">"
-		}
-		lines = append(lines, fmt.Sprintf("%s Download Path:    %s", cursor, dv.detail.SavePath))
-	}
-
-	// Size info
-	totalStr := formatBytes(dv.detail.TotalSize)
-	downloadedStr := formatBytes(dv.detail.Downloaded)
-	progress := 0
-	if dv.detail.TotalSize > 0 {
-		progress = int((float64(dv.detail.Downloaded) / float64(dv.detail.TotalSize)) * 100)
-	}
-	lines = append(lines, fmt.Sprintf("Size:             %s / %s (%d%%)", downloadedStr, totalStr, progress))
-
-	// Instructions/hints
-	lines = append(lines, "")
-	if dv.editMode != "" {
-		lines = append(lines, "  [Enter] save  [Esc] cancel  |  editing: "+dv.editMode)
-	} else {
-		section := "info"
-		if dv.viewSection == "files" {
-			section = "files"
-		}
-		lines = append(lines, "  [e] edit  [Tab] switch section  [↑↓] navigate  [→] expand  [←←] collapse  []] expand all  |  in: "+section)
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-// renderEditField renders a field in edit mode
-func (dv *DetailView) renderEditField(label, value string) string {
-	// Pad label to consistent width
-	padding := 18 - len(label) - 1 // -1 for the colon
-	padStr := strings.Repeat(" ", padding)
-	
-	// Build the cursor line
-	cursorLine := value
-	if dv.editCursorX < len(value) {
-		// Cursor is within the text
-		cursorLine = value[:dv.editCursorX] + "|" + value[dv.editCursorX:]
-	} else {
-		// Cursor is at the end
-		cursorLine = value + "|"
-	}
-
-	// Add visual indicator that this field is being edited
-	result := fmt.Sprintf("%s:%s%s", label, padStr, cursorLine)
-	return "▸ " + result // Triangle indicator shows this is active
-}
-
-// renderFilesSection renders the file tree
-func (dv *DetailView) renderFilesSection(width, maxLines int) string {
-	var lines []string
-
-	lines = append(lines, "Files:")
-
-	if len(dv.fileTree) == 0 {
-		lines = append(lines, "  (no files)")
-		return strings.Join(lines, "\n")
-	}
-
-	// Flatten the tree to a list of visible nodes
-	flattened := dv.flattenTree()
-
-	// Apply scroll offset
-	startIdx := dv.scrollPos
-	endIdx := startIdx + maxLines - 1
-	if endIdx >= len(flattened) {
-		endIdx = len(flattened)
-	}
-
-	// Render visible nodes with cursor indicator
-	for i := startIdx; i < endIdx && i < len(flattened); i++ {
-		fnode := flattened[i]
-		line := dv.renderTreeNode(fnode, width-4)
-		
-		// Add cursor indicator for current position (only if we're in files section)
-		var prefix string
-		if dv.viewSection == "files" && i == dv.fileCursor {
-			prefix = "> "
-		} else {
-			prefix = "  "
-		}
-		lines = append(lines, prefix+line)
-	}
-
-	// Show count if there are more items
-	if len(flattened) > endIdx {
-		remaining := len(flattened) - endIdx
-		lines = append(lines, fmt.Sprintf("  ... (%d more items)", remaining))
-	}
-
-	return strings.Join(lines, "\n")
-}
-
-// flattenTree converts the tree to a flat list of visible nodes (respecting expanded state)
-func (dv *DetailView) flattenTree() []*FlattenedNode {
-	var result []*FlattenedNode
-
-	for _, rootNode := range dv.fileTree {
-		dv.flattenNode(rootNode, 0, nil, &result)
-	}
-
-	return result
-}
-
-// flattenNode recursively flattens a node and its children
-func (dv *DetailView) flattenNode(node *FileTreeNode, depth int, siblings []bool, result *[]*FlattenedNode) {
-	isLast := false
-	if node.Parent != nil {
-		isLast = len(node.Parent.Children) > 0 && node.Parent.Children[len(node.Parent.Children)-1] == node
-	}
-
-	fnode := &FlattenedNode{
-		Node:     node,
-		Depth:    depth,
-		IsLast:   isLast,
-		Siblings: append([]bool{}, siblings...),
-	}
-
-	*result = append(*result, fnode)
-
-	// Recursively add children if expanded
-	if node.IsDirectory && node.Expanded {
-		for _, child := range node.Children {
-			newSiblings := append(siblings, isLast)
-			dv.flattenNode(child, depth+1, newSiblings, result)
-		}
+	return &DetailView{
+		currentTab: "info",
+		tabOrder:   []string{"info", "edit", "category", "files"},
+		detail:     detail,
+		files:      files,
+		categories: categories,
+		state:      state,
+		infoTab:    infoTab,
+		editTab:    editTab,
+		categoryTab: categoryTab,
+		filesTab:   filesTab,
 	}
 }
 
-// renderTreeNode renders a single node with tree formatting
-func (dv *DetailView) renderTreeNode(fnode *FlattenedNode, width int) string {
-	node := fnode.Node
-
-	// Build tree prefix (├─, └─, │, etc.)
-	var prefix string
-	for i := 0; i < fnode.Depth; i++ {
-		if i < len(fnode.Siblings) && fnode.Siblings[i] {
-			prefix += "  "
-		} else {
-			prefix += "│ "
-		}
-	}
-
-	// Add the branch character
-	if fnode.Depth > 0 {
-		if fnode.IsLast {
-			prefix += "└─"
-		} else {
-			prefix += "├─"
-		}
-	}
-
-	// Directory/file indicator and expand marker
-	var indicator string
-	if node.IsDirectory {
-		if node.Expanded {
-			indicator = "[-]"
-		} else {
-			indicator = "[+]"
-		}
-	} else {
-		// File priority indicator
-		if node.Priority != 0 {
-			indicator = "[x]"
-		} else {
-			indicator = "[ ]"
-		}
-	}
-
-	// Size and progress
-	sizeStr := formatBytes(node.Size)
-	downloaded := node.Downloaded
-	progress := 0
-	if node.Size > 0 {
-		progress = int((float64(downloaded) / float64(node.Size)) * 100)
-	}
-
-	// Truncate name if needed
-	maxNameWidth := width - len(prefix) - len(indicator) - len(sizeStr) - 10
-	name := node.Name
-	if len(name) > maxNameWidth {
-		name = name[:maxNameWidth-1] + "…"
-	}
-
-	// Build the line
-	// Format: [+] name                                   12.3 MB [75%]
-	line := fmt.Sprintf("%s%s %-*s %8s [%3d%%]", prefix, indicator, maxNameWidth, name, sizeStr, progress)
-	return line
-}
-
-// formatBytes converts bytes to human-readable format
-func formatBytes(bytes int64) string {
-	const (
-		KB = 1024
-		MB = KB * 1024
-		GB = MB * 1024
+// Init initializes the detail view
+func (dv *DetailView) Init() tea.Cmd {
+	return tea.Batch(
+		dv.infoTab.Init(),
+		dv.editTab.Init(),
+		dv.categoryTab.Init(),
+		dv.filesTab.Init(),
 	)
+}
 
-	switch {
-	case bytes >= GB:
-		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(GB))
-	case bytes >= MB:
-		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(MB))
-	case bytes >= KB:
-		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(KB))
+// Update handles messages
+func (dv *DetailView) Update(msg tea.Msg) tea.Cmd {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		dv.state.Width = msg.Width
+		dv.state.Height = msg.Height
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "tab":
+			// Move to next tab
+			dv.nextTab()
+		case "shift+tab":
+			// Move to previous tab
+			dv.prevTab()
+		case "e":
+			// Quick jump to edit tab from info
+			if dv.currentTab == "info" {
+				dv.currentTab = "edit"
+			}
+		case "esc":
+			// Discard changes and return to info, or close if on info
+			if dv.currentTab != "info" {
+				dv.currentTab = "info"
+			} else if dv.state.HasChanges {
+				dv.state.DiscardChanges()
+			}
+			// Note: Closing detail view will be handled by app.go
+		}
+	}
+
+	// Delegate to current tab
+	switch dv.currentTab {
+	case "info":
+		return dv.infoTab.Update(msg, dv.state)
+	case "edit":
+		return dv.editTab.Update(msg, dv.state)
+	case "category":
+		return dv.categoryTab.Update(msg, dv.state)
+	case "files":
+		return dv.filesTab.Update(msg, dv.state)
+	}
+
+	return nil
+}
+
+// nextTab moves to the next tab
+func (dv *DetailView) nextTab() {
+	currentIndex := 0
+	for i, tab := range dv.tabOrder {
+		if tab == dv.currentTab {
+			currentIndex = i
+			break
+		}
+	}
+	dv.currentTab = dv.tabOrder[(currentIndex+1)%len(dv.tabOrder)]
+}
+
+// prevTab moves to the previous tab
+func (dv *DetailView) prevTab() {
+	currentIndex := 0
+	for i, tab := range dv.tabOrder {
+		if tab == dv.currentTab {
+			currentIndex = i
+			break
+		}
+	}
+	dv.currentTab = dv.tabOrder[(currentIndex-1+len(dv.tabOrder))%len(dv.tabOrder)]
+}
+
+// View renders the detail view
+func (dv *DetailView) View() string {
+	// Render tabs
+	tabs := dv.renderTabs()
+
+	// Get content from active tab
+	var content string
+	switch dv.currentTab {
+	case "info":
+		content = dv.infoTab.View(dv.state)
+	case "edit":
+		content = dv.editTab.View(dv.state)
+	case "category":
+		content = dv.categoryTab.View(dv.state)
+	case "files":
+		content = dv.filesTab.View(dv.state)
 	default:
-		return fmt.Sprintf("%d B", bytes)
+		content = "Unknown tab"
 	}
+
+	// Combine tabs and content
+	return tabs + "\n" + content
 }
 
-// MoveCursor moves the cursor up or down based on current section
-func (dv *DetailView) MoveCursor(delta int) {
-	if dv.viewSection == "info" {
-		// Navigate info section fields
-		newPos := dv.infoCursor + delta
-		if newPos < 0 {
-			newPos = 0
-		}
-		if newPos >= InfoMaxFields {
-			newPos = InfoMaxFields - 1
-		}
-		dv.infoCursor = newPos
-	} else {
-		// Navigate file tree
-		flattened := dv.flattenTree()
-
-		newPos := dv.fileCursor + delta
-		if newPos < 0 {
-			newPos = 0
-		}
-		if newPos >= len(flattened) {
-			newPos = len(flattened) - 1
-		}
-		dv.fileCursor = newPos
-
-		// Keep cursor visible in viewport
-		dv.ensureCursorVisible(len(flattened))
+// renderTabs renders the tab bar with active tab highlighted
+func (dv *DetailView) renderTabs() string {
+	tabLabels := map[string]string{
+		"info":     "Info",
+		"edit":     "Edit",
+		"category": "Category",
+		"files":    "Files",
 	}
-}
 
-// ToggleExpanded toggles the expanded state of the current node if it's a directory
-func (dv *DetailView) ToggleExpanded() {
-	if dv.viewSection != "files" {
-		return // Can only expand/collapse in files section
-	}
-	flattened := dv.flattenTree()
-	if dv.fileCursor >= 0 && dv.fileCursor < len(flattened) {
-		node := flattened[dv.fileCursor].Node
-		if node.IsDirectory {
-			node.Expanded = !node.Expanded
+	// Build top line and middle line separately
+	var topLine, middleLine strings.Builder
+	totalWidth := 0
+
+	for i, tabName := range dv.tabOrder {
+		label := tabLabels[tabName]
+		isActive := tabName == dv.currentTab
+
+		paddedLabel := " " + label + " "
+		tabWidth := len(paddedLabel) + 2 // +2 for the box borders
+		topBorder := "┌" + strings.Repeat("─", len(paddedLabel)) + "┐"
+		midBorder := "│" + paddedLabel + "│"
+
+		if isActive {
+			// Active tab in select color
+			activeStyle := lipgloss.NewStyle().Foreground(dv.state.Styles.SelectColor)
+			topLine.WriteString(activeStyle.Render(topBorder))
+			middleLine.WriteString(activeStyle.Render("│") + activeStyle.Render(paddedLabel) + activeStyle.Render("│"))
+		} else {
+			// Inactive tab in hint color
+			inactiveStyle := lipgloss.NewStyle().Foreground(dv.state.Styles.HintColor)
+			topLine.WriteString(inactiveStyle.Render(topBorder))
+			middleLine.WriteString(inactiveStyle.Render(midBorder))
 		}
-	}
-}
 
-// ExpandAll expands all directories
-func (dv *DetailView) ExpandAll() {
-	for _, root := range dv.fileTree {
-		dv.expandAllRecursive(root)
-	}
-}
+		totalWidth += tabWidth
 
-// expandAllRecursive recursively expands all directories
-func (dv *DetailView) expandAllRecursive(node *FileTreeNode) {
-	if node.IsDirectory {
-		node.Expanded = true
-		for _, child := range node.Children {
-			dv.expandAllRecursive(child)
+		// Add spacing between tabs
+		if i < len(dv.tabOrder)-1 {
+			topLine.WriteString(" ")
+			middleLine.WriteString(" ")
+			totalWidth += 1
 		}
 	}
+
+	// Bottom border - continuous line
+	bottomBorder := strings.Repeat("─", totalWidth)
+
+	return topLine.String() + "\n" + middleLine.String() + "\n" + bottomBorder
 }
 
-// CollapseAll collapses all directories
-func (dv *DetailView) CollapseAll() {
-	for _, root := range dv.fileTree {
-		dv.collapseAllRecursive(root)
-	}
+// ==============================================================================
+// INFO TAB
+// ==============================================================================
+
+type InfoTabModel struct {
+	detail *client.TorrentDetail
 }
 
-// collapseAllRecursive recursively collapses all directories
-func (dv *DetailView) collapseAllRecursive(node *FileTreeNode) {
-	if node.IsDirectory {
-		node.Expanded = false
-		for _, child := range node.Children {
-			dv.collapseAllRecursive(child)
-		}
-	}
-}
-
-// ensureCursorVisible adjusts scroll position to keep cursor visible
-func (dv *DetailView) ensureCursorVisible(treeSize int) {
-	// Simple scrolling: keep cursor roughly centered if possible
-	viewportHeight := 10 // Estimated viewport height for files section
-	
-	if dv.fileCursor < dv.scrollPos {
-		// Cursor moved above viewport
-		dv.scrollPos = dv.fileCursor
-	} else if dv.fileCursor >= dv.scrollPos+viewportHeight {
-		// Cursor moved below viewport
-		dv.scrollPos = dv.fileCursor - viewportHeight + 1
-	}
-
-	// Bounds check
-	if dv.scrollPos < 0 {
-		dv.scrollPos = 0
-	}
-	if dv.scrollPos > treeSize-1 {
-		dv.scrollPos = treeSize - 1
+func NewInfoTabModel(state *DetailViewState, detail *client.TorrentDetail) *InfoTabModel {
+	return &InfoTabModel{
+		detail: detail,
 	}
 }
 
-// GetCurrentFile returns the currently selected file (or nil if directory is selected or in info section)
-func (dv *DetailView) GetCurrentFile() *client.TorrentFile {
-	if dv.viewSection != "files" {
-		return nil
-	}
-	flattened := dv.flattenTree()
-	if dv.fileCursor >= 0 && dv.fileCursor < len(flattened) {
-		node := flattened[dv.fileCursor].Node
-		if !node.IsDirectory && node.Index >= 0 && node.Index < len(dv.files) {
-			return &dv.files[node.Index]
+func (m *InfoTabModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m *InfoTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
+	// Info tab is read-only, just handle tab navigation
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "enter":
+			if state.HasChanges {
+				// Trigger save - will be handled by app.go
+				return nil
+			}
 		}
 	}
 	return nil
 }
 
-// EditDefaultField starts editing the appropriate field based on current cursor position
-func (dv *DetailView) EditDefaultField() {
-	if dv.viewSection != "info" {
-		return // Can only edit fields in info section
+func (m *InfoTabModel) View(state *DetailViewState) string {
+	if m.detail == nil {
+		return "No torrent selected"
 	}
 
-	// Edit the field based on cursor position
-	switch dv.infoCursor {
-	case InfoName:
-		dv.StartEdit("name")
-	case InfoCategory:
-		dv.StartEdit("category")
-	case InfoTags:
-		dv.StartEdit("tags")
-	case InfoComments:
-		dv.StartEdit("comments")
-	case InfoLocation:
-		dv.StartEdit("location")
+	var content strings.Builder
+	content.WriteString("\n")
+	content.WriteString("Name: " + m.detail.Name + "\n")
+	content.WriteString("Category: " + m.detail.Category + "\n")
+	content.WriteString("Save Path: " + m.detail.SavePath + "\n")
+	content.WriteString("Total Size: " + formatBytes(m.detail.TotalSize) + "\n")
+	content.WriteString("Downloaded: " + formatBytes(m.detail.Downloaded) + "\n")
+	
+	if state.HasChanges {
+		content.WriteString("\n[Changes detected - press Enter to save, Esc to discard]\n")
 	}
+
+	return content.String()
 }
 
-// StartEdit starts editing a specific field
-func (dv *DetailView) StartEdit(field string) {
-	dv.editMode = field
-	dv.editError = ""
-	dv.editCursorX = 0
-
-	// Initialize edit value based on field
-	switch field {
-	case "name":
-		dv.editValue = dv.detail.Name
-		dv.editCursorX = len(dv.editValue)
-	case "category":
-		dv.editValue = dv.detail.Category
-		dv.editCursorX = len(dv.editValue)
-	case "tags":
-		dv.editValue = strings.Join(dv.detail.Tags, ", ")
-		dv.editCursorX = len(dv.editValue)
-	case "comments":
-		dv.editValue = dv.detail.Comments
-		dv.editCursorX = len(dv.editValue)
-	case "location":
-		dv.editValue = dv.detail.SavePath
-		dv.editCursorX = len(dv.editValue)
+// formatBytes converts bytes to human-readable format
+func formatBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return string(rune(b)) + " B"
 	}
-}
-
-// CancelEdit cancels the current edit
-func (dv *DetailView) CancelEdit() {
-	dv.editMode = ""
-	dv.editValue = ""
-	dv.editError = ""
-	dv.editCursorX = 0
-}
-
-// HandleEditKey handles keyboard input while in edit mode
-func (dv *DetailView) HandleEditKey(key string) bool {
-	if dv.editMode == "" {
-		return false
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
 	}
-
-	switch key {
-	case "enter":
-		// Save edit (will be handled by app)
-		return true
-
-	case "esc":
-		dv.CancelEdit()
-		return true
-
-	case "backspace":
-		if dv.editCursorX > 0 {
-			dv.editValue = dv.editValue[:dv.editCursorX-1] + dv.editValue[dv.editCursorX:]
-			dv.editCursorX--
-		}
-		return true
-
-	case "delete":
-		if dv.editCursorX < len(dv.editValue) {
-			dv.editValue = dv.editValue[:dv.editCursorX] + dv.editValue[dv.editCursorX+1:]
-		}
-		return true
-
-	case "home":
-		dv.editCursorX = 0
-		return true
-
-	case "end":
-		dv.editCursorX = len(dv.editValue)
-		return true
-
-	case "left":
-		if dv.editCursorX > 0 {
-			dv.editCursorX--
-		}
-		return true
-
-	case "right":
-		if dv.editCursorX < len(dv.editValue) {
-			dv.editCursorX++
-		}
-		return true
-
+	switch exp {
+	case 1:
+		return fmt.Sprintf("%.1f KB", float64(b)/float64(unit))
+	case 2:
+		return fmt.Sprintf("%.1f MB", float64(b)/float64(unit*unit))
+	case 3:
+		return fmt.Sprintf("%.1f GB", float64(b)/float64(unit*unit*unit))
 	default:
-		// Handle regular character input
-		if len(key) == 1 && key >= " " && key <= "~" {
-			dv.editValue = dv.editValue[:dv.editCursorX] + key + dv.editValue[dv.editCursorX:]
-			dv.editCursorX++
-			return true
+		return fmt.Sprintf("%.1f TB", float64(b)/float64(unit*unit*unit*unit))
+	}
+}
+
+// ==============================================================================
+// EDIT TAB
+// ==============================================================================
+
+type EditTabModel struct {
+	fields      []EditFormField
+	focusIndex  int
+}
+
+type EditFormField struct {
+	Name     string
+	Label    string
+	Original string
+	Input    textinput.Model
+}
+
+func NewEditTabModel(state *DetailViewState) *EditTabModel {
+	fields := []EditFormField{
+		{
+			Name:     "name",
+			Label:    "Name",
+			Original: state.OriginalValues["name"],
+			Input:    createStyledTextInput("name", state.OriginalValues["name"]),
+		},
+		{
+			Name:     "tags",
+			Label:    "Tags",
+			Original: state.OriginalValues["tags"],
+			Input:    createStyledTextInput("tags", state.OriginalValues["tags"]),
+		},
+		{
+			Name:     "comments",
+			Label:    "Comments",
+			Original: state.OriginalValues["comments"],
+			Input:    createStyledTextInput("comments", state.OriginalValues["comments"]),
+		},
+		{
+			Name:     "location",
+			Label:    "Download Path",
+			Original: state.OriginalValues["location"],
+			Input:    createStyledTextInput("location", state.OriginalValues["location"]),
+		},
+	}
+
+	// Focus first input
+	if len(fields) > 0 {
+		fields[0].Input.Focus()
+	}
+
+	return &EditTabModel{
+		fields:     fields,
+		focusIndex: 0,
+	}
+}
+
+func createStyledTextInput(placeholder, value string) textinput.Model {
+	ti := textinput.New()
+	ti.SetValue(value)
+	ti.Placeholder = placeholder
+	return ti
+}
+
+func (m *EditTabModel) Init() tea.Cmd {
+	return textinput.Blink
+}
+
+func (m *EditTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "tab":
+			// Next field
+			m.fields[m.focusIndex].Input.Blur()
+			m.focusIndex = (m.focusIndex + 1) % len(m.fields)
+			m.fields[m.focusIndex].Input.Focus()
+			return nil
+		case "shift+tab":
+			// Previous field
+			m.fields[m.focusIndex].Input.Blur()
+			m.focusIndex = (m.focusIndex - 1 + len(m.fields)) % len(m.fields)
+			m.fields[m.focusIndex].Input.Focus()
+			return nil
 		}
 	}
 
-	return false
+	// Update focused input
+	var cmd tea.Cmd
+	m.fields[m.focusIndex].Input, cmd = m.fields[m.focusIndex].Input.Update(msg)
+
+	// Update state with current value
+	for _, field := range m.fields {
+		state.UpdateField(field.Name, field.Input.Value())
+	}
+
+	return cmd
+}
+
+func (m *EditTabModel) View(state *DetailViewState) string {
+	var content strings.Builder
+	content.WriteString("\n")
+	
+	for i, field := range m.fields {
+		content.WriteString(field.Label + ": " + field.Input.View() + "\n")
+		if i < len(m.fields)-1 {
+			content.WriteString("\n")
+		}
+	}
+	
+	content.WriteString("\n[Use Tab/Shift+Tab to navigate fields]\n")
+	
+	return content.String()
+}
+
+// ==============================================================================
+// CATEGORY TAB
+// ==============================================================================
+
+type CategoryTabModel struct {
+	list list.Model
+}
+
+func NewCategoryTabModel(state *DetailViewState, categories []string, currentCategory string) *CategoryTabModel {
+	items := []list.Item{}
+	items = append(items, simpleItem("(none)"))
+	for _, cat := range categories {
+		items = append(items, simpleItem(cat))
+	}
+
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = false
+	delegate.SetHeight(1)
+
+	l := list.New(items, delegate, 0, 6)
+	l.SetShowHelp(false)
+	l.SetShowStatusBar(false)
+	l.Title = "Category"
+
+	// Select current category
+	if currentCategory != "" {
+		for i, item := range items {
+			if string(item.(simpleItem)) == currentCategory {
+				l.Select(i)
+				break
+			}
+		}
+	}
+
+	return &CategoryTabModel{
+		list: l,
+	}
+}
+
+func (m *CategoryTabModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m *CategoryTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
+	var cmd tea.Cmd
+	m.list, cmd = m.list.Update(msg)
+
+	// Update state with selected category
+	if item := m.list.SelectedItem(); item != nil {
+		catValue := string(item.(simpleItem))
+		if catValue != "(none)" {
+			state.UpdateField("category", catValue)
+		} else {
+			state.UpdateField("category", "")
+		}
+	}
+
+	return cmd
+}
+
+func (m *CategoryTabModel) View(state *DetailViewState) string {
+	// TODO: Implement category tab view
+	return "Category Tab - TODO\n" + m.list.View()
+}
+
+// ==============================================================================
+// FILES TAB
+// ==============================================================================
+
+type FilesTabModel struct {
+	files []client.TorrentFile
+	// TODO: Add tree-bubble component here
+}
+
+func NewFilesTabModel(state *DetailViewState, files []client.TorrentFile) *FilesTabModel {
+	return &FilesTabModel{
+		files: files,
+	}
+}
+
+func (m *FilesTabModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
+	// TODO: Implement files tab update with tree-bubble
+	return nil
+}
+
+func (m *FilesTabModel) View(state *DetailViewState) string {
+	// TODO: Implement files tab view with tree-bubble
+	return "Files Tab - TODO"
 }

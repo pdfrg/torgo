@@ -269,7 +269,7 @@ func (a *App) View() string {
 	var mainView string
 	if a.screenMode == "detail" && a.detailView != nil {
 		// In detail view
-		mainView = a.detailView.Render(a.width, listHeight)
+		mainView = a.detailView.View()
 	} else {
 		// In list view
 		if a.viewMode == "multiline" {
@@ -434,66 +434,15 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Handle detail view specific keys
 	if a.screenMode == "detail" && a.detailView != nil {
-		// Handle edit mode first
-		if a.detailView.editMode != "" {
-			if a.detailView.HandleEditKey(k) {
-				if k == "enter" && a.detailView.editMode != "" {
-					// Save edit (implement API call later)
-					a.detailView.CancelEdit()
-				}
-				return a, nil
-			}
-			// If not handled as edit key, consume most keys while editing
-			if k != "esc" {
-				return a, nil
-			}
-		}
-
-		switch {
-		case k == "esc":
-			if a.detailView.editMode != "" {
-				a.detailView.CancelEdit()
-			} else {
-				a.screenMode = "list"
-				a.detailView = nil
-			}
-			return a, nil
-
-		case isKeyMatch(k, a.keys.Up):
-			a.detailView.MoveCursor(-1)
-			return a, nil
-
-		case isKeyMatch(k, a.keys.Down):
-			a.detailView.MoveCursor(1)
-			return a, nil
-
-		case k == "right":
-			a.detailView.ToggleExpanded()
-			return a, nil
-
-		case k == "left":
-			a.detailView.CollapseAll()
-			return a, nil
-
-		case k == "]":
-			a.detailView.ExpandAll()
-			return a, nil
-
-		case k == "e":
-			// Start editing the default field
-			a.detailView.EditDefaultField()
-			return a, nil
-
-		case k == "tab":
-			// Switch between info and files sections
-			if a.detailView.viewSection == "info" {
-				a.detailView.viewSection = "files"
-			} else {
-				a.detailView.viewSection = "info"
-			}
+		// TODO: Implement proper key handling for new detail view architecture
+		// For now, ESC exits detail view
+		if k == "esc" {
+			a.screenMode = "list"
+			a.detailView = nil
 			return a, nil
 		}
-		// Other keys fall through to be handled in list view context (for consistency)
+		// Other keys are handled by detail view's Update method (called in main Update)
+		return a, nil
 	}
 
 	// Handle ESC to clear search filter if active (only in list view)
@@ -1046,8 +995,8 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 			return errorMsg{err: err}
 		}
 
-		// Create detail view
-		a.detailView = NewDetailView(a.styles, detail, files)
+		// Create detail view with categories
+		a.detailView = NewDetailView(a.styles, detail, files, a.state.Categories)
 		a.screenMode = "detail"
 
 		return nil
