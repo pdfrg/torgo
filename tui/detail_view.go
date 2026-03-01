@@ -297,7 +297,7 @@ func (dv *DetailView) renderTabs() string {
 		} else if isLast && !isActive {
 			border.BottomRight = "┤"
 		}
-		tabStyle = tabStyle.Border(border)
+		tabStyle = tabStyle.Border(border, true)
 
 		renderedTabs = append(renderedTabs, tabStyle.Render(label))
 	}
