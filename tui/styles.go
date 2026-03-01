@@ -1,26 +1,28 @@
 package tui
 
 import (
+	"image/color"
+	
 	"charm.land/lipgloss/v2"
 )
 
 // Styles holds all UI styling
 type Styles struct {
-	// Base colors (using string representation for v2)
-	FgColor    string
-	BgColor    string
-	SelectColor string
-	HintColor  string
-	ErrorColor string
+	// Base color strings (for later use with lipgloss.Color() wrapper)
+	FgColorStr    string
+	BgColorStr    string
+	SelectColorStr string
+	HintColorStr  string
+	ErrorColorStr string
 
-	// Status colors
-	DownloadColor     string
-	QueuedDLColor     string
-	StalledDLColor    string
-	PauseColor        string
-	SeedColor         string
-	CompletedColor    string
-	ErrorStatusColor  string
+	// Status color strings
+	DownloadColorStr     string
+	QueuedDLColorStr     string
+	StalledDLColorStr    string
+	PauseColorStr        string
+	SeedColorStr         string
+	CompletedColorStr    string
+	ErrorStatusColorStr  string
 
 	// Styled components
 	Title        lipgloss.Style
@@ -33,26 +35,40 @@ type Styles struct {
 	Dialog       lipgloss.Style
 }
 
+// Convenience accessors that wrap color strings with lipgloss.Color()
+func (s *Styles) FgColor() color.Color      { return lipgloss.Color(s.FgColorStr) }
+func (s *Styles) BgColor() color.Color      { return lipgloss.Color(s.BgColorStr) }
+func (s *Styles) SelectColor() color.Color  { return lipgloss.Color(s.SelectColorStr) }
+func (s *Styles) HintColor() color.Color    { return lipgloss.Color(s.HintColorStr) }
+func (s *Styles) ErrorColor() color.Color   { return lipgloss.Color(s.ErrorColorStr) }
+func (s *Styles) DownloadColor() color.Color   { return lipgloss.Color(s.DownloadColorStr) }
+func (s *Styles) QueuedDLColor() color.Color   { return lipgloss.Color(s.QueuedDLColorStr) }
+func (s *Styles) StalledDLColor() color.Color  { return lipgloss.Color(s.StalledDLColorStr) }
+func (s *Styles) PauseColor() color.Color      { return lipgloss.Color(s.PauseColorStr) }
+func (s *Styles) SeedColor() color.Color       { return lipgloss.Color(s.SeedColorStr) }
+func (s *Styles) CompletedColor() color.Color  { return lipgloss.Color(s.CompletedColorStr) }
+func (s *Styles) ErrorStatusColor() color.Color { return lipgloss.Color(s.ErrorStatusColorStr) }
+
 // DefaultStyles returns the default dark theme
 func DefaultStyles() *Styles {
 	s := &Styles{
-		FgColor:     "252",  // Light gray
-		BgColor:     "235",  // Dark gray
-		SelectColor: "39",   // Cyan
-		HintColor:   "242",  // Medium gray
-		ErrorColor:  "196",  // Red
-		DownloadColor:    "26",  // Dark blue
-		QueuedDLColor:    "130", // Dark orange
-		StalledDLColor:   "130", // Dark orange (same as queuedDL)
-		PauseColor:       "240", // Subdued gray
-		SeedColor:        "22",  // Dark green
-		CompletedColor:   "178", // Gold
-		ErrorStatusColor: "124", // Dark red
+		FgColorStr:     "252",  // Light gray
+		BgColorStr:     "235",  // Dark gray
+		SelectColorStr: "39",   // Cyan
+		HintColorStr:   "242",  // Medium gray
+		ErrorColorStr:  "196",  // Red
+		DownloadColorStr:    "26",  // Dark blue
+		QueuedDLColorStr:    "130", // Dark orange
+		StalledDLColorStr:   "130", // Dark orange (same as queuedDL)
+		PauseColorStr:       "240", // Subdued gray
+		SeedColorStr:        "22",  // Dark green
+		CompletedColorStr:   "178", // Gold
+		ErrorStatusColorStr: "124", // Dark red
 	}
 
 	// Title
 	s.Title = lipgloss.NewStyle().
-		Foreground(s.SelectColor).
+		Foreground(s.SelectColor()).
 		Bold(true)
 
 	// Status bar at bottom (styled in Render method with Width, Foreground, and Background)
@@ -63,82 +79,82 @@ func DefaultStyles() *Styles {
 
 	// List header row
 	s.ListHeader = lipgloss.NewStyle().
-		Foreground(s.SelectColor).
+		Foreground(s.SelectColor()).
 		Bold(true).
 		Padding(0, 1)
 
 	// Normal list item
 	s.ListItem = lipgloss.NewStyle().
-		Foreground(s.FgColor).
+		Foreground(s.FgColor()).
 		Padding(0, 1)
 
 	// Selected list item
 	s.ListItemSelected = lipgloss.NewStyle().
-		Foreground(s.BgColor).
-		Background(s.SelectColor).
+		Foreground(s.BgColor()).
+		Background(s.SelectColor()).
 		Padding(0, 1)
 
 	// Progress bar (for reference; actual implementation uses status-based colors)
 	s.ProgressBar = lipgloss.NewStyle().
-		Foreground(s.DownloadColor)
+		Foreground(s.DownloadColor())
 
 	// Dialog
 	s.Dialog = lipgloss.NewStyle().
-		Foreground(s.FgColor).
+		Foreground(s.FgColor()).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(s.SelectColor).
+		BorderForeground(s.SelectColor()).
 		Padding(1)
 
 	return s
 }
 
 // StatusColor returns the color for a torrent status
-func (s *Styles) StatusColor(status string) string {
+func (s *Styles) StatusColor(status string) color.Color {
 	switch status {
 	case "downloading":
-		return s.DownloadColor
+		return s.DownloadColor()
 	case "queuedDL":
-		return s.QueuedDLColor
+		return s.QueuedDLColor()
 	case "stalledDL":
-		return s.StalledDLColor
+		return s.StalledDLColor()
 	case "paused":
-		return s.PauseColor
+		return s.PauseColor()
 	case "seeding":
-		return s.SeedColor
+		return s.SeedColor()
 	case "completed":
-		return s.CompletedColor
+		return s.CompletedColor()
 	case "error":
-		return s.ErrorStatusColor
+		return s.ErrorStatusColor()
 	default:
-		return s.FgColor
+		return s.FgColor()
 	}
 }
 
 // ProgressBarColors returns background colors for progress bar based on status and progress
 // filledColor is for the filled portion, unfilledColor for the empty portion
-func (s *Styles) ProgressBarColors(status string, progress uint8) (filledColor, unfilledColor string) {
+func (s *Styles) ProgressBarColors(status string, progress uint8) (filledColor, unfilledColor color.Color) {
 	// unfilledColor is transparent (empty string means no background, allowing terminal bg to show)
-	unfilledColor = "" // No background = transparent
+	unfilledColor = lipgloss.Color("") // No background = transparent
 	
 	// Use the status directly - we now have proper status mapping from qBittorrent API
 	// including StatusCompleted, so we don't need to override based on progress
 	switch status {
 	case "downloading":
-		filledColor = s.DownloadColor // Dark blue
+		filledColor = s.DownloadColor() // Dark blue
 	case "queuedDL":
-		filledColor = s.QueuedDLColor // Dark orange
+		filledColor = s.QueuedDLColor() // Dark orange
 	case "stalledDL":
-		filledColor = s.StalledDLColor // Dark orange
+		filledColor = s.StalledDLColor() // Dark orange
 	case "paused":
-		filledColor = s.PauseColor // Subdued gray
+		filledColor = s.PauseColor() // Subdued gray
 	case "seeding":
-		filledColor = s.SeedColor // Dark green
+		filledColor = s.SeedColor() // Dark green
 	case "completed":
-		filledColor = s.CompletedColor // Dark yellow
+		filledColor = s.CompletedColor() // Dark yellow
 	case "error":
-		filledColor = s.ErrorStatusColor // Dark red
+		filledColor = s.ErrorStatusColor() // Dark red
 	default:
-		filledColor = s.FgColor // Light gray
+		filledColor = s.FgColor() // Light gray
 	}
 	
 	return filledColor, unfilledColor
