@@ -406,7 +406,9 @@ func (a *App) View() tea.View {
 		output = a.overlayAddDialog(output)
 	}
 
-	return tea.NewView(output)
+	v := tea.NewView(output)
+	v.AltScreen = true
+	return v
 }
 
 // overlayAddDialog renders the add torrent dialog as a centered modal overlay on top
