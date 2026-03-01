@@ -276,6 +276,7 @@ func (dv *DetailView) renderTabs() string {
 	}
 
 	// Bottom border - continuous line
+	// Use lipgloss.Width to properly calculate visible width (excluding ANSI codes)
 	bottomBorder := strings.Repeat("─", totalWidth)
 
 	return topLine.String() + "\n" + middleLine.String() + "\n" + bottomBorder
@@ -319,16 +320,79 @@ func (m *InfoTabModel) View(state *DetailViewState) string {
 		return "No torrent selected"
 	}
 
+	labelStyle := lipgloss.NewStyle().
+		Foreground(state.Styles.SelectColor).
+		Bold(true)
+
 	var content strings.Builder
 	content.WriteString("\n")
-	content.WriteString("Name: " + m.detail.Name + "\n")
-	content.WriteString("Category: " + m.detail.Category + "\n")
-	content.WriteString("Save Path: " + m.detail.SavePath + "\n")
-	content.WriteString("Total Size: " + formatBytes(m.detail.TotalSize) + "\n")
-	content.WriteString("Downloaded: " + formatBytes(m.detail.Downloaded) + "\n")
 	
+	// Name (always shows current edited value if changed)
+	content.WriteString(labelStyle.Render("Name:") + " ")
+	if name := state.GetCurrentValue("name"); name != m.detail.Name {
+		content.WriteString(m.detail.Name + " → " + name)
+	} else {
+		content.WriteString(m.detail.Name)
+	}
+	content.WriteString("\n\n")
+	
+	// Category
+	content.WriteString(labelStyle.Render("Category:") + " ")
+	if category := state.GetCurrentValue("category"); category != m.detail.Category {
+		content.WriteString(m.detail.Category + " → " + category)
+	} else {
+		content.WriteString(m.detail.Category)
+		if m.detail.Category == "" {
+			content.WriteString("(none)")
+		}
+	}
+	content.WriteString("\n\n")
+	
+	// Tags
+	content.WriteString(labelStyle.Render("Tags:") + " ")
+	originalTags := state.OriginalValues["tags"]
+	if tags := state.GetCurrentValue("tags"); tags != originalTags {
+		content.WriteString(originalTags + " → " + tags)
+	} else {
+		if originalTags == "" {
+			content.WriteString("(none)")
+		} else {
+			content.WriteString(originalTags)
+		}
+	}
+	content.WriteString("\n\n")
+	
+	// Comments
+	content.WriteString(labelStyle.Render("Comments:") + " ")
+	if m.detail.Comments == "" {
+		content.WriteString("(none)")
+	} else {
+		content.WriteString(m.detail.Comments)
+	}
+	content.WriteString("\n\n")
+	
+	// Size info
+	content.WriteString(labelStyle.Render("Total Size:") + " " + formatBytes(m.detail.TotalSize) + "\n")
+	content.WriteString(labelStyle.Render("Downloaded:") + " " + formatBytes(m.detail.Downloaded) + "\n")
+	content.WriteString(labelStyle.Render("Remaining:") + " " + formatBytes(m.detail.TotalSize-m.detail.Downloaded) + "\n")
+	
+	// Save Path
+	content.WriteString("\n" + labelStyle.Render("Save Path:") + "\n")
+	if location := state.GetCurrentValue("location"); location != m.detail.SavePath {
+		content.WriteString("  " + m.detail.SavePath + "\n")
+		content.WriteString("  → " + location + "\n")
+	} else {
+		content.WriteString("  " + m.detail.SavePath + "\n")
+	}
+	
+	// Change indicator
 	if state.HasChanges {
-		content.WriteString("\n[Changes detected - press Enter to save, Esc to discard]\n")
+		content.WriteString("\n" + lipgloss.NewStyle().
+			Foreground(state.Styles.ErrorColor).
+			Bold(true).
+			Render("✎ Changes detected") + " - press Enter to save or Esc to discard\n")
+	} else {
+		content.WriteString("\nPress 'e' to edit, Tab to switch tabs\n")
 	}
 
 	return content.String()
@@ -446,26 +510,54 @@ func (m *EditTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 	var cmd tea.Cmd
 	m.fields[m.focusIndex].Input, cmd = m.fields[m.focusIndex].Input.Update(msg)
 
-	// Update state with current value
-	for _, field := range m.fields {
-		state.UpdateField(field.Name, field.Input.Value())
+	// Update state with current values from all fields
+	for i, field := range m.fields {
+		value := m.fields[i].Input.Value()
+		state.UpdateField(field.Name, value)
 	}
 
 	return cmd
 }
 
 func (m *EditTabModel) View(state *DetailViewState) string {
+	labelStyle := lipgloss.NewStyle().
+		Foreground(state.Styles.SelectColor).
+		Bold(true)
+
+	focusStyle := lipgloss.NewStyle().
+		Foreground(state.Styles.BgColor).
+		Background(state.Styles.SelectColor).
+		Padding(0, 1)
+
 	var content strings.Builder
 	content.WriteString("\n")
 	
 	for i, field := range m.fields {
-		content.WriteString(field.Label + ": " + field.Input.View() + "\n")
+		isFocused := i == m.focusIndex
+		
+		// Field label
+		label := labelStyle.Render(field.Label + ":")
+		if isFocused {
+			label = focusStyle.Render(" " + field.Label + " ")
+		}
+		
+		content.WriteString(label + "\n")
+		content.WriteString("  " + field.Input.View() + "\n")
+		
+		// Show original value as hint
+		if field.Original != "" && field.Input.Value() != field.Original {
+			hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
+			content.WriteString("  " + hintStyle.Render("(originally: "+field.Original+")") + "\n")
+		}
+		
 		if i < len(m.fields)-1 {
 			content.WriteString("\n")
 		}
 	}
 	
-	content.WriteString("\n[Use Tab/Shift+Tab to navigate fields]\n")
+	content.WriteString("\n" + lipgloss.NewStyle().
+		Foreground(state.Styles.HintColor).
+		Render("Tab/Shift+Tab to navigate  •  Enter to save  •  Esc to cancel\n"))
 	
 	return content.String()
 }
@@ -531,8 +623,24 @@ func (m *CategoryTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 }
 
 func (m *CategoryTabModel) View(state *DetailViewState) string {
-	// TODO: Implement category tab view
-	return "Category Tab - TODO\n" + m.list.View()
+	var content strings.Builder
+	content.WriteString("\n")
+	
+	labelStyle := lipgloss.NewStyle().
+		Foreground(state.Styles.SelectColor).
+		Bold(true)
+	
+	content.WriteString(labelStyle.Render("Select a category:") + "\n\n")
+	
+	// Get list view with proper dimensions
+	listView := m.list.View()
+	content.WriteString(listView)
+	
+	content.WriteString("\n" + lipgloss.NewStyle().
+		Foreground(state.Styles.HintColor).
+		Render("↑/↓ to navigate  •  Enter to select  •  Esc to cancel\n"))
+	
+	return content.String()
 }
 
 // ==============================================================================
@@ -560,6 +668,38 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 }
 
 func (m *FilesTabModel) View(state *DetailViewState) string {
-	// TODO: Implement files tab view with tree-bubble
-	return "Files Tab - TODO"
+	var content strings.Builder
+	content.WriteString("\n")
+	
+	labelStyle := lipgloss.NewStyle().
+		Foreground(state.Styles.SelectColor).
+		Bold(true)
+	
+	content.WriteString(labelStyle.Render("Files") + " (" + fmt.Sprintf("%d", len(m.files)) + " total)\n\n")
+	
+	if len(m.files) == 0 {
+		content.WriteString("No files in this torrent\n")
+	} else {
+		// Show first 10 files
+		count := 10
+		if len(m.files) < 10 {
+			count = len(m.files)
+		}
+		
+		for i := 0; i < count; i++ {
+			file := m.files[i]
+			content.WriteString("  " + file.Name + " (" + formatBytes(file.Size) + ")\n")
+		}
+		
+		if len(m.files) > 10 {
+			hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
+			content.WriteString(hintStyle.Render(fmt.Sprintf("\n  ... and %d more files\n", len(m.files)-10)))
+		}
+	}
+	
+	content.WriteString("\n" + lipgloss.NewStyle().
+		Foreground(state.Styles.HintColor).
+		Render("(File priority editing coming soon)\n"))
+	
+	return content.String()
 }
