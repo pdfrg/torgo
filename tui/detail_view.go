@@ -289,8 +289,10 @@ func (dv *DetailView) renderTabs() string {
 
 	// Add connecting line across (the "top" of the folder)
 	connectingLine := bottomLine.String()
-	// Extend the connecting line to fill remaining width
-	connectingLine += strings.Repeat("─", dv.State.Width-totalWidth)
+	// Extend the connecting line to fill remaining width (if width is known)
+	if dv.State.Width > totalWidth {
+		connectingLine += strings.Repeat("─", dv.State.Width-totalWidth)
+	}
 
 	return topLine.String() + "\n" + middleLine.String() + "\n" + connectingLine
 }
