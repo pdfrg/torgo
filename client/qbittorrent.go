@@ -567,3 +567,135 @@ func (qa *QBittorrentAdapter) GetTorrentFiles(ctx context.Context, id string) ([
 
 	return files, nil
 }
+
+// SetTorrentName renames a torrent in qBittorrent
+func (qa *QBittorrentAdapter) SetTorrentName(ctx context.Context, id string, newName string) error {
+	renameURL := qa.getBaseURL() + "/api/v2/torrents/rename"
+
+	form := url.Values{}
+	form.Set("hash", id)
+	form.Set("newName", newName)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", renameURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("rename failed: status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// SetCategory changes the category of a torrent in qBittorrent
+func (qa *QBittorrentAdapter) SetCategory(ctx context.Context, id string, category string) error {
+	setURL := qa.getBaseURL() + "/api/v2/torrents/setCategory"
+
+	form := url.Values{}
+	form.Set("hashes", id)
+	form.Set("category", category)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", setURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("set category failed: status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// SetTags updates tags for a torrent in qBittorrent
+func (qa *QBittorrentAdapter) SetTags(ctx context.Context, id string, tags []string) error {
+	setURL := qa.getBaseURL() + "/api/v2/torrents/addTags"
+
+	// First, remove all existing tags for this torrent
+	removeURL := qa.getBaseURL() + "/api/v2/torrents/removeTags"
+	form := url.Values{}
+	form.Set("hashes", id)
+	form.Set("tags", "")
+
+	req, err := http.NewRequestWithContext(ctx, "POST", removeURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	resp.Body.Close()
+
+	// Then add new tags
+	form = url.Values{}
+	form.Set("hashes", id)
+	form.Set("tags", strings.Join(tags, ","))
+
+	req, err = http.NewRequestWithContext(ctx, "POST", setURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err = qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("set tags failed: status %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// SetSavePath changes the save/download location for a torrent in qBittorrent
+func (qa *QBittorrentAdapter) SetSavePath(ctx context.Context, id string, path string) error {
+	// Check if path exists first
+	if _, err := os.Stat(path); err != nil {
+		return fmt.Errorf("path does not exist: %w", err)
+	}
+
+	setURL := qa.getBaseURL() + "/api/v2/torrents/setLocation"
+
+	form := url.Values{}
+	form.Set("hashes", id)
+	form.Set("location", path)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", setURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("set location failed: status %d", resp.StatusCode)
+	}
+
+	return nil
+}

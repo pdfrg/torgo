@@ -109,4 +109,16 @@ type ClientAdapter interface {
 
 	// GetTorrentFiles returns the list of files in a torrent
 	GetTorrentFiles(ctx context.Context, id string) ([]TorrentFile, error)
+
+	// SetTorrentName renames a torrent (qBittorrent only, returns error for Transmission)
+	SetTorrentName(ctx context.Context, id string, newName string) error
+
+	// SetCategory changes the category/label of a torrent
+	SetCategory(ctx context.Context, id string, category string) error
+
+	// SetTags updates the tags for a torrent (qBittorrent only, no-op for Transmission)
+	SetTags(ctx context.Context, id string, tags []string) error
+
+	// SetSavePath changes the save/download location for a torrent
+	SetSavePath(ctx context.Context, id string, path string) error
 }

@@ -589,3 +589,43 @@ func (ta *TransmissionAdapter) GetTorrentFiles(ctx context.Context, id string) (
 
 	return files, nil
 }
+
+// SetTorrentName renames a torrent (not supported in Transmission)
+func (ta *TransmissionAdapter) SetTorrentName(ctx context.Context, id string, newName string) error {
+	return fmt.Errorf("SetTorrentName not supported in Transmission")
+}
+
+// SetCategory changes the category/label of a torrent (Transmission uses download directory instead)
+func (ta *TransmissionAdapter) SetCategory(ctx context.Context, id string, category string) error {
+	// Transmission doesn't have categories like qBittorrent, so we ignore this
+	// The user would need to manually organize by directory
+	return nil
+}
+
+// SetTags updates tags for a torrent (not a core Transmission feature)
+func (ta *TransmissionAdapter) SetTags(ctx context.Context, id string, tags []string) error {
+	// Transmission doesn't have tags like qBittorrent
+	return nil
+}
+
+// SetSavePath changes the save/download location for a torrent in Transmission
+func (ta *TransmissionAdapter) SetSavePath(ctx context.Context, id string, path string) error {
+	payload := fmt.Sprintf(`{
+		"method":"torrent-set",
+		"arguments":{
+			"ids":[%s],
+			"downloadDir":"%s"
+		}
+	}`, id, path)
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("torrent-set failed: %w", err)
+	}
+
+	if resp.Result != "success" {
+		return fmt.Errorf("set location failed: %s", resp.Result)
+	}
+
+	return nil
+}

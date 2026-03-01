@@ -152,10 +152,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			
 			// Enter saves changes (only from Info tab with changes)
 			if k == "enter" && a.detailView.CurrentTab == "info" && a.detailView.State.HasChanges {
-				// TODO: Implement saving changes via API
-				// For now, just clear the changes
-				a.detailView.State.DiscardChanges()
-				return a, nil
+				// Save changes via API
+				return a, a.saveTorrentChanges()
 			}
 		}
 		
@@ -204,6 +202,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.refreshSpeedLimitStatus(),
 			a.startSpeedLimitTicker(),
 		)
+	case savesCompleteMsg:
+		// Changes saved successfully - refresh torrent list
+		return a, a.refreshTorrents()
 	}
 	return a, nil
 }
@@ -1056,6 +1057,64 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 		return nil
 	}
 }
+
+// saveTorrentChanges saves all pending torrent changes via API
+func (a *App) saveTorrentChanges() tea.Cmd {
+	return func() tea.Msg {
+		if a.detailView == nil || a.detailView.Detail == nil {
+			return errorMsg{err: fmt.Errorf("no torrent selected")}
+		}
+
+		adapter := a.state.CurrentClient().Adapter
+		torrentID := a.detailView.Detail.ID
+		state := a.detailView.State
+
+		// Check for name changes
+		if newName := state.GetCurrentValue("name"); newName != state.OriginalValues["name"] && newName != "" {
+			if err := adapter.SetTorrentName(a.ctx, torrentID, newName); err != nil {
+				return errorMsg{err: fmt.Errorf("failed to save name: %w", err)}
+			}
+		}
+
+		// Check for category changes
+		if newCategory := state.GetCurrentValue("category"); newCategory != state.OriginalValues["category"] {
+			if err := adapter.SetCategory(a.ctx, torrentID, newCategory); err != nil {
+				return errorMsg{err: fmt.Errorf("failed to save category: %w", err)}
+			}
+		}
+
+		// Check for tag changes
+		if newTags := state.GetCurrentValue("tags"); newTags != state.OriginalValues["tags"] {
+			tagList := []string{}
+			if newTags != "" {
+				// Parse comma-separated tags
+				for _, tag := range strings.Split(newTags, ",") {
+					tagList = append(tagList, strings.TrimSpace(tag))
+				}
+			}
+			if err := adapter.SetTags(a.ctx, torrentID, tagList); err != nil {
+				return errorMsg{err: fmt.Errorf("failed to save tags: %w", err)}
+			}
+		}
+
+		// Check for location changes
+		if newLocation := state.GetCurrentValue("location"); newLocation != state.OriginalValues["location"] && newLocation != "" {
+			if err := adapter.SetSavePath(a.ctx, torrentID, newLocation); err != nil {
+				return errorMsg{err: fmt.Errorf("failed to save location: %w", err)}
+			}
+		}
+
+		// All changes saved successfully
+		// Clear the detail view and return to list
+		a.screenMode = "list"
+		a.detailView = nil
+
+		return savesCompleteMsg{}
+	}
+}
+
+// savesCompleteMsg is sent when torrent changes are saved
+type savesCompleteMsg struct{}
 
 // Shutdown cleans up resources
 func (a *App) Shutdown() {
