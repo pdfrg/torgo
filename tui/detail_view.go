@@ -250,10 +250,17 @@ func (dv *DetailView) renderTabs() string {
 
 		paddedLabel := " " + label + " "
 		tabWidth := len(paddedLabel) + 2 // +2 for the box borders
-		// Use rounded corners for modern look
+		
+		// Top: rounded corners
 		topBorder := "╭" + strings.Repeat("─", len(paddedLabel)) + "╮"
 		midBorder := "│" + paddedLabel + "│"
-		bottomBorder := "╰" + strings.Repeat("─", len(paddedLabel)) + "╯"
+		// Bottom: square corners with connection (like folder tabs)
+		isLastTab := i == len(dv.TabOrder)-1
+		rightChar := "┤"
+		if isLastTab {
+			rightChar = "┐"
+		}
+		bottomBorder := "├" + strings.Repeat("─", len(paddedLabel)) + rightChar
 
 		if isActive {
 			// Active tab in select color
@@ -280,7 +287,12 @@ func (dv *DetailView) renderTabs() string {
 		}
 	}
 
-	return topLine.String() + "\n" + middleLine.String() + "\n" + bottomLine.String()
+	// Add connecting line across (the "top" of the folder)
+	connectingLine := bottomLine.String()
+	// Extend the connecting line to fill remaining width
+	connectingLine += strings.Repeat("─", dv.State.Width-totalWidth)
+
+	return topLine.String() + "\n" + middleLine.String() + "\n" + connectingLine
 }
 
 // ==============================================================================
@@ -604,7 +616,8 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 	delegate.SetHeight(1)
 
 	// Width and height will be set dynamically in View based on available space
-	l := list.New(items, delegate, 50, 10)
+	// Height of 8 to show all items at once (with 5 categories + none = good fit)
+	l := list.New(items, delegate, 50, 8)
 	l.SetShowHelp(false)
 	l.SetShowStatusBar(false)
 	l.SetShowTitle(false)
