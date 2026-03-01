@@ -147,7 +147,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if k == "esc" && !a.detailView.State.HasChanges {
 				a.screenMode = "list"
 				a.detailView = nil
-				return a, nil
+				// Restart refresh tickers when returning to list view
+				return a, tea.Batch(
+					a.startRefreshTicker(),
+					a.startSpeedLimitTicker(),
+				)
 			}
 			
 			// Enter saves changes (only from Info tab with changes)
@@ -157,6 +161,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		
+		// Still in detail view, but pass through other messages (like ticks)
+		// so they can keep the ui responsive
 		return a, nil
 	}
 
@@ -203,8 +209,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.startSpeedLimitTicker(),
 		)
 	case savesCompleteMsg:
-		// Changes saved successfully - refresh torrent list
-		return a, a.refreshTorrents()
+		// Changes saved successfully - refresh torrent list and restart tickers
+		return a, tea.Batch(
+			a.refreshTorrents(),
+			a.startRefreshTicker(),
+			a.startSpeedLimitTicker(),
+		)
+	case detailViewOpenedMsg:
+		// Detail view opened, just trigger a redraw by returning nil command
+		return a, nil
 	}
 	return a, nil
 }
@@ -1062,7 +1075,8 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 		a.detailView = NewDetailViewWithHost(a.styles, detail, files, categories, clientHost)
 		a.screenMode = "detail"
 
-		return nil
+		// Return a message to trigger an immediate update and redraw
+		return detailViewOpenedMsg{}
 	}
 }
 
@@ -1150,6 +1164,9 @@ func (a *App) saveTorrentChanges() tea.Cmd {
 
 // savesCompleteMsg is sent when torrent changes are saved
 type savesCompleteMsg struct{}
+
+// detailViewOpenedMsg is sent when detail view opens to trigger immediate redraw
+type detailViewOpenedMsg struct{}
 
 // Shutdown cleans up resources
 func (a *App) Shutdown() {
