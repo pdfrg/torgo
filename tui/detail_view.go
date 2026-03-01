@@ -218,7 +218,7 @@ func (dv *DetailView) prevTab() {
 }
 
 // View renders the detail view
-func (dv *DetailView) View() tea.View {
+func (dv *DetailView) View() string {
 	// Render tabs
 	tabs := dv.renderTabs()
 
@@ -238,7 +238,7 @@ func (dv *DetailView) View() tea.View {
 	}
 
 	// Combine tabs and content
-	return tea.NewView(tabs + "\n" + content)
+	return tabs + "\n" + content
 }
 
 // tabBorderWithBottom creates a custom tab border with specified bottom characters

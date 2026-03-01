@@ -302,8 +302,7 @@ func (a *App) View() tea.View {
 	var mainView string
 	if a.screenMode == "detail" && a.detailView != nil {
 		// In detail view - use full available height (accounting for status/hints at bottom)
-		detailViewOutput := a.detailView.View()
-		mainView = fmt.Sprintf("%s", detailViewOutput)
+		mainView = a.detailView.View()
 	} else {
 		// In list view
 		if a.viewMode == "multiline" {
