@@ -217,7 +217,7 @@ func (dv *DetailView) View() string {
 	var content string
 	switch dv.CurrentTab {
 	case "info":
-		content = dv.InfoTab.View(dv.State)
+		content = dv.InfoTab.View(dv.State, dv.FilesTab)
 	case "edit":
 		content = dv.EditTab.View(dv.State)
 	case "category":
@@ -329,7 +329,7 @@ func (m *InfoTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 	return nil
 }
 
-func (m *InfoTabModel) View(state *DetailViewState) string {
+func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) string {
 	if m.detail == nil {
 		return "No torrent selected"
 	}
@@ -408,12 +408,26 @@ func (m *InfoTabModel) View(state *DetailViewState) string {
 		content.WriteString("  " + m.detail.SavePath + "\n")
 	}
 	
+	// Check for any changes (including file priority changes)
+	hasFieldChanges := state.HasChanges
+	hasFileChanges := filesTab != nil && filesTab.HasFileChanges()
+	hasAnyChanges := hasFieldChanges || hasFileChanges
+	
 	// Change indicator
-	if state.HasChanges {
+	if hasAnyChanges {
+		var changeMsg string
+		if hasFileChanges && !hasFieldChanges {
+			changeMsg = "✎ File priorities changed"
+		} else if hasFieldChanges && !hasFileChanges {
+			changeMsg = "✎ Changes detected"
+		} else {
+			changeMsg = "✎ Changes detected (fields and files)"
+		}
+		
 		content.WriteString("\n" + lipgloss.NewStyle().
 			Foreground(state.Styles.ErrorColor).
 			Bold(true).
-			Render("✎ Changes detected") + " - press Enter to save or Esc to discard\n")
+			Render(changeMsg) + " - press Enter to save or Esc to discard\n")
 	} else {
 		content.WriteString("\nPress 'e' to edit, Tab to switch tabs\n")
 	}
