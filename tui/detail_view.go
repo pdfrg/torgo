@@ -254,26 +254,21 @@ func (dv *DetailView) renderTabs() string {
 		// Top: rounded corners
 		topBorder := "╭" + strings.Repeat("─", len(paddedLabel)) + "╮"
 		midBorder := "│" + paddedLabel + "│"
-		// Bottom: square corners with connection (like folder tabs)
-		isLastTab := i == len(dv.TabOrder)-1
-		rightChar := "┤"
-		if isLastTab {
-			rightChar = "┐"
-		}
-		bottomBorder := "├" + strings.Repeat("─", len(paddedLabel)) + rightChar
+		// Bottom: use spaces to not interfere with the connecting line below
+		bottomBorder := strings.Repeat(" ", tabWidth)
 
 		if isActive {
 			// Active tab in select color
 			activeStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.SelectColor)
 			topLine.WriteString(activeStyle.Render(topBorder))
 			middleLine.WriteString(activeStyle.Render("│") + activeStyle.Render(paddedLabel) + activeStyle.Render("│"))
-			bottomLine.WriteString(activeStyle.Render(bottomBorder))
+			bottomLine.WriteString(bottomBorder)
 		} else {
 			// Inactive tab in hint color
 			inactiveStyle := lipgloss.NewStyle().Foreground(dv.State.Styles.HintColor)
 			topLine.WriteString(inactiveStyle.Render(topBorder))
 			middleLine.WriteString(inactiveStyle.Render(midBorder))
-			bottomLine.WriteString(inactiveStyle.Render(bottomBorder))
+			bottomLine.WriteString(bottomBorder)
 		}
 
 		totalWidth += tabWidth
@@ -287,14 +282,17 @@ func (dv *DetailView) renderTabs() string {
 		}
 	}
 
-	// Add connecting line across (the "top" of the folder)
-	connectingLine := bottomLine.String()
+	// Build a clean connecting line across the bottom (like the edge of a folder)
+	connectingLine := "└" + strings.Repeat("─", totalWidth-1)
 	// Extend the connecting line to fill remaining width (if width is known)
 	if dv.State.Width > totalWidth {
 		connectingLine += strings.Repeat("─", dv.State.Width-totalWidth)
 	}
+	
+	// Apply color to the connecting line (use hint color as neutral)
+	connectingLineStyled := lipgloss.NewStyle().Foreground(dv.State.Styles.HintColor).Render(connectingLine)
 
-	return topLine.String() + "\n" + middleLine.String() + "\n" + connectingLine
+	return topLine.String() + "\n" + middleLine.String() + "\n" + connectingLineStyled
 }
 
 // ==============================================================================
@@ -618,8 +616,8 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 	delegate.SetHeight(1)
 
 	// Width and height will be set dynamically in View based on available space
-	// Height of 8 to show all items at once (with 5 categories + none = good fit)
-	l := list.New(items, delegate, 50, 8)
+	// Height of 15 to show all items with room to spare
+	l := list.New(items, delegate, 50, 15)
 	l.SetShowHelp(false)
 	l.SetShowStatusBar(false)
 	l.SetShowTitle(false)
