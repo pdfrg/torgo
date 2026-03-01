@@ -76,7 +76,7 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 
 	// Color styles for individual parts (each with background applied)
 	defaultColor := lipgloss.NewStyle().
-		Foreground(s.styles.FgColor).
+		Foreground(s.styles.FgColor()).
 		Background(barBg)
 	keyColor := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("51")).

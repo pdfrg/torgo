@@ -154,9 +154,9 @@ func (t *TorrentListView) Render(width, height int) string {
 	content := strings.Join(lines, "\n")
 
 	// Initialize viewport if needed
-	if t.viewport.Width != width || t.viewport.Height != height {
-		t.viewport = viewport.New(width, height)
-		t.viewport.YPosition = 0
+	if t.viewport.Width() != width || t.viewport.Height() != height {
+		t.viewport.SetWidth(width)
+		t.viewport.SetHeight(height)
 	}
 
 	// Set content in viewport
@@ -174,34 +174,34 @@ func (t *TorrentListView) Render(width, height int) string {
 	// If cursor is below the visible area, scroll down
 	// Ensure at least 2 lines of overhead (header + separator) are always visible
 	visibleTop := t.viewport.YOffset
-	visibleBottom := visibleTop + t.viewport.Height
+	visibleBottom := visibleTop + t.viewport.Height()
 	
 	if cursorLine >= visibleBottom {
 		// Cursor is below visible bottom, scroll down
 		// But ensure header+separator remain visible
-		newOffset := cursorLine - t.viewport.Height + 1
+		newOffset := cursorLine - t.viewport.Height() + 1
 		// Never scroll above line 0 (header must always show)
 		if newOffset < 0 {
 			newOffset = 0
 		}
-		t.viewport.YOffset = newOffset
+		t.viewport.SetYOffset(newOffset)
 	} else if cursorLine < visibleTop {
 		// Cursor is above visible top (shouldn't happen after first render, but handle it)
 		// Show cursor at top, but never hide header
-		t.viewport.YOffset = 0
+		t.viewport.SetYOffset(0)
 	}
 
 	// Final safety checks
 	// Never scroll negative
 	if t.viewport.YOffset < 0 {
-		t.viewport.YOffset = 0
+		t.viewport.SetYOffset(0)
 	}
 	
 	// Never scroll past the end
-	if t.viewport.YOffset > contentHeight-t.viewport.Height {
-		t.viewport.YOffset = contentHeight - t.viewport.Height
+	if t.viewport.YOffset > contentHeight-t.viewport.Height() {
+		t.viewport.SetYOffset(contentHeight - t.viewport.Height())
 		if t.viewport.YOffset < 0 {
-			t.viewport.YOffset = 0
+			t.viewport.SetYOffset(0)
 		}
 	}
 
@@ -235,11 +235,11 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	isSelected := t.selected[torrent.ID]
 	
 	numStr := fmt.Sprintf("%3d", rowNum)
-	numberStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor)
+	numberStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor())
 	
 	// Cursor position gets cyan color
 	if cursor {
-		numberStyle = lipgloss.NewStyle().Foreground(t.styles.SelectColor)
+		numberStyle = lipgloss.NewStyle().Foreground(t.styles.SelectColor())
 	}
 	
 	numberStyled := numberStyle.Render(numStr)

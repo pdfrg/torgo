@@ -439,7 +439,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) tea
 		}
 		
 		content.WriteString("\n" + lipgloss.NewStyle().
-			Foreground(state.Styles.ErrorColor)().
+			Foreground(state.Styles.ErrorColor()).
 			Bold(true).
 			Render(changeMsg) + " - press Enter to save or Esc to discard\n")
 	} else {
