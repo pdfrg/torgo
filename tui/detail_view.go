@@ -557,7 +557,7 @@ func (m *EditTabModel) View(state *DetailViewState) string {
 	
 	content.WriteString("\n" + lipgloss.NewStyle().
 		Foreground(state.Styles.HintColor).
-		Render("Tab/Shift+Tab to navigate  •  Enter to save  •  Esc to cancel\n"))
+		Render("↑/↓ or Tab/Shift+Tab to navigate  •  Enter to save  •  Esc to cancel\n"))
 	
 	return content.String()
 }
