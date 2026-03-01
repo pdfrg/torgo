@@ -426,7 +426,8 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 	title := "Add Torrent"
 	hint := "(Ctrl+P to paste, Esc to cancel)"
 
-	// Render torrent input
+	// Render torrent input - set width for v2 textinput rendering
+	a.torrentInput.SetWidth(dialogWidth - 6) // Account for padding and borders
 	inputSection := a.torrentInput.View()
 
 	// Build content lines with validation error if present
