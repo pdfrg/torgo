@@ -442,10 +442,16 @@ func formatBytes(b int64) string {
 		return fmt.Sprintf("%d B", b)
 	}
 	
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
+	// Calculate exponent (1=KB, 2=MB, 3=GB, 4=TB, etc.)
+	exp := 0
+	div := int64(1)
+	for bytes := b; bytes >= unit; bytes /= unit {
 		div *= unit
 		exp++
+		if exp >= 4 {
+			// Cap at TB
+			break
+		}
 	}
 	
 	value := float64(b) / float64(div)
@@ -701,17 +707,29 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 type FilesTabModel struct {
 	files          []client.TorrentFile
 	selectedFiles  map[int]bool // Track which file indices are selected for download
-	cursorIndex    int           // Currently focused file (for navigation)
+	expandedFolders map[string]bool // Track which folder paths are expanded
+	cursorIndex    int           // Currently focused item in flat tree view
+	flatTree       []*TreeItem   // Flattened tree view for navigation
+	viewportStart  int           // First visible item index
+	viewportHeight int           // Number of lines available for display
 }
 
 // FileNode represents a file or folder in the tree
 type FileNode struct {
-	Index    int            // Original file index from TorrentFile
-	Name     string         // Display name (filename only, not full path)
-	Size     int64          // File size
-	IsFolder bool           // Whether this is a folder/directory
-	Children []*FileNode    // Child nodes if folder
-	Depth    int            // Indentation depth
+	Index      int            // Original file index from TorrentFile (-1 for folders)
+	Name       string         // Display name (filename only, not full path)
+	Size       int64          // File size in bytes
+	Downloaded int64          // Bytes downloaded (0 for folders, calculated as sum of children)
+	IsFolder   bool           // Whether this is a folder/directory
+	Children   []*FileNode    // Child nodes if folder
+	Depth      int            // Indentation depth
+	Path       string         // Full path for folder (e.g. "dir/subdir")
+}
+
+// TreeItem represents an item visible in the flattened tree
+type TreeItem struct {
+	Node     *FileNode
+	IsExpanded bool
 }
 
 func NewFilesTabModel(state *DetailViewState, files []client.TorrentFile) *FilesTabModel {
@@ -722,10 +740,201 @@ func NewFilesTabModel(state *DetailViewState, files []client.TorrentFile) *Files
 		selectedFiles[f.Index] = f.Priority != 0
 	}
 
-	return &FilesTabModel{
-		files:         files,
-		selectedFiles: selectedFiles,
-		cursorIndex:   0,
+	model := &FilesTabModel{
+		files:           files,
+		selectedFiles:   selectedFiles,
+		expandedFolders: make(map[string]bool),
+		cursorIndex:     0,
+	}
+	
+	// Build and flatten the tree
+	model.rebuildTree()
+	
+	// Auto-expand single top-level folder if there's only one and it has <= 20 files
+	model.autoExpandSingleFolder()
+	
+	return model
+}
+
+// autoExpandSingleFolder automatically expands a single top-level folder if it has <= 20 files
+func (m *FilesTabModel) autoExpandSingleFolder() {
+	if len(m.files) == 0 {
+		return
+	}
+	
+	// Count top-level folders in the file tree
+	// We need to check the first level of the tree
+	root := m.buildFileTree()
+	
+	// Count folders and files at root level
+	folderCount := 0
+	var singleFolder *FileNode
+	for _, child := range root.Children {
+		if child.IsFolder {
+			folderCount++
+			singleFolder = child
+		}
+	}
+	
+	// If there's exactly one top-level folder with <= 20 files, auto-expand it
+	if folderCount == 1 && singleFolder != nil && countFilesInFolder(singleFolder) <= 20 {
+		m.expandedFolders[singleFolder.Path] = true
+		m.rebuildTree() // Rebuild to apply the expansion
+	}
+}
+
+// countFilesInFolder recursively counts all files in a folder
+func countFilesInFolder(node *FileNode) int {
+	if !node.IsFolder {
+		return 1
+	}
+	
+	count := 0
+	for _, child := range node.Children {
+		count += countFilesInFolder(child)
+	}
+	return count
+}
+
+// rebuildTree reconstructs the file tree and flattens it for rendering
+func (m *FilesTabModel) rebuildTree() {
+	if len(m.files) == 0 {
+		m.flatTree = []*TreeItem{}
+		return
+	}
+	
+	// Build tree structure
+	root := m.buildFileTree()
+	
+	// Calculate progress for all folders
+	root.calculateFolderProgress()
+	
+	// Flatten tree for navigation
+	m.flatTree = []*TreeItem{}
+	m.flattenTree(root, &m.flatTree)
+}
+
+// buildFileTree constructs a hierarchical tree from flat file list
+func (m *FilesTabModel) buildFileTree() *FileNode {
+	root := &FileNode{
+		Index:    -1,
+		Name:     "root",
+		IsFolder: true,
+		Children: []*FileNode{},
+		Depth:    0,
+		Path:     "",
+	}
+	
+	// Insert each file into tree
+	for _, file := range m.files {
+		parts := strings.Split(file.Name, "/")
+		
+		// Navigate/create path to file
+		current := root
+		var pathParts []string
+		
+		for i, part := range parts {
+			if part == "" {
+				continue
+			}
+			
+			pathParts = append(pathParts, part)
+			isLastPart := i == len(parts)-1
+			
+			if !isLastPart {
+				// This is a directory, find or create it
+				var found *FileNode
+				for _, child := range current.Children {
+					if child.Name == part && child.IsFolder {
+						found = child
+						break
+					}
+				}
+				if found == nil {
+					found = &FileNode{
+						Index:    -1,
+						Name:     part,
+						IsFolder: true,
+						Children: []*FileNode{},
+						Depth:    current.Depth + 1,
+						Path:     strings.Join(pathParts, "/"),
+					}
+					current.Children = append(current.Children, found)
+				}
+				current = found
+			} else {
+				// This is a file
+				fileNode := &FileNode{
+					Index:      file.Index,
+					Name:       part,
+					Size:       file.Size,
+					Downloaded: file.Downloaded,
+					IsFolder:   false,
+					Children:   []*FileNode{},
+					Depth:      current.Depth + 1,
+					Path:       strings.Join(pathParts, "/"),
+				}
+				current.Children = append(current.Children, fileNode)
+			}
+		}
+	}
+	
+	return root
+}
+
+// getProgressPercent returns progress as a percentage (0-100)
+func (n *FileNode) getProgressPercent() int {
+	if n.Size == 0 {
+		return 0
+	}
+	percent := (n.Downloaded * 100) / n.Size
+	if percent > 100 {
+		percent = 100
+	}
+	return int(percent)
+}
+
+// calculateFolderProgress calculates total size and downloaded for a folder and all children
+func (n *FileNode) calculateFolderProgress() (totalSize, totalDownloaded int64) {
+	if !n.IsFolder {
+		return n.Size, n.Downloaded
+	}
+	
+	for _, child := range n.Children {
+		childSize, childDownloaded := child.calculateFolderProgress()
+		totalSize += childSize
+		totalDownloaded += childDownloaded
+	}
+	
+	// Store the totals back in the folder node for display
+	n.Size = totalSize
+	n.Downloaded = totalDownloaded
+	
+	return totalSize, totalDownloaded
+}
+
+// flattenTree flattens the tree structure into a list for rendering
+func (m *FilesTabModel) flattenTree(node *FileNode, result *[]*TreeItem) {
+	if node.Index == -1 && node.Path == "" {
+		// Root node, just process children
+		for _, child := range node.Children {
+			m.flattenTree(child, result)
+		}
+		return
+	}
+	
+	// Add current node
+	expanded := m.expandedFolders[node.Path]
+	*result = append(*result, &TreeItem{
+		Node:       node,
+		IsExpanded: expanded,
+	})
+	
+	// Add children if expanded (or if it's a file)
+	if !node.IsFolder || expanded {
+		for _, child := range node.Children {
+			m.flattenTree(child, result)
+		}
 	}
 }
 
@@ -758,13 +967,74 @@ func (m *FilesTabModel) HasFileChanges() bool {
 	return false
 }
 
+// toggleFolder toggles a folder's expansion state and all its files
+func (m *FilesTabModel) toggleFolder(folderPath string, node *FileNode) {
+	expanded := m.expandedFolders[folderPath]
+	m.expandedFolders[folderPath] = !expanded
+	
+	// If collapsing, deselect all files in folder
+	// If expanding, don't change selection (user may want to toggle files individually)
+	if expanded {
+		m.deselectFolder(node)
+	}
+	
+	// Rebuild the flattened tree
+	m.rebuildTree()
+}
+
+// deselectFolder recursively deselects all files in a folder
+func (m *FilesTabModel) deselectFolder(node *FileNode) {
+	for _, child := range node.Children {
+		if child.IsFolder {
+			m.deselectFolder(child)
+		} else {
+			m.selectedFiles[child.Index] = false
+		}
+	}
+}
+
+// selectFolder recursively selects all files in a folder
+func (m *FilesTabModel) selectFolder(node *FileNode, selected bool) {
+	for _, child := range node.Children {
+		if child.IsFolder {
+			m.selectFolder(child, selected)
+		} else {
+			m.selectedFiles[child.Index] = selected
+		}
+	}
+}
+
+// updateViewport adjusts viewport to ensure cursor is visible
+func (m *FilesTabModel) updateViewport(availableHeight int) {
+	m.viewportHeight = availableHeight
+	
+	// Ensure cursor is visible in viewport
+	if m.cursorIndex < m.viewportStart {
+		// Cursor moved above viewport
+		m.viewportStart = m.cursorIndex
+	} else if m.cursorIndex >= m.viewportStart+m.viewportHeight {
+		// Cursor moved below viewport
+		m.viewportStart = m.cursorIndex - m.viewportHeight + 1
+	}
+	
+	// Ensure viewport doesn't show past the end
+	if m.viewportStart+m.viewportHeight > len(m.flatTree) {
+		m.viewportStart = len(m.flatTree) - m.viewportHeight
+	}
+	
+	// Never show negative viewport
+	if m.viewportStart < 0 {
+		m.viewportStart = 0
+	}
+}
+
 func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "down":
 			// Move cursor down
-			if m.cursorIndex < len(m.files)-1 {
+			if m.cursorIndex < len(m.flatTree)-1 {
 				m.cursorIndex++
 			}
 		case "up":
@@ -772,11 +1042,35 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 			if m.cursorIndex > 0 {
 				m.cursorIndex--
 			}
+		case "right", "l":
+			// Expand folder at cursor
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.flatTree) {
+				item := m.flatTree[m.cursorIndex]
+				if item.Node.IsFolder && !item.IsExpanded {
+					m.expandedFolders[item.Node.Path] = true
+					m.rebuildTree()
+				}
+			}
+		case "left", "h":
+			// Collapse folder at cursor
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.flatTree) {
+				item := m.flatTree[m.cursorIndex]
+				if item.Node.IsFolder && item.IsExpanded {
+					m.expandedFolders[item.Node.Path] = false
+					m.rebuildTree()
+				}
+			}
 		case " ", "enter":
-			// Toggle current file selection (space is represented as " ")
-			if m.cursorIndex >= 0 && m.cursorIndex < len(m.files) {
-				fileIdx := m.files[m.cursorIndex].Index
-				m.selectedFiles[fileIdx] = !m.selectedFiles[fileIdx]
+			// Toggle current item
+			if m.cursorIndex >= 0 && m.cursorIndex < len(m.flatTree) {
+				item := m.flatTree[m.cursorIndex]
+				if item.Node.IsFolder {
+					// Toggle folder expansion
+					m.toggleFolder(item.Node.Path, item.Node)
+				} else {
+					// Toggle file selection
+					m.selectedFiles[item.Node.Index] = !m.selectedFiles[item.Node.Index]
+				}
 			}
 		}
 	}
@@ -798,39 +1092,78 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 	
 	if len(m.files) == 0 {
 		content.WriteString("No files in this torrent\n")
+	} else if len(m.flatTree) == 0 {
+		content.WriteString("No files to display\n")
 	} else {
-		// Show all files with checkboxes
-		for i, f := range m.files {
-			isSelected := m.selectedFiles[f.Index]
+		// Calculate available height (estimate: total height - header - hints line)
+		availableHeight := state.Height - 8
+		if availableHeight < 3 {
+			availableHeight = 3
+		}
+		
+		// Update viewport to show cursor
+		m.updateViewport(availableHeight)
+		
+		// Render only visible portion of tree
+		for i := m.viewportStart; i < m.viewportStart+m.viewportHeight && i < len(m.flatTree); i++ {
+			item := m.flatTree[i]
 			isCursor := i == m.cursorIndex
+			node := item.Node
 			
-			// Checkbox
-			checkbox := "☐"
-			if isSelected {
-				checkbox = "☑"
+			// Indentation
+			indent := strings.Repeat("  ", node.Depth)
+			
+			var line string
+			if node.IsFolder {
+				// Folder display
+				chevron := "▸"
+				if item.IsExpanded {
+					chevron = "▼"
+				}
+				fileCount := len(node.Children)
+				folderSize := formatBytes(node.Size)
+				progress := node.getProgressPercent()
+				line = fmt.Sprintf("%s%s %s 📁 (%d items, %s, %d%%)", indent, chevron, node.Name, fileCount, folderSize, progress)
+			} else {
+				// File display with checkbox
+				isSelected := m.selectedFiles[node.Index]
+				checkbox := "☐"
+				if isSelected {
+					checkbox = "☑"
+				}
+				fileSize := formatBytes(node.Size)
+				progress := node.getProgressPercent()
+				line = fmt.Sprintf("%s%s %s (%s, %d%%)", indent, checkbox, node.Name, fileSize, progress)
 			}
 			
-			// Build line with cursor indicator
+			// Add cursor indicator
 			prefix := "  "
 			if isCursor {
 				prefix = "> "
 			}
 			
-			fileName := f.Name
-			fileSize := formatBytes(f.Size)
-			
-			line := fmt.Sprintf("%s%s %s (%s)\n", prefix, checkbox, fileName, fileSize)
-			
-			// Highlight current line
+			// Apply styling to the content (not including newline)
 			if isCursor {
-				line = selectedStyle.Render(line)
+				line = selectedStyle.Render(prefix + line)
+			} else {
+				line = prefix + line
 			}
 			
-			content.WriteString(line)
+			content.WriteString(line + "\n")
+		}
+		
+		// Show position in list if there are more items than viewport
+		if len(m.flatTree) > m.viewportHeight {
+			end := m.viewportStart + m.viewportHeight
+			if end > len(m.flatTree) {
+				end = len(m.flatTree)
+			}
+			positionStr := fmt.Sprintf(" (%d-%d of %d)", m.viewportStart+1, end, len(m.flatTree))
+			content.WriteString("\n" + hintStyle.Render(positionStr) + "\n")
 		}
 	}
 	
-	content.WriteString("\n" + hintStyle.Render("↑/↓ to navigate  •  Space/Enter to toggle download  •  Tab to return to info\n"))
+	content.WriteString("\n" + hintStyle.Render("↑/↓ to navigate  •  ←/→ to collapse/expand  •  Space to toggle  •  Tab to return\n"))
 	
 	return content.String()
 }

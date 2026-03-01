@@ -245,8 +245,10 @@ func (ta *TransmissionAdapter) GetCategories(ctx context.Context) ([]string, err
 
 	// Extract unique labels from all torrents
 	labelSet := make(map[string]struct{})
-	for range resp.Arguments.Torrents {
-		// TODO: Extract labels once trTorrent struct is updated to include Labels field
+	for _, torrent := range resp.Arguments.Torrents {
+		for _, label := range torrent.Labels {
+			labelSet[label] = struct{}{}
+		}
 	}
 
 	// Convert to sorted slice
@@ -632,17 +634,95 @@ func (ta *TransmissionAdapter) SetSavePath(ctx context.Context, id string, path 
 
 // SetFilePriorities sets which files to download in a Transmission torrent
 func (ta *TransmissionAdapter) SetFilePriorities(ctx context.Context, id string, fileIndices []int) error {
-	// Transmission uses fileWanted (true/false) for each file
-	// This requires a more complex RPC call with arrays of file indices
-
-	// Create set of indices for quick lookup
-	_ = make(map[int]bool)
+	// Transmission uses files-wanted and files-unwanted arrays
+	// Build set of indices to download
+	wantedSet := make(map[int]bool)
 	for _, idx := range fileIndices {
-		// Would be used to build files-wanted and files-unwanted arrays
-		_ = idx
+		wantedSet[idx] = true
 	}
+	
+	// Build wanted and unwanted arrays for all file indices
+	// We need to figure out the file count from the torrent
+	// For now, we'll build both arrays dynamically
+	var wantedArr, unwantedArr []int
+	
+	// We need to get the file count first
+	payload := fmt.Sprintf(`{
+		"method":"torrent-get",
+		"arguments":{
+			"ids":[%s],
+			"fields":["files"]
+		}
+	}`, id)
+	
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("failed to get file count: %w", err)
+	}
+	
+	if len(resp.Arguments.Torrents) == 0 {
+		return fmt.Errorf("torrent not found")
+	}
+	
+	torrent := resp.Arguments.Torrents[0]
+	fileCount := len(torrent.Files)
+	
+	// Build wanted and unwanted arrays
+	for i := 0; i < fileCount; i++ {
+		if wantedSet[i] {
+			wantedArr = append(wantedArr, i)
+		} else {
+			unwantedArr = append(unwantedArr, i)
+		}
+	}
+	
+	// Marshal arrays to JSON
+	wantedJSON, _ := json.Marshal(wantedArr)
+	unwantedJSON, _ := json.Marshal(unwantedArr)
+	
+	// Build the set payload
+	payload = fmt.Sprintf(`{
+		"method":"torrent-set",
+		"arguments":{
+			"ids":[%s],
+			"files-wanted":%s,
+			"files-unwanted":%s
+		}
+	}`, id, string(wantedJSON), string(unwantedJSON))
+	
+	setResp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("failed to set file priorities: %w", err)
+	}
+	
+	if setResp.Result != "success" {
+		return fmt.Errorf("set file priorities failed: %s", setResp.Result)
+	}
+	
+	return nil
+}
 
-	// Note: Full implementation requires complex JSON array building
-	// Returning error for now to indicate the feature is not fully supported
-	return fmt.Errorf("SetFilePriorities not yet fully implemented in Transmission (requires files-wanted/files-unwanted array support)")
+// SetLabels updates labels for a Transmission torrent
+func (ta *TransmissionAdapter) SetLabels(ctx context.Context, id string, labels []string) error {
+	// Marshal labels array to JSON
+	labelsJSON, _ := json.Marshal(labels)
+	
+	payload := fmt.Sprintf(`{
+		"method":"torrent-set",
+		"arguments":{
+			"ids":[%s],
+			"labels":%s
+		}
+	}`, id, string(labelsJSON))
+	
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return fmt.Errorf("failed to set labels: %w", err)
+	}
+	
+	if resp.Result != "success" {
+		return fmt.Errorf("set labels failed: %s", resp.Result)
+	}
+	
+	return nil
 }

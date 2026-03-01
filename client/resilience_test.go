@@ -86,6 +86,38 @@ func (m *MockAdapter) GetSpeedLimits(ctx context.Context) (int, int, error) {
 	return 0, 0, nil
 }
 
+func (m *MockAdapter) GetTorrentDetail(ctx context.Context, id string) (*TorrentDetail, error) {
+	return nil, nil
+}
+
+func (m *MockAdapter) GetTorrentFiles(ctx context.Context, id string) ([]TorrentFile, error) {
+	return nil, nil
+}
+
+func (m *MockAdapter) SetTorrentName(ctx context.Context, id string, newName string) error {
+	return nil
+}
+
+func (m *MockAdapter) SetCategory(ctx context.Context, id string, category string) error {
+	return nil
+}
+
+func (m *MockAdapter) SetTags(ctx context.Context, id string, tags []string) error {
+	return nil
+}
+
+func (m *MockAdapter) SetSavePath(ctx context.Context, id string, path string) error {
+	return nil
+}
+
+func (m *MockAdapter) SetFilePriorities(ctx context.Context, id string, fileIndices []int) error {
+	return nil
+}
+
+func (m *MockAdapter) SetLabels(ctx context.Context, id string, labels []string) error {
+	return nil
+}
+
 func TestIsRetryableError(t *testing.T) {
 	tests := []struct {
 		name      string

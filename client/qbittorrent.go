@@ -773,3 +773,9 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 
 	return nil
 }
+
+// SetLabels updates tags for a qBittorrent torrent (qBittorrent doesn't have labels, so we use tags)
+func (qa *QBittorrentAdapter) SetLabels(ctx context.Context, id string, labels []string) error {
+	// In qBittorrent, labels are represented as tags, so we delegate to SetTags
+	return qa.SetTags(ctx, id, labels)
+}

@@ -125,4 +125,7 @@ type ClientAdapter interface {
 	// SetFilePriorities sets which files to download in a torrent
 	// fileIndices: list of file indices to download (all others will be skipped)
 	SetFilePriorities(ctx context.Context, id string, fileIndices []int) error
+
+	// SetLabels updates the labels/tags for a torrent (Transmission uses labels, qBittorrent uses tags)
+	SetLabels(ctx context.Context, id string, labels []string) error
 }
