@@ -250,9 +250,10 @@ func (dv *DetailView) renderTabs() string {
 
 		paddedLabel := " " + label + " "
 		tabWidth := len(paddedLabel) + 2 // +2 for the box borders
-		topBorder := "┌" + strings.Repeat("─", len(paddedLabel)) + "┐"
+		// Use rounded corners for modern look
+		topBorder := "╭" + strings.Repeat("─", len(paddedLabel)) + "╮"
 		midBorder := "│" + paddedLabel + "│"
-		bottomBorder := "└" + strings.Repeat("─", len(paddedLabel)) + "┘"
+		bottomBorder := "╰" + strings.Repeat("─", len(paddedLabel)) + "╯"
 
 		if isActive {
 			// Active tab in select color
@@ -371,10 +372,19 @@ func (m *InfoTabModel) View(state *DetailViewState) string {
 	}
 	content.WriteString("\n\n")
 	
-	// Size info
+	// Size info and progress
 	content.WriteString(labelStyle.Render("Total Size:") + " " + formatBytes(m.detail.TotalSize) + "\n")
-	content.WriteString(labelStyle.Render("Downloaded:") + " " + formatBytes(m.detail.Downloaded) + "\n")
-	content.WriteString(labelStyle.Render("Remaining:") + " " + formatBytes(m.detail.TotalSize-m.detail.Downloaded) + "\n")
+	
+	// Calculate and show progress percentage
+	var progress int64
+	if m.detail.TotalSize > 0 {
+		progress = (m.detail.Downloaded * 100) / m.detail.TotalSize
+	}
+	downloaded := formatBytes(m.detail.Downloaded)
+	remaining := formatBytes(m.detail.TotalSize - m.detail.Downloaded)
+	
+	content.WriteString(labelStyle.Render("Progress:") + " " + fmt.Sprintf("%d%%", progress) + " (" + downloaded + " / " + formatBytes(m.detail.TotalSize) + ")\n")
+	content.WriteString(labelStyle.Render("Remaining:") + " " + remaining + "\n")
 	
 	// Save Path
 	content.WriteString("\n" + labelStyle.Render("Save Path:") + "\n")
@@ -402,22 +412,34 @@ func (m *InfoTabModel) View(state *DetailViewState) string {
 func formatBytes(b int64) string {
 	const unit = 1024
 	if b < unit {
-		return string(rune(b)) + " B"
+		return fmt.Sprintf("%d B", b)
 	}
+	
 	div, exp := int64(unit), 0
 	for n := b / unit; n >= unit; n /= unit {
 		div *= unit
 		exp++
 	}
+	
+	value := float64(b) / float64(div)
+	
 	switch exp {
 	case 1:
-		return fmt.Sprintf("%.1f KB", float64(b)/float64(unit))
+		return fmt.Sprintf("%.1f KB", value)
 	case 2:
-		return fmt.Sprintf("%.1f MB", float64(b)/float64(unit*unit))
+		// Use integer format for MB if it's clean, otherwise .1f
+		if value >= 100 {
+			return fmt.Sprintf("%.0f MB", value)
+		}
+		return fmt.Sprintf("%.1f MB", value)
 	case 3:
-		return fmt.Sprintf("%.1f GB", float64(b)/float64(unit*unit*unit))
+		// Use integer format for GB if it's clean
+		if value >= 10 {
+			return fmt.Sprintf("%.1f GB", value)
+		}
+		return fmt.Sprintf("%.2f GB", value)
 	default:
-		return fmt.Sprintf("%.1f TB", float64(b)/float64(unit*unit*unit*unit))
+		return fmt.Sprintf("%.2f TB", value)
 	}
 }
 
@@ -681,20 +703,60 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 	if len(m.files) == 0 {
 		content.WriteString("No files in this torrent\n")
 	} else {
-		// Show first 10 files
-		count := 10
-		if len(m.files) < 10 {
-			count = len(m.files)
+		// Build a tree of files organized by directory
+		dirMap := make(map[string][]client.TorrentFile)
+		var topLevelDirs []string
+		seenDirs := make(map[string]bool)
+		
+		for _, file := range m.files {
+			parts := strings.Split(file.Name, "/")
+			if len(parts) > 1 {
+				// File is in a subdirectory
+				topDir := parts[0]
+				if !seenDirs[topDir] {
+					topLevelDirs = append(topLevelDirs, topDir)
+					seenDirs[topDir] = true
+				}
+				dirMap[topDir] = append(dirMap[topDir], file)
+			} else {
+				// File at root level
+				if !seenDirs[""] {
+					topLevelDirs = append(topLevelDirs, "")
+					seenDirs[""] = true
+				}
+				dirMap[""] = append(dirMap[""], file)
+			}
 		}
 		
-		for i := 0; i < count; i++ {
-			file := m.files[i]
-			content.WriteString("  " + file.Name + " (" + formatBytes(file.Size) + ")\n")
-		}
-		
-		if len(m.files) > 10 {
-			hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
-			content.WriteString(hintStyle.Render(fmt.Sprintf("\n  ... and %d more files\n", len(m.files)-10)))
+		// Show top-level directories and files
+		for _, dir := range topLevelDirs {
+			files := dirMap[dir]
+			if dir == "" {
+				// Root level files
+				for _, f := range files {
+					content.WriteString(fmt.Sprintf("  %s (%s)\n", f.Name, formatBytes(f.Size)))
+				}
+			} else {
+				// Directory - show expanded with first few files
+				content.WriteString(fmt.Sprintf("  📁 %s/\n", dir))
+				
+				// Show first few files in this directory
+				maxFiles := 3
+				if len(files) < maxFiles {
+					maxFiles = len(files)
+				}
+				
+				for i := 0; i < maxFiles; i++ {
+					f := files[i]
+					fileName := strings.TrimPrefix(f.Name, dir+"/")
+					content.WriteString(fmt.Sprintf("      %s (%s)\n", fileName, formatBytes(f.Size)))
+				}
+				
+				if len(files) > maxFiles {
+					hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor)
+					content.WriteString(hintStyle.Render(fmt.Sprintf("      ... and %d more files\n", len(files)-maxFiles)))
+				}
+			}
 		}
 	}
 	

@@ -1039,8 +1039,18 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 			return errorMsg{err: err}
 		}
 
+		// Fetch fresh categories list
+		categories, err := a.state.CurrentClient().Adapter.GetCategories(a.ctx)
+		if err != nil {
+			// If fetch fails, use cached categories
+			categories = a.state.Categories
+		} else {
+			// Update cache with fresh data
+			a.state.Categories = categories
+		}
+
 		// Create detail view with categories
-		a.detailView = NewDetailView(a.styles, detail, files, a.state.Categories)
+		a.detailView = NewDetailView(a.styles, detail, files, categories)
 		a.screenMode = "detail"
 
 		return nil
