@@ -29,6 +29,7 @@ type KeyMap struct {
 	Sort         key.Binding
 	Filter       key.Binding
 	ToggleView   key.Binding
+	ToggleTheme  key.Binding
 	ToggleHints  key.Binding
 	ToggleSpeedLimit key.Binding
 	Search       key.Binding
@@ -61,7 +62,7 @@ func DefaultKeyMap() KeyMap {
 
 		// Selection
 		Select: key.NewBinding(
-			key.WithKeys(" "),
+			key.WithKeys(" ", "space"),
 			key.WithHelp("space", "toggle select"),
 		),
 		SelectAll: key.NewBinding(
@@ -120,6 +121,10 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("v"),
 			key.WithHelp("v", "view"),
 		),
+		ToggleTheme: key.NewBinding(
+			key.WithKeys("t"),
+			key.WithHelp("t", "theme"),
+		),
 		ToggleHints: key.NewBinding(
 			key.WithKeys("h"),
 			key.WithHelp("h", "hints"),
@@ -161,7 +166,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 		{k.Pause, k.PauseAll, k.Resume, k.ResumeAll},
 		{k.Delete, k.DeleteData, k.Details, k.AddTorrent},
 		{k.SwitchClient, k.Sort, k.Filter, k.Search, k.ToggleView, k.ToggleSpeedLimit},
-		{k.ToggleHints, k.Help, k.Quit},
+		{k.ToggleTheme, k.ToggleHints, k.Help, k.Quit},
 	}
 }
 
@@ -180,6 +185,7 @@ func GetFullHelpText(keyName string) string {
 		"a":       "add torrent",
 		"c":       "cycle clients",
 		"v":       "cycle views",
+		"t":       "cycle themes",
 		"h":       "toggle hints bar",
 		"l":       "toggle speed limit",
 		"space":   "toggle select",

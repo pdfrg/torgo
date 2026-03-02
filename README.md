@@ -65,8 +65,19 @@ tqbtui/
 - [x] Torrent filtering (all, active, paused, completed)
 - [x] Torrent sorting (name, progress, speed, seeders)
 - [x] Multi-selection support (prepared for bulk operations)
-- [x] Theme management
+- [x] Theme management (cycle themes with `t`)
 - [x] Hints bar toggle
+- [x] Category/Label icons (mapped from categories/labels with emoji)
+
+### UI Views
+- [x] Single-line view (compact list display)
+- [x] Multi-line view (detailed display with 3 lines per torrent)
+  - Line 1: Torrent number, name
+  - Line 2: Progress bar with file sizes
+  - Line 3: Status, speeds, ratio, seeds, peers, ETA with category icon
+- [x] View cycling with `v`
+- [x] Progress bars with gradient coloring based on status
+- [x] Textured empty progress bar areas
 
 ### Testing
 - [x] Unit tests for config loading
@@ -74,6 +85,25 @@ tqbtui/
 - [x] Filter/sort cycling tests
 - [x] Client switching tests
 - All tests passing
+
+## Category/Label Icon Mappings
+
+The application includes built-in category-to-emoji mappings for common torrent categories:
+
+### Supported Applications
+- **qBittorrent** uses categories, mapped directly
+- **Transmission** uses labels (first label is used as category)
+- **Radarr** - `radarr` → 🎬
+- **Sonarr** - `sonarr` → 📺
+- **Lidarr** - `lidarr` → 🎵
+
+### Smart Matching
+Categories/labels are matched via substring matching, so:
+- "TV-english" matches "tv" → 📺
+- "movie-drama" matches "movie" → 🎬
+- Custom names like "Radarr" or "SONARR" also work
+
+The complete mapping includes 50+ category keywords for movies, TV, music, software, games, books, images, OSes, development, and more.
 
 ## Development Status
 
@@ -84,11 +114,12 @@ tqbtui/
 - [x] Transmission adapter (full JSON-RPC implementation)
 - [x] Application state management
 - [x] Unit & integration tests
-- [x] TUI implementation with bubbletea
+- [x] TUI implementation with bubbletea (BubbleTea v2)
 - [x] Keybinding system with hints bar
 - [x] Help dialog with full keybinding list
-- [x] Multi-view support (default single-line, placeholder multi-line)
-- [ ] omarchy colors.toml integration
+- [x] Multi-view support (single-line and multi-line views)
+- [x] Progress bars with gradient coloring and texture
+- [x] Category/Label icon mapping system
 
 ## Usage
 
@@ -102,12 +133,28 @@ The program will:
 1. Load configuration from `~/.config/tqbtui/config.toml`
 2. Initialize all configured clients
 3. Attempt to connect to each client
-4. Display results
+4. Display torrent list
 
-## Next Steps
+## Keybindings
 
-1. Build TUI with bubbletea
-2. Implement torrent list view with progress bars, speeds, seeds/leechs
-3. Implement keybinding system (p/P for pause, r/R for resume, etc.)
-4. Add hints bar and multi-select UI
-5. Integrate with omarchy colors.toml for theming
+| Key | Action |
+|-----|--------|
+| ↑/k, ↓/j | Move cursor |
+| PgUp/^U, PgDn/^D | Page navigation |
+| space | Toggle select |
+| A | Select all |
+| p/P | Pause (individual/all) |
+| r/R | Resume (individual/all) |
+| x/X | Delete (without/with data) |
+| enter | View details |
+| a | Add torrent |
+| c | Cycle clients |
+| v | Cycle views |
+| t | Cycle themes |
+| s | Sort |
+| f | Filter |
+| / | Search |
+| h | Toggle hints bar |
+| l | Toggle speed limit |
+| ? | Help |
+| q | Quit |

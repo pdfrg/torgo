@@ -12,6 +12,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"tqbtui/client"
 	"tqbtui/state"
 )
 
@@ -28,6 +29,7 @@ type App struct {
 	styles             *Styles
 	keys               KeyMap
 	list               *TorrentListView
+	multilineList      *MultilineTorrentListView  // Multiline view alternative
 	detailView         *DetailView         // Detail view for selected torrent
 	statusBar          *StatusBar
 	hintsBar           *HintsBar
@@ -35,6 +37,7 @@ type App struct {
 	height             int
 	showHints          bool
 	showHelp           bool
+	currentTheme       string        // "dark", "light", or "highcontrast"
 	viewMode           string        // "default" or "multiline"
 	screenMode         string        // "list" or "detail"
 	inputMode          string        // "", "add", "search"
@@ -79,24 +82,26 @@ func NewApp(appState *state.AppState) *App {
 	categoryList.Title = "Category"
 
 	app := &App{
-		state:        appState,
-		styles:       styles,
-		keys:         keys,
-		list:         NewTorrentListView(styles),
-		detailView:   nil,
-		statusBar:    NewStatusBar(styles),
-		hintsBar:     NewHintsBar(styles, keys),
-		showHints:    appState.Config.UI.ShowHints,
-		showHelp:     false,
-		viewMode:     "default",
-		screenMode:   "list",
-		torrentInput: ti,
-		categoryList: categoryList,
-		searchInput:  si,
-		searchFilter: searchFilter,
-		searchMode:   false,
-		ctx:          ctx,
-		cancel:       cancel,
+		state:          appState,
+		styles:         styles,
+		keys:           keys,
+		list:           NewTorrentListView(styles),
+		multilineList:  NewMultilineTorrentListView(styles),
+		detailView:     nil,
+		statusBar:      NewStatusBar(styles),
+		hintsBar:       NewHintsBar(styles, keys),
+		showHints:      appState.Config.UI.ShowHints,
+		showHelp:       false,
+		currentTheme:   "dark",
+		viewMode:       "default",
+		screenMode:     "list",
+		torrentInput:   ti,
+		categoryList:   categoryList,
+		searchInput:    si,
+		searchFilter:   searchFilter,
+		searchMode:     false,
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 
 	return app
@@ -184,6 +189,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 	case torrentRefreshMsg:
 		a.list.SetTorrents(a.state.FilteredTorrents())
+		a.multilineList.SetTorrents(a.state.FilteredTorrents())
 		return a, nil
 	case errorMsg:
 		a.lastError = msg.Error()
@@ -521,27 +527,51 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, tea.Quit
 
 	case isKeyMatch(k, a.keys.Up):
-		a.list.MoveCursor(-1)
+		if a.viewMode == "multiline" {
+			a.multilineList.MoveCursor(-1)
+		} else {
+			a.list.MoveCursor(-1)
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Down):
-		a.list.MoveCursor(1)
+		if a.viewMode == "multiline" {
+			a.multilineList.MoveCursor(1)
+		} else {
+			a.list.MoveCursor(1)
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.PageUp):
-		a.list.PageMove(-1, a.height)
+		if a.viewMode == "multiline" {
+			a.multilineList.PageMove(-1, a.height)
+		} else {
+			a.list.PageMove(-1, a.height)
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.PageDown):
-		a.list.PageMove(1, a.height)
+		if a.viewMode == "multiline" {
+			a.multilineList.PageMove(1, a.height)
+		} else {
+			a.list.PageMove(1, a.height)
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Select):
-		a.list.ToggleSelection()
+		if a.viewMode == "multiline" {
+			a.multilineList.ToggleSelection()
+		} else {
+			a.list.ToggleSelection()
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.SelectAll):
-		a.list.SelectAll()
+		if a.viewMode == "multiline" {
+			a.multilineList.SelectAll()
+		} else {
+			a.list.SelectAll()
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Pause):
@@ -568,7 +598,12 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Already in detail view, ignore
 			return a, nil
 		}
-		torrent := a.list.GetCurrentTorrent()
+		var torrent *client.Torrent
+		if a.viewMode == "multiline" {
+			torrent = a.multilineList.GetCurrentTorrent()
+		} else {
+			torrent = a.list.GetCurrentTorrent()
+		}
 		if torrent != nil {
 			return a, a.openTorrentDetail(torrent.ID)
 		}
@@ -619,8 +654,31 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case isKeyMatch(k, a.keys.ToggleView):
 		if a.viewMode == "default" {
 			a.viewMode = "multiline"
+			// Sync cursor and selection from single-line to multiline view
+			a.multilineList.cursor = a.list.cursor
+			a.multilineList.selected = a.list.selected
+			// Also sync the torrent list
+			a.multilineList.SetTorrents(a.state.FilteredTorrents())
 		} else {
 			a.viewMode = "default"
+			// Sync cursor and selection from multiline to single-line view
+			a.list.cursor = a.multilineList.cursor
+			a.list.selected = a.multilineList.selected
+		}
+		return a, nil
+
+	case isKeyMatch(k, a.keys.ToggleTheme):
+		// Cycle through themes: dark -> light -> highcontrast -> dark
+		switch a.currentTheme {
+		case "dark":
+			a.currentTheme = "light"
+			SetTheme(LightTheme())
+		case "light":
+			a.currentTheme = "highcontrast"
+			SetTheme(HighContrastTheme())
+		default:
+			a.currentTheme = "dark"
+			SetTheme(DefaultTheme())
 		}
 		return a, nil
 
@@ -960,15 +1018,9 @@ type errorClearedMsg struct{}
 
 type speedLimitToggledMsg struct{}
 
-// renderMultilineViewPlaceholder renders a placeholder for multiline view
+// renderMultilineViewPlaceholder renders the multiline view
 func (a *App) renderMultilineViewPlaceholder(width, height int) string {
-	msg := "Multi-line view under development\nPress 'v' again to return to default single-line view"
-	box := a.styles.Dialog.
-		Width(width - 2).
-		Height(height - 2).
-		Padding(1, 2).
-		Render(msg)
-	return box
+	return a.multilineList.Render(width, height)
 }
 
 // overlayHelpDialog renders a help popup with all keybindings
@@ -1167,6 +1219,12 @@ type savesCompleteMsg struct{}
 
 // detailViewOpenedMsg is sent when detail view opens to trigger immediate redraw
 type detailViewOpenedMsg struct{}
+
+// syncListViews synchronizes torrents to both single-line and multi-line views
+func (a *App) syncListViews(torrents []client.Torrent) {
+	a.list.SetTorrents(torrents)
+	a.multilineList.SetTorrents(torrents)
+}
 
 // Shutdown cleans up resources
 func (a *App) Shutdown() {

@@ -377,6 +377,12 @@ func (ta *TransmissionAdapter) torrentRemove(ctx context.Context, id string, del
 }
 
 func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
+	// For Transmission, use the first label as category (Transmission uses labels instead of categories)
+	category := ""
+	if len(tr.Labels) > 0 {
+		category = tr.Labels[0]
+	}
+	
 	return Torrent{
 		ID:         strconv.FormatInt(tr.ID, 10),
 		Name:       tr.Name,
@@ -389,6 +395,7 @@ func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
 		Size:       tr.TotalSize,
 		Downloaded: tr.DownloadedEver,
 		Uploaded:   tr.UploadedEver,
+		Category:   category,
 	}
 }
 

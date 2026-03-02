@@ -346,6 +346,7 @@ func (qa *QBittorrentAdapter) mapTorrent(qb qbTorrent) Torrent {
 		Size:       qb.TotalSize,
 		Downloaded: qb.Downloaded,
 		Uploaded:   qb.Uploaded,
+		Category:   qb.Category,
 	}
 }
 
@@ -370,6 +371,10 @@ func (qa *QBittorrentAdapter) mapStatus(qbState string) TorrentStatus {
 	// Seeding (uploading, at 100%)
 	case "uploading", "forcedUP", "checkingUP", "queuedUP", "stalledUP":
 		return StatusSeeding
+	
+	// Stopped while downloading (qB v5)
+	case "stoppedDL":
+		return StatusPaused
 	
 	// Fully downloaded and stopped
 	case "stoppedUP":

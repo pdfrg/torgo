@@ -30,6 +30,7 @@ type Torrent struct {
 	Size      int64 // bytes
 	Downloaded int64 // bytes
 	Uploaded   int64 // bytes
+	Category  string // Category/Label for organizing torrents
 }
 
 // TorrentFile represents a file in a torrent
