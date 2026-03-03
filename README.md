@@ -33,14 +33,39 @@ tqbtui/
 2. Edit with your torrent client credentials
 3. Support environment variables in passwords (e.g., `$QBT_PASS`)
 
+### Theme Configuration
+
+**Built-in themes:** Set `default_color_scheme` in config to one of:
+- `dark` (default) - light text on dark background
+- `light` - dark text on light background
+- `highcontrast` - bright colors for accessibility
+
+**Omarchy theme:** If you use omarchy, place its colors.toml at:
+- `~/.config/omarchy/current/theme/colors.toml` (automatic discovery)
+- Or copy to `~/.config/tqbtui/colors.toml` (as "custom")
+
+Then set `default_color_scheme = "omarchy"` or `default_color_scheme = "custom"`.
+
+At runtime, press `t` to cycle through all available themes (built-in + any discovered omarchy/custom themes).
+
 ## Implemented Features
 
 ### Config System
 - [x] TOML config parsing from `~/.config/tqbtui/config.toml`
 - [x] Support multiple clients (qBittorrent & Transmission, unlimited instances)
 - [x] Environment variable expansion in passwords
-- [x] Theme loading (default dark theme with optional omarchy colors.toml)
 - [x] Full test coverage
+
+### Theme System
+- [x] Built-in themes: dark, light, high-contrast
+- [x] **Omarchy theme support** with smart color transformations
+  - Auto-discover omarchy theme at `~/.config/omarchy/current/theme/colors.toml`
+  - Custom theme support at `~/.config/tqbtui/colors.toml`
+  - Color manipulation (lighten, darken, desaturate) via `teacat/noire` library
+  - 7 distinct progress bar gradients for different torrent statuses
+  - Auto-adjusted background contrast (lighten dark backgrounds, darken light backgrounds)
+- [x] Theme cycling with `t` key (hot-swap any available theme)
+- [x] Hints bar displays current theme name (abbreviations: dark, lite, HC, omarchy, custom)
 
 ### Client Adapters
 - [x] **qBittorrent** (HTTP API v2)

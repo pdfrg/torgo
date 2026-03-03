@@ -40,8 +40,12 @@ func (pb *ProgressBarBuilder) BuildForStatus(status string) progress.Model {
 		progress.WithColors(colors[0], colors[1]),
 		progress.WithFillCharacters('▌', '░'), // Half block for better gradient blending + light shade for texture
 	)
-	// Set empty color to darker shade for visible texture
-	p.EmptyColor = lipgloss.Color("#333333")
+	// Set empty color - use theme's ProgressBarEmptyColor if available, fallback to dark gray
+	if pb.theme.ProgressBarEmptyColor != nil {
+		p.EmptyColor = pb.theme.ProgressBarEmptyColor
+	} else {
+		p.EmptyColor = lipgloss.Color("#333333")
+	}
 	// Style the percentage text with proper foreground color
 	p.PercentageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	p.SetWidth(pb.width)
@@ -59,8 +63,12 @@ func (pb *ProgressBarBuilder) BuildCustom(color1, color2 color.Color) progress.M
 		progress.WithColors(color1, color2),
 		progress.WithFillCharacters('▌', '░'), // Half block for better gradient blending + light shade for texture
 	)
-	// Set empty color to darker shade for visible texture
-	p.EmptyColor = lipgloss.Color("#333333")
+	// Set empty color - use theme's ProgressBarEmptyColor if available, fallback to dark gray
+	if pb.theme.ProgressBarEmptyColor != nil {
+		p.EmptyColor = pb.theme.ProgressBarEmptyColor
+	} else {
+		p.EmptyColor = lipgloss.Color("#333333")
+	}
 	// Style the percentage text with proper foreground color
 	p.PercentageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 	p.SetWidth(pb.width)

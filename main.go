@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"tqbtui/config"
 	"tqbtui/state"
 	"tqbtui/tui"
@@ -15,6 +17,11 @@ func main() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v\n\nCreate ~/.config/tqbtui/config.toml (see config.example.toml)", err)
+	}
+
+	// Print available themes if custom themes were discovered
+	if len(config.AvailableThemes) > 3 { // More than the 3 built-in themes (dark, light, highcontrast)
+		fmt.Printf("Available themes: %s\n", strings.Join(config.AvailableThemes, ", "))
 	}
 
 	// Initialize app state with clients

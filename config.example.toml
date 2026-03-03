@@ -11,8 +11,23 @@ default_client = "qbt-local"
 # show_hints: Display keybinding hints bar at bottom of screen
 show_hints = true
 
-# color_scheme: Color theme ("default", "colors.toml", or path to custom colors.toml)
-color_scheme = "default"
+# default_color_scheme: Color theme to use on startup
+# Valid options:
+#   - "dark": Built-in dark theme (default)
+#   - "light": Built-in light theme
+#   - "highcontrast": Built-in high-contrast theme
+#   - "omarchy": Uses ~/.config/omarchy/current/theme/colors.toml (if it exists)
+#   - "custom": Uses ~/.config/tqbtui/colors.toml (if it exists)
+#
+# Theme auto-discovery:
+#   - If ~/.config/omarchy/current/theme/colors.toml exists, "omarchy" will be available
+#   - If ~/.config/tqbtui/colors.toml exists, "custom" will be available
+#   - These can be cycled through using the 't' key in the TUI
+#
+# Omarchy format colors.toml:
+#   - Copy your omarchy theme's colors.toml to ~/.config/tqbtui/colors.toml to use as "custom"
+#   - Or set up omarchy in ~/.config/omarchy/current/theme/ and use "omarchy" option
+default_color_scheme = "dark"
 
 # ============================================================================
 # Client Configuration

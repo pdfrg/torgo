@@ -7,15 +7,42 @@ import (
 
 // HintsBar displays keybinding hints
 type HintsBar struct {
-	styles *Styles
-	keys   KeyMap
+	styles      *Styles
+	keys        KeyMap
+	currentTheme string
 }
 
 // NewHintsBar creates a new hints bar
 func NewHintsBar(styles *Styles, keys KeyMap) *HintsBar {
 	return &HintsBar{
-		styles: styles,
-		keys:   keys,
+		styles:       styles,
+		keys:         keys,
+		currentTheme: "dark",
+	}
+}
+
+// SetCurrentTheme updates the current theme displayed in the hints bar
+func (h *HintsBar) SetCurrentTheme(theme string) {
+	h.currentTheme = theme
+}
+
+// abbreviateThemeName returns a short name for the theme
+func abbreviateThemeName(theme string) string {
+	switch theme {
+	case "dark":
+		return "dark"
+	case "light":
+		return "lite"
+	case "highcontrast":
+		return "HC"
+	case "omarchy":
+		return "omarchy"
+	case "custom":
+		return "custom"
+	case "default":
+		return "default"
+	default:
+		return theme
 	}
 }
 
@@ -55,7 +82,11 @@ func (h *HintsBar) Render(width int) string {
 		}
 	}
 	hintText := lipgloss.JoinHorizontal(lipgloss.Left, spacedParts...)
-	hintText = descColor.Render(" ") + hintText + descColor.Render(" ")
+	
+	// Add theme indicator at the end
+	themeAbbr := abbreviateThemeName(h.currentTheme)
+	themeHint := keyColor.Render("t") + descColor.Render(":theme ("+themeAbbr+")")
+	hintText = descColor.Render(" ") + hintText + descColor.Render("  ") + themeHint + descColor.Render(" ")
 
 	// Apply bar style: width and background (background is already on text parts)
 	barStyle := lipgloss.NewStyle().

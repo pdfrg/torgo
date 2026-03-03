@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"tqbtui/client"
+	"tqbtui/config"
 	"tqbtui/state"
 )
 
@@ -59,6 +60,23 @@ func NewApp(appState *state.AppState) *App {
 	styles := DefaultStyles()
 	keys := DefaultKeyMap()
 
+	// Load the theme from config
+	var themeToUse Theme
+	var themeName string
+	
+	if appState.Config.Theme != nil && appState.Config.Theme.Colors != nil && len(appState.Config.Theme.Colors) > 0 {
+		// Build omarchy theme from config colors
+		themeToUse = OmarchyTheme(appState.Config.Theme.Colors)
+		themeName = "omarchy"
+	} else {
+		// Use default dark theme
+		themeToUse = DefaultTheme()
+		themeName = "dark"
+	}
+	
+	// Set the theme globally
+	SetTheme(themeToUse)
+
 	// Initialize text inputs
 	ti := textinput.New()
 	ti.Placeholder = "Magnet link, URL, or .torrent file path"
@@ -81,6 +99,9 @@ func NewApp(appState *state.AppState) *App {
 	categoryList.SetShowTitle(true)
 	categoryList.Title = "Category"
 
+	hintsBar := NewHintsBar(styles, keys)
+	hintsBar.SetCurrentTheme(themeName)
+
 	app := &App{
 		state:          appState,
 		styles:         styles,
@@ -89,10 +110,10 @@ func NewApp(appState *state.AppState) *App {
 		multilineList:  NewMultilineTorrentListView(styles),
 		detailView:     nil,
 		statusBar:      NewStatusBar(styles),
-		hintsBar:       NewHintsBar(styles, keys),
+		hintsBar:       hintsBar,
 		showHints:      appState.Config.UI.ShowHints,
 		showHelp:       false,
-		currentTheme:   "dark",
+		currentTheme:   themeName,
 		viewMode:       "default",
 		screenMode:     "list",
 		torrentInput:   ti,
@@ -668,18 +689,31 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case isKeyMatch(k, a.keys.ToggleTheme):
-		// Cycle through themes: dark -> light -> highcontrast -> dark
-		switch a.currentTheme {
-		case "dark":
-			a.currentTheme = "light"
-			SetTheme(LightTheme())
-		case "light":
-			a.currentTheme = "highcontrast"
-			SetTheme(HighContrastTheme())
-		default:
-			a.currentTheme = "dark"
-			SetTheme(DefaultTheme())
+		// Cycle through available themes
+		// Get the list of available themes from config
+		availableThemes := getAvailableThemesForCycling(a.state.Config)
+		
+		// Find current position in the list
+		currentIndex := -1
+		for i, theme := range availableThemes {
+			if theme == a.currentTheme {
+				currentIndex = i
+				break
+			}
 		}
+		
+		// Move to next theme (or wrap around)
+		nextIndex := (currentIndex + 1) % len(availableThemes)
+		nextThemeName := availableThemes[nextIndex]
+		
+		// Load and set the theme
+		nextTheme := loadThemeByName(nextThemeName, a.state.Config)
+		SetTheme(nextTheme)
+		a.currentTheme = nextThemeName
+		
+		// Update hints bar to show new theme
+		a.hintsBar.SetCurrentTheme(nextThemeName)
+		
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Help):
@@ -1231,5 +1265,35 @@ func (a *App) Shutdown() {
 	a.cancel()
 	if a.state.CurrentClient() != nil {
 		a.state.CurrentClient().Adapter.Disconnect(context.Background())
+	}
+}
+
+// getAvailableThemesForCycling returns the list of available themes to cycle through
+func getAvailableThemesForCycling(cfg *config.Config) []string {
+	return config.AvailableThemes
+}
+
+// loadThemeByName loads a theme by its name
+func loadThemeByName(themeName string, cfg *config.Config) Theme {
+	switch themeName {
+	case "dark":
+		return DefaultTheme()
+	case "light":
+		return LightTheme()
+	case "highcontrast":
+		return HighContrastTheme()
+	case "omarchy":
+		if cfg.LoadedColors != nil && len(cfg.LoadedColors["omarchy"]) > 0 {
+			return OmarchyTheme(cfg.LoadedColors["omarchy"])
+		}
+		return DefaultTheme()
+	case "custom":
+		if cfg.LoadedColors != nil && len(cfg.LoadedColors["custom"]) > 0 {
+			return OmarchyTheme(cfg.LoadedColors["custom"])
+		}
+		return DefaultTheme()
+	default:
+		// Fallback to dark theme
+		return DefaultTheme()
 	}
 }
