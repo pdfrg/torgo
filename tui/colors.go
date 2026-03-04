@@ -35,6 +35,13 @@ type Theme struct {
 	// Hex string versions for convenient access (used by search bar, etc)
 	AccentColorHex string  // Hex version of AccentColor
 	BgNormalHex    string  // Hex version of BgNormal
+	
+	// Detail view colors
+	DetailTabActiveBorder    color.Color  // Active tab border color (bright, stands out)
+	DetailTabInactiveBorder  color.Color  // Inactive tab border color (muted)
+	DetailLabelColor         color.Color  // Field labels and section headers
+	DetailFocusBg            color.Color  // Focused field/form input background
+	DetailCursorColor        color.Color  // Tree/list cursor indicator color
 }
 
 // DefaultTheme returns the default light-on-dark theme
@@ -91,6 +98,13 @@ func DefaultTheme() Theme {
 		// Hex versions (for built-in theme, use defaults)
 		AccentColorHex: "#00d7ff",  // Bright cyan
 		BgNormalHex:    "#000000",  // Black (terminal default)
+		
+		// Detail view colors for dark theme
+		DetailTabActiveBorder:   lipgloss.Color("51"),   // Bright cyan - stands out
+		DetailTabInactiveBorder: lipgloss.Color("242"),  // Medium gray - muted
+		DetailLabelColor:        lipgloss.Color("51"),   // Bright cyan - same as accent
+		DetailFocusBg:           lipgloss.Color("39"),   // Dark cyan - subtle highlight
+		DetailCursorColor:       lipgloss.Color("51"),   // Bright cyan - matches accent
 	}
 }
 
@@ -152,6 +166,13 @@ func LightTheme() Theme {
 		// Hex versions
 		AccentColorHex: "#0099aa",  // Dark cyan
 		BgNormalHex:    "#ffffff",  // White (light background)
+		
+		// Detail view colors for light theme
+		DetailTabActiveBorder:   lipgloss.Color("33"),   // Dark cyan - stands out on light bg
+		DetailTabInactiveBorder: lipgloss.Color("245"),  // Light gray - muted
+		DetailLabelColor:        lipgloss.Color("33"),   // Dark cyan - same as accent
+		DetailFocusBg:           lipgloss.Color("231"),  // Very light gray - subtle highlight
+		DetailCursorColor:       lipgloss.Color("33"),   // Dark cyan - matches accent
 	}
 }
 
@@ -208,6 +229,13 @@ func HighContrastTheme() Theme {
 		// Hex versions
 		AccentColorHex: "#ffff00",  // Bright yellow
 		BgNormalHex:    "#000000",  // Black
+		
+		// Detail view colors for high contrast theme
+		DetailTabActiveBorder:   lipgloss.Color("226"),  // Bright yellow - stands out
+		DetailTabInactiveBorder: lipgloss.Color("8"),    // Bright black/gray - muted but visible
+		DetailLabelColor:        lipgloss.Color("226"),  // Bright yellow - same as accent
+		DetailFocusBg:           lipgloss.Color("11"),   // Bright blue - strong highlight
+		DetailCursorColor:       lipgloss.Color("226"),  // Bright yellow - matches accent
 	}
 }
 
@@ -351,6 +379,22 @@ func OmarchyTheme(colors map[string]string) Theme {
 	}
 
 	theme.ProgressBarEmptyColor = lipgloss.Color(bgAdjusted)
+
+	// DETAIL VIEW COLORS
+	// Use accent color for active tabs (bright, stands out like search bar edit mode)
+	theme.DetailTabActiveBorder = theme.AccentColor
+	
+	// Use muted foreground for inactive tabs
+	theme.DetailTabInactiveBorder = theme.TextMuted
+	
+	// Use accent color for labels (matches search bar, draws attention)
+	theme.DetailLabelColor = theme.AccentColor
+	
+	// Use a slightly adjusted accent for focus background (darker/more muted)
+	theme.DetailFocusBg = lipgloss.Color(desaturateColorHex(accentColor, 0.5))
+	
+	// Use cursor color for tree/list cursor indicator
+	theme.DetailCursorColor = theme.CursorColor
 
 	return theme
 }
