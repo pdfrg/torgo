@@ -271,17 +271,17 @@ func (dv *DetailView) renderTabs() string {
 		isFirst := i == 0
 		isLast := i == len(dv.TabOrder)-1
 
-		// Choose base style
+		// Choose base style - use theme colors
 		var tabStyle lipgloss.Style
 		if isActive {
 			tabStyle = lipgloss.NewStyle().
 				Border(activeTabBorder, true).
-				BorderForeground(dv.State.Styles.SelectColor()).
+				BorderForeground(CurrentTheme.DetailTabActiveBorder).
 				Padding(0, 1)
 		} else {
 			tabStyle = lipgloss.NewStyle().
 				Border(inactiveTabBorder, true).
-				BorderForeground(dv.State.Styles.HintColor()).
+				BorderForeground(CurrentTheme.DetailTabInactiveBorder).
 				Padding(0, 1)
 		}
 
@@ -344,7 +344,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	}
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor()).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
 
 	var content strings.Builder
@@ -708,12 +708,12 @@ func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
 
 func (m *EditTabModel) View(state *DetailViewState) string {
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor()).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
 
 	focusStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.BgColor()).
-		Background(state.Styles.SelectColor()).
+		Foreground(CurrentTheme.TextNormal).
+		Background(CurrentTheme.DetailFocusBg).
 		Padding(0, 1)
 
 	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
@@ -836,7 +836,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor()).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
 	
 	content.WriteString(labelStyle.Render("Select a category:") + "\n\n")
@@ -1234,11 +1234,11 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(state.Styles.SelectColor()).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
 	
 	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
-	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor())
+	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor)
 	
 	content.WriteString(labelStyle.Render("Files") + " (" + fmt.Sprintf("%d", len(m.files)) + " total)\n\n")
 	
