@@ -72,14 +72,18 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 		speedLimitStatus = fmt.Sprintf("  🐢▼%s ▲%s", downStr, upStr)
 	}
 
-	barBg := lipgloss.Color("237")
+	// Get bar colors from current theme
+	theme := CurrentTheme
+	barBg := theme.StatusBarBg
+	barFg := theme.StatusBarFg
+	accentColor := theme.StatusBarAccent
 
-	// Color styles for individual parts (each with background applied)
+	// Color styles for individual parts
 	defaultColor := lipgloss.NewStyle().
-		Foreground(s.styles.FgColor()).
+		Foreground(barFg).
 		Background(barBg)
 	keyColor := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("51")).
+		Foreground(accentColor).
 		Bold(true).
 		Background(barBg)
 

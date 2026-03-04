@@ -158,6 +158,39 @@ type tickMsg struct{}
 // speedLimitTickMsg is used for speed limit polling (every 12 seconds)
 type speedLimitTickMsg struct{}
 
+// getSearchBoxBackground calculates search box background color for active/results state (adjusted by 0.25)
+func (a *App) getSearchBoxBackground(theme Theme) string {
+	bgStr := theme.BgNormalHex
+	if bgStr == "" {
+		bgStr = "#000000"
+	}
+	
+	// Adjust by 0.25 for visibility (lighter if dark, darker if light)
+	if isColorDark(bgStr) {
+		return lightenColorHex(bgStr, 0.25)
+	}
+	return darkenColorHex(bgStr, 0.25)
+}
+
+// getSearchBoxAccentBackground uses the accent color for editing mode (bright, prominent)
+func (a *App) getSearchBoxAccentBackground(theme Theme) string {
+	// Use accent color hex from current theme
+	if theme.AccentColorHex != "" {
+		return theme.AccentColorHex
+	}
+	
+	// Fallback for built-in themes - use a bright cyan
+	return "#00d7ff"
+}
+
+// getSearchBoxTextColor calculates text color for search box
+func (a *App) getSearchBoxTextColor(bgHex string) string {
+	if isColorDark(bgHex) {
+		return "#d0d0d0"  // Light gray on dark
+	}
+	return "#333333"  // Dark gray on light
+}
+
 // Update implements tea.Model
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Handle detail view first if active
@@ -289,7 +322,10 @@ func (a *App) View() tea.View {
 
 	// Title
 	titleText := "󰁇  󰁇  tqbtui – Torrent Multi-Client TUI"
-	lines = append(lines, a.styles.Title.Render(titleText))
+	titleStyle := lipgloss.NewStyle().
+		Foreground(CurrentTheme.AccentColor).
+		Bold(true)
+	lines = append(lines, titleStyle.Render(titleText))
 	lines = append(lines, "")
 
 	// Show search status if in search mode (editing) or if search is active (results shown)
@@ -311,25 +347,35 @@ func (a *App) View() tea.View {
 		// Different visual style depending on mode
 		var searchStatus string
 		var searchStatusStyle lipgloss.Style
+		theme := CurrentTheme
 		
 		if a.searchMode {
-			// Actively editing search - bright purple with instruction
-			// Use input field value since we're typing
+			// Actively editing search - use bright accent color for visibility
 			inputQuery := a.searchInput.Value()
 			searchStatus = fmt.Sprintf(" 🔍 SEARCH: %s  (%d %s)  [Enter to confirm, ESC to clear] ",
 				inputQuery, matches, matchText)
+			
+			// Use accent color for editing mode (bright, draws attention)
+			searchBg := a.getSearchBoxAccentBackground(theme)
+			searchText := a.getSearchBoxTextColor(searchBg)
+			
 			searchStatusStyle = lipgloss.NewStyle().
-				Background(lipgloss.Color("62")).  // Purple background
-				Foreground(lipgloss.Color("255")). // White text
+				Background(lipgloss.Color(searchBg)).
+				Foreground(lipgloss.Color(searchText)).
 				Bold(true).
 				Padding(0, 1)
 		} else {
-			// Search results active - subtle grey with instruction
+			// Search results active - use subtle adjusted background
 			searchStatus = fmt.Sprintf(" 🔍 %s (%d %s) — / to edit, ESC to clear ",
 				query, matches, matchText)
+			
+			// Use adjusted background for active mode (subtle, less prominent)
+			searchBg := a.getSearchBoxBackground(theme)
+			searchText := a.getSearchBoxTextColor(searchBg)
+			
 			searchStatusStyle = lipgloss.NewStyle().
-				Background(lipgloss.Color("240")).  // Darker grey background
-				Foreground(lipgloss.Color("255")). // White text
+				Background(lipgloss.Color(searchBg)).
+				Foreground(lipgloss.Color(searchText)).
 				Padding(0, 1)
 		}
 		
@@ -540,6 +586,7 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.searchInput.Reset()
 		a.searchFilter.Clear()
 		a.list.SetTorrents(a.state.FilteredTorrents())
+		a.multilineList.SetTorrents(a.state.FilteredTorrents())
 		return a, nil
 	}
 
@@ -657,9 +704,12 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case isKeyMatch(k, a.keys.Search):
 		if a.searchMode {
-			// Already in search mode, toggle off
+			// Already in search mode, confirm and apply filter
 			a.searchMode = false
 			a.searchInput.Blur()
+			// Apply the search filter to displayed torrents
+			a.list.SetTorrents(a.searchFilter.GetResults())
+			a.multilineList.SetTorrents(a.searchFilter.GetResults())
 		} else if a.searchFilter.IsActive() {
 			// Have active search results, enter edit mode
 			a.searchMode = true
@@ -823,6 +873,7 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.searchFilter.Clear()
 			// Show all torrents again
 			a.list.SetTorrents(a.state.FilteredTorrents())
+			a.multilineList.SetTorrents(a.state.FilteredTorrents())
 			return a, nil
 
 		case "enter":
@@ -840,6 +891,7 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.searchInput.Reset()
 			a.searchFilter.Clear()
 			a.list.SetTorrents(a.state.FilteredTorrents())
+			a.multilineList.SetTorrents(a.state.FilteredTorrents())
 			return a, nil
 
 		default:
@@ -849,7 +901,9 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			query := a.searchInput.Value()
 			a.searchFilter.SetQuery(query, a.state.FilteredTorrents())
 			a.list.SetTorrents(a.searchFilter.GetResults())
+			a.multilineList.SetTorrents(a.searchFilter.GetResults())
 			a.list.ClearSelection() // Clear selection when search changes
+			a.multilineList.ClearSelection() // Clear selection in multiline view too
 			return a, cmd
 		}
 

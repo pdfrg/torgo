@@ -139,6 +139,9 @@ func (m *MultilineTorrentListView) Render(width, height int) string {
 		return ""
 	}
 
+	// Sync theme on every render
+	m.theme = CurrentTheme
+
 	// Build the full content
 	lines := []string{}
 
@@ -229,20 +232,21 @@ func (m *MultilineTorrentListView) renderTorrentBlock(torrent client.Torrent, cu
 func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cursor bool, width, rowNum int) string {
 	isSelected := m.selected[torrent.ID]
 
-	// Row number styling
+	// Row number styling - use cursor color when cursor is on this row
 	numStr := fmt.Sprintf("%3d", rowNum)
 	var numberStyle lipgloss.Style
 	if cursor {
-		numberStyle = lipgloss.NewStyle().Foreground(m.styles.SelectColor())
+		numberStyle = lipgloss.NewStyle().Foreground(m.theme.CursorColor)
 	} else {
 		numberStyle = lipgloss.NewStyle().Foreground(m.styles.FgColor())
 	}
 	numberStyled := numberStyle.Render(numStr)
 
-	// Selection indicator (append after number like single-line view)
+	// Selection indicator - use accent color
 	indicator := " "
 	if isSelected {
-		indicator = "●"
+		selectionStyle := lipgloss.NewStyle().Foreground(m.theme.AccentColor)
+		indicator = selectionStyle.Render("●")
 	}
 	numberWithIndicator := numberStyled + indicator
 
@@ -317,6 +321,7 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, width int) string {
 	indent := "     "
 	textStyle := lipgloss.NewStyle().Foreground(m.styles.FgColor())
+	metricsStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
 	
 	// Get category icon for its own column
 	categoryIcon := GetCategoryIcon(torrent.Category)
@@ -341,20 +346,27 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 	eta := m.calculateETA(torrent)
 
 	// Fixed widths for vertical alignment: icon(2) status(15) speeds(25) ratio(12) seeds(12) peers(12) eta(15)
-	line := fmt.Sprintf("%s%s %-15s ↓ %-12s ↑ %-12s Ratio: %-8s Seeds: %-5s Peers: %-5s ETA: %s",
+	// Pad status to fixed width BEFORE styling to preserve alignment
+	paddedStatus := fmt.Sprintf("%-15s", statusLabel)
+	paddedDownSpeed := fmt.Sprintf("%-12s", downSpeed)
+	paddedUpSpeed := fmt.Sprintf("%-12s", upSpeed)
+	paddedRatio := fmt.Sprintf("%-8s", ratioStr)
+	paddedSeeds := fmt.Sprintf("%-5s", seeds)
+	paddedPeers := fmt.Sprintf("%-5s", peers)
+
+	// Apply text colors - mix of textStyle (labels) and metricsStyle (values)
+	// Build with mixed styling using pre-padded values
+	line := fmt.Sprintf("%s%s %s ↓ %s ↑ %s %s %s %s %s",
 		indent,
 		categoryIcon,
-		statusLabel,
-		downSpeed,
-		upSpeed,
-		ratioStr,
-		seeds,
-		peers,
-		eta,
+		textStyle.Render(paddedStatus),
+		metricsStyle.Render(paddedDownSpeed),
+		metricsStyle.Render(paddedUpSpeed),
+		textStyle.Render("Ratio: ") + metricsStyle.Render(paddedRatio),
+		textStyle.Render("Seeds: ") + metricsStyle.Render(paddedSeeds),
+		textStyle.Render("Peers: ") + metricsStyle.Render(paddedPeers),
+		textStyle.Render("ETA: ") + metricsStyle.Render(eta),
 	)
-
-	// Apply text color
-	line = textStyle.Render(line)
 
 	// Check visual width (ignores ANSI codes)
 	if lipgloss.Width(line) > width {

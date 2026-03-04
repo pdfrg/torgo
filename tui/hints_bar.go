@@ -50,15 +50,19 @@ func abbreviateThemeName(theme string) string {
 func (h *HintsBar) Render(width int) string {
 	hints := h.keys.ShortHelp()
 
-	barBg := lipgloss.Color("237")
+	// Get bar colors from theme
+	theme := CurrentTheme
+	barBg := theme.StatusBarBg
+	barFg := theme.StatusBarFg
+	accentColor := theme.StatusBarAccent
 
-	// Color styles for the hint parts (each with background applied)
+	// Color styles for the hint parts
 	keyColor := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("51")).
+		Foreground(accentColor).
 		Bold(true).
 		Background(barBg)
 	descColor := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252")).
+		Foreground(barFg).
 		Background(barBg)
 
 	// Build hint parts with their colors and background
