@@ -232,3 +232,32 @@ func buildOmarchyTheme(colors map[string]string) *Theme {
 	t.Colors = colors
 	return t
 }
+
+// ReloadThemeColors refreshes the colors for a theme from disk
+// Used when user switches to omarchy or custom theme to ensure fresh data
+func (c *Config) ReloadThemeColors(themeName string) error {
+	if themeName == "omarchy" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
+		colors, err := loadColorsFile(omarchyPath)
+		if err != nil {
+			return err
+		}
+		c.LoadedColors["omarchy"] = colors
+	} else if themeName == "custom" {
+		configDir, err := getConfigDir()
+		if err != nil {
+			return err
+		}
+		customPath := filepath.Join(configDir, "colors.toml")
+		colors, err := loadColorsFile(customPath)
+		if err != nil {
+			return err
+		}
+		c.LoadedColors["custom"] = colors
+	}
+	return nil
+}

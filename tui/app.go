@@ -1328,6 +1328,7 @@ func getAvailableThemesForCycling(cfg *config.Config) []string {
 }
 
 // loadThemeByName loads a theme by its name
+// For omarchy and custom themes, re-reads the file from disk to catch any changes
 func loadThemeByName(themeName string, cfg *config.Config) Theme {
 	switch themeName {
 	case "dark":
@@ -1337,13 +1338,19 @@ func loadThemeByName(themeName string, cfg *config.Config) Theme {
 	case "highcontrast":
 		return HighContrastTheme()
 	case "omarchy":
-		if cfg.LoadedColors != nil && len(cfg.LoadedColors["omarchy"]) > 0 {
-			return OmarchyTheme(cfg.LoadedColors["omarchy"])
+		// Re-read omarchy theme from disk to catch any changes the user made in omarchy
+		if err := cfg.ReloadThemeColors("omarchy"); err == nil {
+			if cfg.LoadedColors != nil && len(cfg.LoadedColors["omarchy"]) > 0 {
+				return OmarchyTheme(cfg.LoadedColors["omarchy"])
+			}
 		}
 		return DefaultTheme()
 	case "custom":
-		if cfg.LoadedColors != nil && len(cfg.LoadedColors["custom"]) > 0 {
-			return OmarchyTheme(cfg.LoadedColors["custom"])
+		// Re-read custom theme from disk to catch any changes the user made
+		if err := cfg.ReloadThemeColors("custom"); err == nil {
+			if cfg.LoadedColors != nil && len(cfg.LoadedColors["custom"]) > 0 {
+				return OmarchyTheme(cfg.LoadedColors["custom"])
+			}
 		}
 		return DefaultTheme()
 	default:
