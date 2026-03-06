@@ -117,11 +117,9 @@ func DiscoverThemes(configDir string) []string {
 }
 
 // loadTheme loads theme from default_color_scheme setting
+// If default_color_scheme is not set, auto-prioritize: custom > omarchy > dark
 func loadTheme(cfg *Config, configDir string) (*Theme, error) {
 	scheme := cfg.UI.DefaultColorScheme
-	if scheme == "" {
-		scheme = "dark"
-	}
 
 	// Discover available themes
 	AvailableThemes = DiscoverThemes(configDir)
@@ -142,6 +140,29 @@ func loadTheme(cfg *Config, configDir string) (*Theme, error) {
 	customPath := filepath.Join(configDir, "colors.toml")
 	if colors, err := loadColorsFile(customPath); err == nil {
 		cfg.LoadedColors["custom"] = colors
+	}
+
+	// If default_color_scheme not explicitly set, auto-detect based on file presence
+	if scheme == "" {
+		// Check for custom colors.toml first (highest priority)
+		if _, err := os.Stat(customPath); err == nil {
+			scheme = "custom"
+		} else {
+			// Check for omarchy colors second
+			home, err := os.UserHomeDir()
+			if err == nil {
+				omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
+				if _, err := os.Stat(omarchyPath); err == nil {
+					scheme = "omarchy"
+				} else {
+					// Fall back to dark theme
+					scheme = "dark"
+				}
+			} else {
+				// Can't access home dir, fall back to dark
+				scheme = "dark"
+			}
+		}
 	}
 
 	switch {

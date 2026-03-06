@@ -114,7 +114,7 @@ func NewApp(appState *state.AppState) *App {
 		showHints:      appState.Config.UI.ShowHints,
 		showHelp:       false,
 		currentTheme:   themeName,
-		viewMode:       "default",
+		viewMode:       "multiline",
 		screenMode:     "list",
 		torrentInput:   ti,
 		categoryList:   categoryList,
