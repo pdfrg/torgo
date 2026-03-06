@@ -272,6 +272,8 @@ func (dv *DetailView) renderTabs() string {
 		isLast := i == len(dv.TabOrder)-1
 
 		// Choose base style - use theme colors
+		// Note: Both active and inactive tabs use accent color for the bottom border line
+		// to create visual continuity
 		var tabStyle lipgloss.Style
 		if isActive {
 			tabStyle = lipgloss.NewStyle().
@@ -281,7 +283,7 @@ func (dv *DetailView) renderTabs() string {
 		} else {
 			tabStyle = lipgloss.NewStyle().
 				Border(inactiveTabBorder, true).
-				BorderForeground(CurrentTheme.DetailTabInactiveBorder).
+				BorderForeground(CurrentTheme.DetailTabActiveBorder).  // Use accent for the bottom line too
 				Padding(0, 1)
 		}
 
@@ -344,7 +346,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	}
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(CurrentTheme.DetailCursorColor).
 		Bold(true)
 
 	var content strings.Builder
@@ -438,7 +440,8 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 			Bold(true).
 			Render(changeMsg) + " - press Enter to save or Esc to discard\n")
 	} else {
-		content.WriteString("\nPress 'e' to edit, Tab to switch tabs\n")
+		hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+		content.WriteString("\n" + hintStyle.Render("Press 'e' to edit, Tab to switch tabs\n"))
 	}
 
 	return content.String()
@@ -524,19 +527,19 @@ func NewEditTabModelWithHost(state *DetailViewState, clientHost string) *EditTab
 			Name:     "name",
 			Label:    "Name",
 			Original: state.OriginalValues["name"],
-			Input:    createStyledTextInput("name", state.OriginalValues["name"]),
+			Input:    createStyledTextInput("enter torrent name", state.OriginalValues["name"]),
 		},
 		{
 			Name:     "tags",
 			Label:    "Tags",
 			Original: state.OriginalValues["tags"],
-			Input:    createStyledTextInput("tags", state.OriginalValues["tags"]),
+			Input:    createStyledTextInput("<no tag>", state.OriginalValues["tags"]),
 		},
 		{
 			Name:     "comments",
 			Label:    "Comments",
 			Original: state.OriginalValues["comments"],
-			Input:    createStyledTextInput("comments", state.OriginalValues["comments"]),
+			Input:    createStyledTextInput("<no comment>", state.OriginalValues["comments"]),
 		},
 		{
 			Name:     "location",
@@ -574,6 +577,28 @@ func createStyledTextInput(placeholder, value string) textinput.Model {
 	ti := textinput.New()
 	ti.SetValue(value)
 	ti.Placeholder = placeholder
+	ti.SetWidth(60)  // Set width to accommodate placeholder text like "<no comment>"
+	
+	// Apply theme-aware styles to text input
+	styles := textinput.Styles{
+		Focused: textinput.StyleState{
+			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor),
+			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+		},
+		Blurred: textinput.StyleState{
+			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal),
+			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+		},
+		Cursor: textinput.CursorStyle{
+			Color: CurrentTheme.DetailCursorColor,
+		},
+	}
+	ti.SetStyles(styles)
+	
 	return ti
 }
 
@@ -708,13 +733,8 @@ func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
 
 func (m *EditTabModel) View(state *DetailViewState) string {
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(CurrentTheme.DetailCursorColor).
 		Bold(true)
-
-	focusStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.TextNormal).
-		Background(CurrentTheme.DetailFocusBg).
-		Padding(0, 1)
 
 	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
 	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor())
@@ -725,11 +745,8 @@ func (m *EditTabModel) View(state *DetailViewState) string {
 	for i, field := range m.fields {
 		isFocused := i == m.focusIndex
 		
-		// Field label
+		// Field label - always use consistent styling, no special focus appearance
 		label := labelStyle.Render(field.Label + ":")
-		if isFocused {
-			label = focusStyle.Render(" " + field.Label + " ")
-		}
 		
 		content.WriteString(label + "\n")
 		content.WriteString("  " + field.Input.View() + "\n")
@@ -787,6 +804,17 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
 	delegate.SetHeight(1)
+	
+	// Customize list item styles - keep defaults, only change selected color
+	styles := list.NewDefaultItemStyles(true)  // dark theme defaults
+	// Override selected title and its left border ("|") to foreground color
+	selectedStyle := styles.SelectedTitle
+	selectedStyle = selectedStyle.
+		Foreground(CurrentTheme.ForegroundColor).
+		BorderLeftForeground(CurrentTheme.ForegroundColor)
+	styles.SelectedTitle = selectedStyle
+	
+	delegate.Styles = styles
 
 	// Width and height will be set dynamically in View based on available space
 	// Height of 15 to show all items with room to spare
@@ -836,7 +864,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(CurrentTheme.DetailCursorColor).
 		Bold(true)
 	
 	content.WriteString(labelStyle.Render("Select a category:") + "\n\n")
@@ -1234,7 +1262,7 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(CurrentTheme.DetailCursorColor).
 		Bold(true)
 	
 	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
