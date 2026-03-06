@@ -322,14 +322,26 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 // Helper functions
 
 func truncate(s string, length int) string {
-	runes := []rune(s)
-	if len(runes) > length {
-		return string(runes[:length-3]) + "..."
+	// Use visual width to handle wide characters (emojis, CJK, etc.)
+	visualWidth := lipgloss.Width(s)
+	
+	if visualWidth > length {
+		// Truncate character by character, checking visual width
+		runes := []rune(s)
+		for i := len(runes) - 1; i >= 0; i-- {
+			testStr := string(runes[:i])
+			if lipgloss.Width(testStr) <= length-3 {
+				return testStr + "..."
+			}
+		}
+		return "..."
 	}
-	// Pad to exact length
-	if len(runes) < length {
-		return s + strings.Repeat(" ", length-len(runes))
+	
+	// Pad to exact length using spaces
+	if visualWidth < length {
+		return s + strings.Repeat(" ", length-visualWidth)
 	}
+	
 	return s
 }
 
