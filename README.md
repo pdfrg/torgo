@@ -96,13 +96,18 @@ At runtime, press `t` to cycle through all available themes (built-in + any disc
 
 ### UI Views
 - [x] Single-line view (compact list display)
+   - Solid status colors with smart contrast text (light/dark based on background luminance)
+   - Theme-aware table header, separator, row numbers, and field styling
+   - Selection indicators and cursor highlighting
 - [x] Multi-line view (detailed display with 3 lines per torrent)
-  - Line 1: Torrent number, name
-  - Line 2: Progress bar with file sizes
-  - Line 3: Status, speeds, ratio, seeds, peers, ETA with category icon
+   - Line 1: Torrent number, name
+   - Line 2: Progress bar with file sizes
+   - Line 3: Status, speeds, ratio, seeds, peers, ETA with category icon
+   - Gradient progress bars for visual distinction of status
 - [x] View cycling with `v`
-- [x] Progress bars with gradient coloring based on status
+- [x] Progress bars with solid colors in single-line view, gradients in multi-line view
 - [x] Textured empty progress bar areas
+- [x] 7 distinct status colors (downloading, seeding, completed, paused, error, queueing, stalled)
 
 ### Testing
 - [x] Unit tests for config loading
