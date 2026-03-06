@@ -42,6 +42,10 @@ type Theme struct {
 	DetailLabelColor         color.Color  // Field labels and section headers
 	DetailFocusBg            color.Color  // Focused field/form input background
 	DetailCursorColor        color.Color  // Tree/list cursor indicator color
+	
+	// Oneline view solid status colors (not gradients)
+	StatusOnlineColors    map[string]color.Color  // Solid colors for oneline view by status
+	StatusOnlineColorsHex map[string]string       // Hex versions for luminance check
 }
 
 // DefaultTheme returns the default light-on-dark theme
@@ -105,6 +109,28 @@ func DefaultTheme() Theme {
 		DetailLabelColor:        lipgloss.Color("51"),   // Bright cyan - same as accent
 		DetailFocusBg:           lipgloss.Color("39"),   // Dark cyan - subtle highlight
 		DetailCursorColor:       lipgloss.Color("51"),   // Bright cyan - matches accent
+		
+		// Oneline view solid status colors (using gradient endpoints per revised planning)
+		StatusOnlineColors: map[string]color.Color{
+			"downloading": lipgloss.Color("#00D26A"), // Bright green (gradient[1])
+			"seeding":     lipgloss.Color("#00D9FF"), // Bright cyan (gradient[1])
+			"paused":      lipgloss.Color("#FFD700"), // Yellow (gradient[0] - color3)
+			"completed":   lipgloss.Color("#9D00FF"), // Purple (gradient[0] - distinct from seeding)
+			"error":       lipgloss.Color("#FF3333"), // Red (gradient[0] - color1)
+			"queueing":    lipgloss.Color("#FF00FF"), // Magenta (gradient[0] - color5)
+			"stalled":     lipgloss.Color("#FFA500"), // Orange (gradient[0] - color6)
+			"unknown":     lipgloss.Color("#606060"), // Dark gray
+		},
+		StatusOnlineColorsHex: map[string]string{
+			"downloading": "#00D26A",
+			"seeding":     "#00D9FF",
+			"paused":      "#FFD700",
+			"completed":   "#9D00FF",
+			"error":       "#FF3333",
+			"queueing":    "#FF00FF",
+			"stalled":     "#FFA500",
+			"unknown":     "#606060",
+		},
 	}
 }
 
@@ -173,6 +199,28 @@ func LightTheme() Theme {
 		DetailLabelColor:        lipgloss.Color("33"),   // Dark cyan - same as accent
 		DetailFocusBg:           lipgloss.Color("231"),  // Very light gray - subtle highlight
 		DetailCursorColor:       lipgloss.Color("33"),   // Dark cyan - matches accent
+		
+		// Oneline view solid status colors for light theme
+		StatusOnlineColors: map[string]color.Color{
+			"downloading": lipgloss.Color("#0055CC"), // Dark blue (gradient[1])
+			"seeding":     lipgloss.Color("#0099AA"), // Dark cyan (gradient[1])
+			"paused":      lipgloss.Color("#CC8800"), // Dark yellow (gradient[0])
+			"completed":   lipgloss.Color("#BB00BB"), // Dark magenta (gradient[1])
+			"error":       lipgloss.Color("#CC0000"), // Dark red (gradient[0])
+			"queueing":    lipgloss.Color("#BB00BB"), // Dark magenta (gradient[0])
+			"stalled":     lipgloss.Color("#CC6600"), // Dark orange (gradient[0])
+			"unknown":     lipgloss.Color("#999999"), // Medium gray
+		},
+		StatusOnlineColorsHex: map[string]string{
+			"downloading": "#0055CC",
+			"seeding":     "#0099AA",
+			"paused":      "#CC8800",
+			"completed":   "#BB00BB",
+			"error":       "#CC0000",
+			"queueing":    "#BB00BB",
+			"stalled":     "#CC6600",
+			"unknown":     "#999999",
+		},
 	}
 }
 
@@ -236,6 +284,28 @@ func HighContrastTheme() Theme {
 		DetailLabelColor:        lipgloss.Color("226"),  // Bright yellow - same as accent
 		DetailFocusBg:           lipgloss.Color("11"),   // Bright blue - strong highlight
 		DetailCursorColor:       lipgloss.Color("226"),  // Bright yellow - matches accent
+		
+		// Oneline view solid status colors for high contrast theme
+		StatusOnlineColors: map[string]color.Color{
+			"downloading": lipgloss.Color("#00FF00"), // Bright green (gradient[1])
+			"seeding":     lipgloss.Color("#00FFFF"), // Bright cyan (gradient[1])
+			"paused":      lipgloss.Color("#FFFF00"), // Bright yellow (gradient[0])
+			"completed":   lipgloss.Color("#FF00FF"), // Bright magenta (gradient[1])
+			"error":       lipgloss.Color("#FF0000"), // Bright red (gradient[0])
+			"queueing":    lipgloss.Color("#FF00FF"), // Bright magenta (gradient[0])
+			"stalled":     lipgloss.Color("#FF8800"), // Bright orange (gradient[0])
+			"unknown":     lipgloss.Color("#CCCCCC"), // Light gray
+		},
+		StatusOnlineColorsHex: map[string]string{
+			"downloading": "#00FF00",
+			"seeding":     "#00FFFF",
+			"paused":      "#FFFF00",
+			"completed":   "#FF00FF",
+			"error":       "#FF0000",
+			"queueing":    "#FF00FF",
+			"stalled":     "#FF8800",
+			"unknown":     "#CCCCCC",
+		},
 	}
 }
 
@@ -396,6 +466,34 @@ func OmarchyTheme(colors map[string]string) Theme {
 	// Use cursor color for tree/list cursor indicator
 	theme.DetailCursorColor = theme.CursorColor
 
+	// ONELINE VIEW COLORS: Use gradient endpoints per revised planning
+	// Active states (downloading, seeding) use gradient[1] (bright endpoint)
+	// Completed uses gradient[0] for distinction from seeding
+	// Passive states (paused, error, queueing, stalled) use gradient[0] (semantic color)
+	theme.StatusOnlineColors = map[string]color.Color{
+		"downloading": theme.StatusGradients["downloading"][1],  // Bright color4
+		"seeding":     theme.StatusGradients["seeding"][1],      // Bright color2
+		"paused":      theme.StatusGradients["paused"][0],       // color3
+		"completed":   theme.StatusGradients["completed"][0],    // Desaturated color2 (distinct from seeding)
+		"error":       theme.StatusGradients["error"][0],        // color1
+		"queueing":    theme.StatusGradients["queueing"][0],     // color5
+		"stalled":     theme.StatusGradients["stalled"][0],      // color6
+		"unknown":     theme.StatusGradients["unknown"][0],      // Dark gray
+	}
+
+	// Store hex versions for luminance calculation
+	// Map gradient endpoints back to original color strings
+	theme.StatusOnlineColorsHex = map[string]string{
+		"downloading": color4,                          // Bright color4
+		"seeding":     color2,                          // Bright color2
+		"paused":      color3,                          // color3
+		"completed":   color2Desat,                     // Desaturated color2 (distinct from seeding)
+		"error":       color1,                          // color1
+		"queueing":    color5,                          // color5
+		"stalled":     color6,                          // color6
+		"unknown":     "#606060",                       // Fallback gray
+	}
+
 	return theme
 }
 
@@ -431,6 +529,32 @@ func SetTheme(t Theme) {
 // GetCurrentStatusGradient returns the gradient colors for a status using the current theme
 func GetCurrentStatusGradient(status string) [2]color.Color {
 	return CurrentTheme.GetStatusGradient(status)
+}
+
+// GetStatusColorForOneline returns the solid color for oneline view for a given status
+func (t Theme) GetStatusColorForOneline(status string) color.Color {
+	if col, ok := t.StatusOnlineColors[status]; ok {
+		return col
+	}
+	// Fallback to text normal if status not found
+	return t.TextNormal
+}
+
+// GetStatusColorHexForOneline returns the hex string for oneline color for luminance calculation
+func (t Theme) GetStatusColorHexForOneline(status string) string {
+	if hex, ok := t.StatusOnlineColorsHex[status]; ok {
+		return hex
+	}
+	// Fallback white
+	return "#FFFFFF"
+}
+
+// GetContrastTextColorForBg returns light or dark text color based on background luminance
+func (t Theme) GetContrastTextColorForBg(bgHex string) color.Color {
+	if isColorDark(bgHex) {
+		return lipgloss.Color("#d0d0d0") // Light gray on dark background
+	}
+	return lipgloss.Color("#333333") // Dark gray on light background
 }
 
 // Color transformation helper functions for omarchy themes

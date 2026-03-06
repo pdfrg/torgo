@@ -140,9 +140,11 @@ func (t *TorrentListView) Render(width, height int) string {
 	header := t.renderHeader(width, nameWidth)
 	lines = append(lines, header)
 
-	// Separator
+	// Separator with accent color
 	if width > 0 {
-		lines = append(lines, strings.Repeat("─", width))
+		separatorStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
+		separator := separatorStyle.Render(strings.Repeat("─", width))
+		lines = append(lines, separator)
 	}
 
 	// All torrent items
@@ -222,7 +224,12 @@ func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 	// Format: # Name | Size | Prog | ↓Down | ↑Up | Seed | Leech | Status
 	// Use "#" as column header for sequential numbering (right-aligned in 2 chars)
 	// No space between name and size to match row format
-	return t.styles.ListHeader.Render(
+	headerStyle := lipgloss.NewStyle().
+		Foreground(CurrentTheme.CursorColor).
+		Bold(true).
+		Padding(0, 1)
+	
+	return headerStyle.Render(
 		fmt.Sprintf("%2s  %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
 			"#", "Name", "Size", "Prog", "↓Down", "↑Up", "Seed", "Leech", "Status"),
 	)
@@ -237,19 +244,20 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	isSelected := t.selected[torrent.ID]
 	
 	numStr := fmt.Sprintf("%3d", rowNum)
-	numberStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor())
+	numberStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal)
 	
-	// Cursor position gets cyan color
+	// Cursor position gets cursor color
 	if cursor {
-		numberStyle = lipgloss.NewStyle().Foreground(t.styles.SelectColor())
+		numberStyle = lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor)
 	}
 	
 	numberStyled := numberStyle.Render(numStr)
 	
-	// Add dot indicator for selected items
+	// Add dot indicator for selected items (styled with accent color)
 	indicator := " "
 	if isSelected {
-		indicator = "●"
+		indicatorStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
+		indicator = indicatorStyle.Render("●")
 	}
 	numberWithIndicator := numberStyled + indicator
 
@@ -263,15 +271,17 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 		filledWidth = len(nameRunes)
 	}
 
-	// Get progress bar colors based on torrent status and progress
-	filledColor, _ := t.styles.ProgressBarColors(string(torrent.Status), torrent.Progress)
+	// Get solid status color for oneline view with smart contrast text
+	statusColor := CurrentTheme.GetStatusColorForOneline(string(torrent.Status))
+	statusColorHex := CurrentTheme.GetStatusColorHexForOneline(string(torrent.Status))
+	textColor := CurrentTheme.GetContrastTextColorForBg(statusColorHex)
 
 	// Render the name with progress bar background
 	filledPart := string(nameRunes[:filledWidth])
 	unfilledPart := string(nameRunes[filledWidth:])
 
-	filledStyle := lipgloss.NewStyle().Background(filledColor).Foreground(t.styles.FgColor())
-	unfilledStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor())
+	filledStyle := lipgloss.NewStyle().Background(statusColor).Foreground(textColor)
+	unfilledStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 
 	// Render the styled name parts
 	renderedName := filledStyle.Render(filledPart) + unfilledStyle.Render(unfilledPart)
@@ -282,7 +292,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 
 	// Create a style for individual fields without padding or highlighting
 	// Only the number gets the highlight styling based on selection state
-	fieldStyle := lipgloss.NewStyle().Foreground(t.styles.FgColor())
+	fieldStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 
 	// Format field values with proper alignment BEFORE applying style
 	// Match the header format exactly: %3s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
