@@ -87,6 +87,11 @@ func getConfigDir() (string, error) {
 	return getConfigDirInternal()
 }
 
+// GetConfigDirForThemeMonitoring is an exported version of getConfigDir for theme file monitoring
+func GetConfigDirForThemeMonitoring() (string, error) {
+	return getConfigDir()
+}
+
 // getConfigDirOverride can be set by tests
 var getConfigDirOverride func() (string, error)
 

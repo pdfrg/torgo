@@ -3,6 +3,8 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -51,6 +53,7 @@ type App struct {
 	searchMode         bool          // true if in search mode
 	ctx                context.Context
 	cancel             context.CancelFunc
+	lastThemeModTime   time.Time     // Track theme file modification time for auto-reload
 }
 
 // NewApp creates a new TUI application
@@ -257,6 +260,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Speed limit toggled, UI will update on next render
 		return a, nil
 	case tickMsg:
+		// Check if current theme file has been modified (for omarchy/custom auto-reload)
+		a.checkThemeFileChanges()
+		
 		// Refresh torrents and re-schedule the ticker
 		return a, tea.Batch(
 			a.refreshTorrents(),
@@ -1312,6 +1318,55 @@ type detailViewOpenedMsg struct{}
 func (a *App) syncListViews(torrents []client.Torrent) {
 	a.list.SetTorrents(torrents)
 	a.multilineList.SetTorrents(torrents)
+}
+
+// checkThemeFileChanges checks if the current theme file has been modified and reloads if needed
+// Only checks for omarchy and custom themes that read from disk
+func (a *App) checkThemeFileChanges() {
+	if a.currentTheme != "omarchy" && a.currentTheme != "custom" {
+		// Only monitor omarchy and custom themes
+		return
+	}
+
+	// Get the path to check
+	var themeFilePath string
+	if a.currentTheme == "omarchy" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return
+		}
+		themeFilePath = filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
+	} else if a.currentTheme == "custom" {
+		configDir, err := config.GetConfigDirForThemeMonitoring()
+		if err != nil {
+			return
+		}
+		themeFilePath = filepath.Join(configDir, "colors.toml")
+	}
+
+	// Check if file exists and get its ModTime
+	fileInfo, err := os.Stat(themeFilePath)
+	if err != nil {
+		// File doesn't exist or can't be read, skip
+		return
+	}
+
+	currentModTime := fileInfo.ModTime()
+
+	// If this is the first check (lastThemeModTime is zero), just record the time
+	if a.lastThemeModTime.IsZero() {
+		a.lastThemeModTime = currentModTime
+		return
+	}
+
+	// If the file has been modified, reload the theme
+	if currentModTime.After(a.lastThemeModTime) {
+		a.lastThemeModTime = currentModTime
+		
+		// Reload the theme from disk
+		newTheme := loadThemeByName(a.currentTheme, a.state.Config)
+		SetTheme(newTheme)
+	}
 }
 
 // Shutdown cleans up resources
