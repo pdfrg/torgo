@@ -228,19 +228,24 @@ func (m *MultilineTorrentListView) renderTorrentBlock(torrent client.Torrent, cu
 	return block
 }
 
-// renderIdentityLine: [#][●/ ] Name
+// renderIdentityLine: [>/  ][#][●/ ] Name
 func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cursor bool, width, rowNum int) string {
 	isSelected := m.selected[torrent.ID]
 
-	// Row number styling - use cursor color when cursor is on this row
-	numStr := fmt.Sprintf("%3d", rowNum)
+	// Row number styling with cursor prompt - use cursor color when cursor is on this row
+	// Both formats are 4 chars to prevent title shift when going from single to double digits
+	var numberStr string
 	var numberStyle lipgloss.Style
 	if cursor {
+		// Cursor row: "> " + 2-digit number = 4 chars ("> 1", "> 10", etc), styled with cursor color
+		numberStr = fmt.Sprintf("> %2d", rowNum)
 		numberStyle = lipgloss.NewStyle().Foreground(m.theme.CursorColor)
 	} else {
+		// Non-cursor row: 4-char right-aligned number = 4 chars ("   1", "  10", etc), styled with fg color
+		numberStr = fmt.Sprintf("%4d", rowNum)
 		numberStyle = lipgloss.NewStyle().Foreground(m.styles.FgColor())
 	}
-	numberStyled := numberStyle.Render(numStr)
+	numberStyled := numberStyle.Render(numberStr)
 
 	// Selection indicator - use accent color
 	indicator := " "

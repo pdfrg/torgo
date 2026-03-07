@@ -1152,17 +1152,30 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 
 	// Build help content with 2-column layout (key | desc)
 	var lines []string
-	lines = append(lines, "Help - Keybindings")
+	
+	// Header styled with cursor color
+	headerStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
+	lines = append(lines, headerStyle.Render("Help - Keybindings"))
 	lines = append(lines, "")
+
+	// Key and description styling
+	keyStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor)
+	descStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 
 	for _, binding := range allBindings {
 		fullDesc := GetFullHelpText(binding.key)
-		line := fmt.Sprintf("%-*s  %s", maxKeyWidth, binding.key, fullDesc)
+		// Style key and description separately
+		styledKey := keyStyle.Render(fmt.Sprintf("%-*s", maxKeyWidth, binding.key))
+		styledDesc := descStyle.Render(fullDesc)
+		line := fmt.Sprintf("%s  %s", styledKey, styledDesc)
 		lines = append(lines, line)
 	}
 
 	lines = append(lines, "")
-	lines = append(lines, "(Press '?' to close)")
+	
+	// Instructions styled with hints color (same as hints bar)
+	instructStyle := lipgloss.NewStyle().Foreground(a.styles.HintColor()).Italic(true)
+	lines = append(lines, instructStyle.Render("(Press '?' to close)"))
 
 	content := strings.Join(lines, "\n")
 
@@ -1174,7 +1187,11 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 		boxHeight = dialogHeight - 2
 	}
 
-	helpBox := a.styles.Dialog.
+	// Style the dialog box with theme-aware border color and background
+	helpBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(CurrentTheme.AccentColor).
+		Foreground(CurrentTheme.ForegroundColor).
 		Width(dialogWidth - 2).
 		Height(boxHeight).
 		Padding(1, 2).

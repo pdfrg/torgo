@@ -237,21 +237,28 @@ func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 
 // renderTorrentRow returns a formatted torrent row
 func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, nameWidth int, rowNum int) string {
-	// Format the row number with optional selection indicator
-	// Cursor position: cyan number
+	// Format the row number with optional selection indicator and cursor prompt
+	// Cursor position: "> N" in cursor color with dot indicator (●)
+	// Non-cursor: "  N" in text normal with dot indicator (●)
 	// Selected: add dot indicator (●)
-	// If both: cyan number with dot indicator
 	isSelected := t.selected[torrent.ID]
 	
-	numStr := fmt.Sprintf("%3d", rowNum)
-	numberStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal)
+	// Build number string with cursor prompt or padding
+	// Both formats are 4 chars to prevent title shift when going from single to double digits
+	var numberStr string
+	numberStyle := lipgloss.NewStyle()
 	
-	// Cursor position gets cursor color
 	if cursor {
+		// Cursor row: "> " + 2-digit number = 4 chars ("> 1", "> 10", etc), styled with cursor color
+		numberStr = fmt.Sprintf("> %2d", rowNum)
 		numberStyle = lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor)
+	} else {
+		// Non-cursor row: 4-char right-aligned number = 4 chars ("   1", "  10", etc), styled with text normal
+		numberStr = fmt.Sprintf("%4d", rowNum)
+		numberStyle = lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal)
 	}
 	
-	numberStyled := numberStyle.Render(numStr)
+	numberStyled := numberStyle.Render(numberStr)
 	
 	// Add dot indicator for selected items (styled with accent color)
 	indicator := " "
