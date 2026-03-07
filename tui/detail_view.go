@@ -30,6 +30,7 @@ type DetailViewState struct {
 	// Dimensions
 	Width  int
 	Height int
+	AvailableHeight int // Height available for tab content (accounting for header/footer overhead)
 }
 
 // GetCurrentValue returns the current or original value for a field
@@ -239,6 +240,12 @@ func (dv *DetailView) View() string {
 
 	// Combine tabs and content
 	return tabs + "\n" + content
+}
+
+// SetAvailableHeight sets the available height for tab content from app.go
+// This is called before View() to pass the calculated height
+func (dv *DetailView) SetAvailableHeight(height int) {
+	dv.State.AvailableHeight = height
 }
 
 // tabBorderWithBottom creates a custom tab border with specified bottom characters
@@ -1270,19 +1277,30 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 	
 	content.WriteString(labelStyle.Render("Files") + " (" + fmt.Sprintf("%d", len(m.files)) + " total)\n\n")
 	
+	hasPositionIndicator := false
 	if len(m.files) == 0 {
 		content.WriteString("No files in this torrent\n")
 	} else if len(m.flatTree) == 0 {
 		content.WriteString("No files to display\n")
 	} else {
-		// Calculate available height (estimate: total height - header - hints line)
-		availableHeight := state.Height - 8
+		// Use available height from state (calculated by DetailView)
+		availableHeight := state.AvailableHeight
 		if availableHeight < 3 {
 			availableHeight = 3
 		}
 		
+		// Account for overhead:
+		// - Initial blank line + "Files (N total)" label + blank = 3 lines
+		// - Position indicator (when more files than viewport): blank + position text = 2 lines
+		// - Main hints section: blank + hints text = 2 lines
+		// - So file viewport gets: availableHeight - 3 (header) - 2 (position) - 2 (hints)
+		fileViewportHeight := availableHeight - 7
+		if fileViewportHeight < 3 {
+			fileViewportHeight = 3
+		}
+		
 		// Update viewport to show cursor
-		m.updateViewport(availableHeight)
+		m.updateViewport(fileViewportHeight)
 		
 		// Render only visible portion of tree
 		for i := m.viewportStart; i < m.viewportStart+m.viewportHeight && i < len(m.flatTree); i++ {
@@ -1340,10 +1358,16 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 			}
 			positionStr := fmt.Sprintf(" (%d-%d of %d)", m.viewportStart+1, end, len(m.flatTree))
 			content.WriteString("\n" + hintStyle.Render(positionStr) + "\n")
+			hasPositionIndicator = true
 		}
 	}
 	
-	content.WriteString("\n" + hintStyle.Render("↑/↓ to navigate  •  ←/→ to collapse/expand  •  Space to toggle  •  Tab to return\n"))
+	// Main hints - don't add leading blank if position indicator already present
+	if hasPositionIndicator {
+		content.WriteString(hintStyle.Render("↑/↓ to navigate  •  ←/→ to collapse/expand  •  Space to toggle  •  Tab to return\n"))
+	} else {
+		content.WriteString("\n" + hintStyle.Render("↑/↓ to navigate  •  ←/→ to collapse/expand  •  Space to toggle  •  Tab to return\n"))
+	}
 	
 	return content.String()
 }

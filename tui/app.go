@@ -393,7 +393,15 @@ func (a *App) View() tea.View {
 	// Show either list or detail view based on screenMode
 	var mainView string
 	if a.screenMode == "detail" && a.detailView != nil {
-		// In detail view - use full available height (accounting for status/hints at bottom)
+		// In detail view - calculate available height for content
+		// Overhead: tabs(1) + blank(1) = 2 lines within detail view itself
+		// Available = listHeight (already accounts for header, search, bottom overhead)
+		// But we need to subtract detail view's own overhead for the tabs
+		detailViewAvailableHeight := listHeight - 2
+		if detailViewAvailableHeight < 3 {
+			detailViewAvailableHeight = 3
+		}
+		a.detailView.SetAvailableHeight(detailViewAvailableHeight)
 		mainView = a.detailView.View()
 	} else {
 		// In list view
