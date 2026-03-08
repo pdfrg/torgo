@@ -333,17 +333,8 @@ func (m *InfoTabModel) Init() tea.Cmd {
 }
 
 func (m *InfoTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
-	// Info tab is read-only, just handle tab navigation
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter":
-			if state.HasChanges {
-				// Trigger save - will be handled by app.go
-				return nil
-			}
-		}
-	}
+	// Info tab is read-only - all key handling is done by app.go
+	// Don't consume any keys here
 	return nil
 }
 
@@ -1247,8 +1238,8 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 					m.rebuildTree()
 				}
 			}
-		case " ", "enter":
-			// Toggle current item
+		case "space", " ":
+			// Toggle current item (space only - enter is reserved for saving changes)
 			if m.cursorIndex >= 0 && m.cursorIndex < len(m.flatTree) {
 				item := m.flatTree[m.cursorIndex]
 				if item.Node.IsFolder {
@@ -1257,6 +1248,7 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 				} else {
 					// Toggle file selection
 					m.selectedFiles[item.Node.Index] = !m.selectedFiles[item.Node.Index]
+					// Note: HasChanges tracking is handled separately by HasFileChanges()
 				}
 			}
 		}

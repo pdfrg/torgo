@@ -216,10 +216,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				)
 			}
 			
-			// Enter saves changes (only from Info tab with changes)
-			if k == "enter" && a.detailView.CurrentTab == "info" && a.detailView.State.HasChanges {
-				// Save changes via API
-				return a, a.saveTorrentChanges()
+			// Enter/Return saves changes (from any tab with changes)
+			if k == "enter" || k == "return" {
+				// Check if files tab has file selection changes
+				hasFileChanges := a.detailView.FilesTab != nil && a.detailView.FilesTab.HasFileChanges()
+				// Check if we have field changes (compare current values against original)
+				hasFieldChanges := a.detailView.State.HasChanges
+				
+				// Save if we have any changes
+				if hasFileChanges || hasFieldChanges {
+					// Capture data before clearing detail view
+					detailView := a.detailView
+					// Now clear detail view so next render shows list
+					a.screenMode = "list"
+					a.detailView = nil
+					// Execute save in background and refresh
+					return a, tea.Batch(
+						a.saveTorrentChangesWithData(detailView),
+						a.startRefreshTicker(),
+						a.startSpeedLimitTicker(),
+					)
+				}
 			}
 		}
 		
@@ -1252,16 +1269,27 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 }
 
 // saveTorrentChanges saves all pending torrent changes via API
+// Deprecated: use saveTorrentChangesWithData instead
 func (a *App) saveTorrentChanges() tea.Cmd {
+	if a.detailView == nil {
+		return func() tea.Msg {
+			return errorMsg{err: fmt.Errorf("no torrent selected")}
+		}
+	}
+	return a.saveTorrentChangesWithData(a.detailView)
+}
+
+// saveTorrentChangesWithData saves torrent changes using provided detail view data
+func (a *App) saveTorrentChangesWithData(dv *DetailView) tea.Cmd {
 	return func() tea.Msg {
-		if a.detailView == nil || a.detailView.Detail == nil {
+		if dv == nil || dv.Detail == nil {
 			return errorMsg{err: fmt.Errorf("no torrent selected")}
 		}
 
 		currentClient := a.state.CurrentClient()
 		adapter := currentClient.Adapter
-		torrentID := a.detailView.Detail.ID
-		state := a.detailView.State
+		torrentID := dv.Detail.ID
+		state := dv.State
 		clientType := currentClient.Type
 
 		// Check for name changes
@@ -1317,18 +1345,15 @@ func (a *App) saveTorrentChanges() tea.Cmd {
 		}
 
 		// Check for file priority changes
-		if a.detailView.FilesTab != nil && a.detailView.FilesTab.HasFileChanges() {
-			selectedIndices := a.detailView.FilesTab.GetSelectedFileIndices()
+		if dv.FilesTab != nil && dv.FilesTab.HasFileChanges() {
+			selectedIndices := dv.FilesTab.GetSelectedFileIndices()
+			fmt.Printf("DEBUG: Saving file priorities, selectedIndices=%v\n", selectedIndices)
 			if err := adapter.SetFilePriorities(a.ctx, torrentID, selectedIndices); err != nil {
 				return errorMsg{err: fmt.Errorf("failed to save file priorities: %w", err)}
 			}
 		}
 
 		// All changes saved successfully
-		// Clear the detail view and return to list
-		a.screenMode = "list"
-		a.detailView = nil
-
 		return savesCompleteMsg{}
 	}
 }
