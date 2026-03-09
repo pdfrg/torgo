@@ -86,23 +86,57 @@ func NewApp(appState *state.AppState) *App {
 	ti := textinput.New()
 	ti.Placeholder = "Magnet link, URL, or .torrent file path"
 	ti.CharLimit = 1024
+	// Apply theme-aware styles to torrent input
+	tiStyles := textinput.Styles{
+		Focused: textinput.StyleState{
+			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor),
+			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+		},
+		Blurred: textinput.StyleState{
+			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal),
+			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+		},
+		Cursor: textinput.CursorStyle{
+			Color: CurrentTheme.DetailCursorColor,
+		},
+	}
+	ti.SetStyles(tiStyles)
 
 	si := textinput.New()
 	si.Placeholder = "Search torrents..."
 	si.CharLimit = 256
+	// Apply same theme styles to search input
+	si.SetStyles(tiStyles)
 
 	// Initialize search filter
 	searchFilter := NewSearchFilter()
 
-	// Initialize category list with compact delegate
+	// Initialize category list with compact delegate and theme styling
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
 	delegate.SetHeight(1)
+	
+	// Apply theme-aware list styling (matches detail view category tab)
+	listStyles := list.NewDefaultItemStyles(true)  // dark theme defaults
+	selectedStyle := listStyles.SelectedTitle
+	selectedStyle = selectedStyle.
+		Foreground(CurrentTheme.ForegroundColor).
+		BorderLeftForeground(CurrentTheme.ForegroundColor)
+	listStyles.SelectedTitle = selectedStyle
+	delegate.Styles = listStyles
+	
 	categoryList := list.New([]list.Item{}, delegate, 0, 6)
 	categoryList.SetShowHelp(false)
 	categoryList.SetShowStatusBar(false)
 	categoryList.SetShowTitle(true)
-	categoryList.Title = "Category"
+	categoryList.Title = "Set Category"
+	// Style the title with cursor color and no background
+	categoryList.Styles.Title = lipgloss.NewStyle().
+		Foreground(CurrentTheme.DetailCursorColor)
 
 	hintsBar := NewHintsBar(styles, keys)
 	hintsBar.SetCurrentTheme(themeName)
@@ -546,9 +580,11 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 		dialogWidth = 40
 	}
 
-	// Build dialog content
-	title := "Add Torrent"
-	hint := "(Ctrl+P to paste, Esc to cancel)"
+	// Build dialog content with theming
+	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor).Bold(true)
+	title := titleStyle.Render("Add Torrent")
+	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+	hint := hintStyle.Render("(Ctrl+P to paste, Esc to cancel)")
 
 	// Render torrent input - set width for v2 textinput rendering
 	a.torrentInput.SetWidth(dialogWidth - 6) // Account for padding and borders
@@ -559,7 +595,7 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 
 	// Add validation error in red if present
 	if a.inputValidationErr != "" {
-		errorText := a.styles.ListItem.Foreground(a.styles.ErrorColor()).Render("✗ " + a.inputValidationErr)
+		errorText := lipgloss.NewStyle().Foreground(CurrentTheme.TextError).Render("✗ " + a.inputValidationErr)
 		contentLines = append(contentLines, errorText)
 	}
 
@@ -579,10 +615,12 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 
 	content := strings.Join(contentLines, "\n")
 	
-	// Render dialog box with fixed dimensions using lipgloss
-	dialogBox := a.styles.Dialog.
-		Width(dialogWidth - 2). // Account for padding
-		Height(dialogHeight - 2). // Account for padding
+	// Render dialog box with theme-aware border
+	dialogBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(CurrentTheme.AccentColor).
+		Width(dialogWidth - 2).
+		Height(dialogHeight - 2).
 		Padding(1, 2).
 		Render(content)
 
@@ -607,13 +645,16 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 		}
 	}
 	
-	// Build dialog content
-	title := "Confirm Delete"
+	// Build dialog content with theming
+	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor).Bold(true)
+	title := titleStyle.Render("Confirm Delete")
+	
+	accentStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
 	var action string
 	if a.deleteConfirmWithData {
-		action = "Delete with data (files will be removed)"
+		action = accentStyle.Render("Delete with data (files will be removed)")
 	} else {
-		action = "Delete (keep files)"
+		action = accentStyle.Render("Delete (keep files)")
 	}
 	
 	contentLines := []string{
@@ -623,7 +664,7 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 	
 	// Show torrent names
 	if len(torrentNames) == 1 {
-		contentLines = append(contentLines, fmt.Sprintf("Delete: %s?", torrentNames[0]))
+		contentLines = append(contentLines, fmt.Sprintf("%s?", torrentNames[0]))
 	} else {
 		contentLines = append(contentLines, fmt.Sprintf("Delete %d torrent(s)?", len(torrentNames)))
 		for i, name := range torrentNames {
@@ -639,13 +680,16 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 	contentLines = append(contentLines, "")
 	contentLines = append(contentLines, action)
 	contentLines = append(contentLines, "")
-	contentLines = append(contentLines, "Press Y or Enter to confirm, ESC to cancel")
 	
-	// Create dialog box
+	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+	contentLines = append(contentLines, hintStyle.Render("Press Y or Enter to confirm, ESC to cancel"))
+	
+	// Create dialog box with theme colors
 	content := strings.Join(contentLines, "\n")
+	
 	dialogBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(CurrentTheme.DetailCursorColor).
+		BorderForeground(CurrentTheme.AccentColor).
 		Padding(1, 2).
 		Width(60).
 		Render(content)
@@ -937,13 +981,6 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.inputValidationErr = ""
 		a.torrentInput.Blur()
 		return a, nil
-	case "y", "Y":
-		// Quick confirm deletion
-		if a.inputMode == "delete_confirm" {
-			a.inputMode = ""
-			return a, a.deleteSelected(a.deleteConfirmWithData)
-		}
-		return a, nil
 	case "ctrl+c":
 		a.inputMode = ""
 		a.inputValidationErr = ""
@@ -964,6 +1001,14 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.categoryList, cmd = a.categoryList.Update(msg)
 		return a, cmd
+	case "y", "Y":
+		// Quick confirm deletion (only in delete_confirm mode)
+		if a.inputMode == "delete_confirm" {
+			a.inputMode = ""
+			return a, a.deleteSelected(a.deleteConfirmWithData)
+		}
+		// In add mode, route to text input
+		fallthrough
 	default:
 		// Route to text input
 		var cmd tea.Cmd
