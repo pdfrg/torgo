@@ -284,7 +284,7 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 // renderProgressLine: [████████░░] (X.XX GB / Y.YY GB)
 func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, width int) string {
 	// Indent to align with identity line text (add one more space)
-	indent := "     "
+	indent := "      "
 	fixedBarWidth := 90 // Fixed width bar so all lines align
 	
 	// Build suffix with file sizes (progress bar renders its own percentage)
@@ -324,7 +324,7 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 
 // renderStatusLine: [Icon] [Downloading]  ↓ X.XX MB/s ↑ X.XX MB/s  Ratio: X.XX  Seeds: X  Peers: Y  ETA: [Time]
 func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, width int) string {
-	indent := "     "
+	indent := "      "
 	textStyle := lipgloss.NewStyle().Foreground(m.styles.FgColor())
 	metricsStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
 	

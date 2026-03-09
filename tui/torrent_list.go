@@ -230,7 +230,7 @@ func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 		Padding(0, 1)
 	
 	return headerStyle.Render(
-		fmt.Sprintf("%2s  %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
+		fmt.Sprintf(" %2s  %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
 			"#", "Name", "Size", "Prog", "↓Down", "↑Up", "Seed", "Leech", "Status"),
 	)
 }
