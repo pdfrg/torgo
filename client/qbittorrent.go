@@ -707,13 +707,7 @@ func (qa *QBittorrentAdapter) SetSavePath(ctx context.Context, id string, path s
 
 // SetFilePriorities sets which files to download in a qBittorrent torrent
 func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, fileIndices []int) error {
-	// Build the priority data: all files get 0 (skip), then set selected ones to 1 (normal)
-	priorityURL := qa.getBaseURL() + "/api/v2/torrents/filePrio"
-
-	// We need to send filePrio for each file: indices that should download get priority 1, others get 0
-	// This is a bit complex in qBittorrent - we need to specify priority for each file
-
-	// First, get current file count to know how many files exist
+	// qBittorrent 5.0 API: need to get all files first to determine which to skip
 	filesURL := qa.getBaseURL() + "/api/v2/torrents/files?hash=" + id
 	req, err := http.NewRequestWithContext(ctx, "GET", filesURL, nil)
 	if err != nil {
@@ -741,39 +735,68 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 		downloadSet[idx] = true
 	}
 
-	// Build the priority string: "idx1:1|idx2:0|..." where 1=download, 0=skip
-	var priorityStr strings.Builder
-	for i := 0; i < len(qbFiles); i++ {
-		if i > 0 {
-			priorityStr.WriteString("|")
-		}
-		priorityStr.WriteString(fmt.Sprintf("%d:", i))
-		if downloadSet[i] {
-			priorityStr.WriteString("1") // Download with normal priority
+	// Separate files into two groups: those to download (priority 1) and those to skip (priority 0)
+	// Use the index field from the API response as recommended since 2.8.2
+	var toDownload []string
+	var toSkip []string
+	
+	for _, file := range qbFiles {
+		if downloadSet[file.Index] {
+			toDownload = append(toDownload, fmt.Sprintf("%d", file.Index))
 		} else {
-			priorityStr.WriteString("0") // Skip this file
+			toSkip = append(toSkip, fmt.Sprintf("%d", file.Index))
 		}
 	}
 
-	// Send the priority update
-	form := url.Values{}
-	form.Set("hash", id)
-	form.Set("filePrio", priorityStr.String())
+	// qBittorrent 5.0+ API requires separate calls for each priority level
+	// First, set files to skip (priority 0)
+	if len(toSkip) > 0 {
+		form := url.Values{}
+		form.Set("hash", id)
+		form.Set("id", strings.Join(toSkip, "|"))
+		form.Set("priority", "0")
+		
+		priorityURL := qa.getBaseURL() + "/api/v2/torrents/filePrio"
+		req, err = http.NewRequestWithContext(ctx, "POST", priorityURL, strings.NewReader(form.Encode()))
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	req, err = http.NewRequestWithContext(ctx, "POST", priorityURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
+		resp, err = qa.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("request failed: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("set skip file priorities failed: status %d", resp.StatusCode)
+		}
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err = qa.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer resp.Body.Close()
+	// Then, set files to download (priority 1)
+	if len(toDownload) > 0 {
+		form := url.Values{}
+		form.Set("hash", id)
+		form.Set("id", strings.Join(toDownload, "|"))
+		form.Set("priority", "1")
+		
+		priorityURL := qa.getBaseURL() + "/api/v2/torrents/filePrio"
+		req, err = http.NewRequestWithContext(ctx, "POST", priorityURL, strings.NewReader(form.Encode()))
+		if err != nil {
+			return fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("set file priorities failed: status %d", resp.StatusCode)
+		resp, err = qa.client.Do(req)
+		if err != nil {
+			return fmt.Errorf("request failed: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			return fmt.Errorf("set download file priorities failed: status %d", resp.StatusCode)
+		}
 	}
 
 	return nil
