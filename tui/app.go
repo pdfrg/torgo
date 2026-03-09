@@ -1074,18 +1074,14 @@ func (a *App) connectAndRefresh() tea.Cmd {
 
 func (a *App) pauseSelected() tea.Cmd {
 	return func() tea.Msg {
-		selected := a.list.GetSelected()
-		if len(selected) == 0 {
-			if current := a.list.GetCurrentTorrent(); current != nil {
-				selected = []string{current.ID}
-			}
-		}
+		selected := a.getSelectedTorrents()
 
 		for _, id := range selected {
 			_ = a.state.CurrentClient().Adapter.PauseTorrent(a.ctx, id)
 		}
 
 		a.list.ClearSelection()
+		a.multilineList.ClearSelection()
 		return a.refreshTorrents()()
 	}
 }
@@ -1094,24 +1090,21 @@ func (a *App) pauseAll() tea.Cmd {
 	return func() tea.Msg {
 		_ = a.state.CurrentClient().Adapter.PauseAll(a.ctx)
 		a.list.ClearSelection()
+		a.multilineList.ClearSelection()
 		return a.refreshTorrents()()
 	}
 }
 
 func (a *App) resumeSelected() tea.Cmd {
 	return func() tea.Msg {
-		selected := a.list.GetSelected()
-		if len(selected) == 0 {
-			if current := a.list.GetCurrentTorrent(); current != nil {
-				selected = []string{current.ID}
-			}
-		}
+		selected := a.getSelectedTorrents()
 
 		for _, id := range selected {
 			_ = a.state.CurrentClient().Adapter.ResumeTorrent(a.ctx, id)
 		}
 
 		a.list.ClearSelection()
+		a.multilineList.ClearSelection()
 		return a.refreshTorrents()()
 	}
 }
@@ -1120,12 +1113,14 @@ func (a *App) resumeAll() tea.Cmd {
 	return func() tea.Msg {
 		_ = a.state.CurrentClient().Adapter.ResumeAll(a.ctx)
 		a.list.ClearSelection()
+		a.multilineList.ClearSelection()
 		return a.refreshTorrents()()
 	}
 }
 
-// getTorrentsToDelete determines which torrents to delete
-func (a *App) getTorrentsToDelete() []string {
+// getSelectedTorrents gets selected torrents, respecting view mode and selection levels
+// Priority: checkbox selections (if any), then cursor position
+func (a *App) getSelectedTorrents() []string {
 	var selected []string
 	var current *client.Torrent
 	
@@ -1145,6 +1140,11 @@ func (a *App) getTorrentsToDelete() []string {
 		selected = []string{current.ID}
 	}
 	return selected
+}
+
+// getTorrentsToDelete determines which torrents to delete
+func (a *App) getTorrentsToDelete() []string {
+	return a.getSelectedTorrents()
 }
 
 func (a *App) deleteSelected(withData bool) tea.Cmd {
