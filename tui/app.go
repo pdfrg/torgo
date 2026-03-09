@@ -54,6 +54,8 @@ type App struct {
 	ctx                context.Context
 	cancel             context.CancelFunc
 	lastThemeModTime   time.Time     // Track theme file modification time for auto-reload
+	deleteConfirmTorrents []string   // IDs of torrents awaiting deletion confirmation
+	deleteConfirmWithData bool        // Whether to delete with data
 }
 
 // NewApp creates a new TUI application
@@ -522,6 +524,10 @@ func (a *App) View() tea.View {
 		output = a.overlayAddDialog(output)
 	}
 
+	if a.inputMode == "delete_confirm" {
+		output = a.overlayDeleteConfirmDialog(output)
+	}
+
 	v := tea.NewView(output)
 	v.AltScreen = true
 	return v
@@ -581,6 +587,69 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 		Render(content)
 
 	// Use lipgloss.Place to center the popup properly
+	return lipgloss.Place(
+		a.width, a.height,
+		lipgloss.Center, lipgloss.Center,
+		dialogBox,
+	)
+}
+
+// overlayDeleteConfirmDialog renders the delete confirmation dialog
+func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
+	// Find the torrent names for display
+	var torrentNames []string
+	for _, id := range a.deleteConfirmTorrents {
+		for _, t := range a.state.Torrents {
+			if t.ID == id {
+				torrentNames = append(torrentNames, t.Name)
+				break
+			}
+		}
+	}
+	
+	// Build dialog content
+	title := "Confirm Delete"
+	var action string
+	if a.deleteConfirmWithData {
+		action = "Delete with data (files will be removed)"
+	} else {
+		action = "Delete (keep files)"
+	}
+	
+	contentLines := []string{
+		title,
+		"",
+	}
+	
+	// Show torrent names
+	if len(torrentNames) == 1 {
+		contentLines = append(contentLines, fmt.Sprintf("Delete: %s?", torrentNames[0]))
+	} else {
+		contentLines = append(contentLines, fmt.Sprintf("Delete %d torrent(s)?", len(torrentNames)))
+		for i, name := range torrentNames {
+			if i < 5 { // Show first 5
+				contentLines = append(contentLines, "  • "+name)
+			}
+		}
+		if len(torrentNames) > 5 {
+			contentLines = append(contentLines, fmt.Sprintf("  ... and %d more", len(torrentNames)-5))
+		}
+	}
+	
+	contentLines = append(contentLines, "")
+	contentLines = append(contentLines, action)
+	contentLines = append(contentLines, "")
+	contentLines = append(contentLines, "Press Y or Enter to confirm, ESC to cancel")
+	
+	// Create dialog box
+	content := strings.Join(contentLines, "\n")
+	dialogBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(CurrentTheme.DetailCursorColor).
+		Padding(1, 2).
+		Width(60).
+		Render(content)
+	
 	return lipgloss.Place(
 		a.width, a.height,
 		lipgloss.Center, lipgloss.Center,
@@ -686,10 +755,16 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a, a.resumeAll()
 
 	case isKeyMatch(k, a.keys.Delete):
-		return a, a.deleteSelected(false)
+		a.inputMode = "delete_confirm"
+		a.deleteConfirmWithData = false
+		a.deleteConfirmTorrents = a.getTorrentsToDelete()
+		return a, nil
 
 	case isKeyMatch(k, a.keys.DeleteData):
-		return a, a.deleteSelected(true)
+		a.inputMode = "delete_confirm"
+		a.deleteConfirmWithData = true
+		a.deleteConfirmTorrents = a.getTorrentsToDelete()
+		return a, nil
 
 	case isKeyMatch(k, a.keys.Details):
 		// Open detail view for current torrent
@@ -829,6 +904,7 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.inputMode = ""
 		a.inputValidationErr = ""
 		a.torrentInput.Blur()
+		a.deleteConfirmTorrents = nil
 		return a, nil
 	case "enter":
 		if a.inputMode == "add" {
@@ -852,9 +928,21 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.inputValidationErr = ""
 			return a, a.addTorrent(input, category)
 		}
+		if a.inputMode == "delete_confirm" {
+			// Confirm deletion
+			a.inputMode = ""
+			return a, a.deleteSelected(a.deleteConfirmWithData)
+		}
 		a.inputMode = ""
 		a.inputValidationErr = ""
 		a.torrentInput.Blur()
+		return a, nil
+	case "y", "Y":
+		// Quick confirm deletion
+		if a.inputMode == "delete_confirm" {
+			a.inputMode = ""
+			return a, a.deleteSelected(a.deleteConfirmWithData)
+		}
 		return a, nil
 	case "ctrl+c":
 		a.inputMode = ""
@@ -1036,14 +1124,32 @@ func (a *App) resumeAll() tea.Cmd {
 	}
 }
 
+// getTorrentsToDelete determines which torrents to delete
+func (a *App) getTorrentsToDelete() []string {
+	var selected []string
+	var current *client.Torrent
+	
+	if a.viewMode == "multiline" {
+		selected = a.multilineList.GetSelected()
+		if len(selected) == 0 {
+			current = a.multilineList.GetCurrentTorrent()
+		}
+	} else {
+		selected = a.list.GetSelected()
+		if len(selected) == 0 {
+			current = a.list.GetCurrentTorrent()
+		}
+	}
+	
+	if len(selected) == 0 && current != nil {
+		selected = []string{current.ID}
+	}
+	return selected
+}
+
 func (a *App) deleteSelected(withData bool) tea.Cmd {
 	return func() tea.Msg {
-		selected := a.list.GetSelected()
-		if len(selected) == 0 {
-			if current := a.list.GetCurrentTorrent(); current != nil {
-				selected = []string{current.ID}
-			}
-		}
+		selected := a.deleteConfirmTorrents
 
 		adapter := a.state.CurrentClient().Adapter
 		for _, id := range selected {
@@ -1055,6 +1161,7 @@ func (a *App) deleteSelected(withData bool) tea.Cmd {
 		}
 
 		a.list.ClearSelection()
+		a.deleteConfirmTorrents = nil
 		return a.refreshTorrents()()
 	}
 }
