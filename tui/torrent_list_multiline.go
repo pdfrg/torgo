@@ -415,21 +415,21 @@ func (m *MultilineTorrentListView) formatStatus(status string) string {
 	}
 }
 
-// calculateETA calculates time remaining based on progress and speed
+// calculateETA returns formatted ETA from the API
 func (m *MultilineTorrentListView) calculateETA(torrent client.Torrent) string {
-	if torrent.Progress >= 100 {
+	// Completed torrents show "Done"
+	if torrent.Status == client.StatusCompleted {
 		return "Done"
 	}
 
-	if torrent.SpeedDown <= 0 {
-		return "Calculating..."
+	// 8640000 seconds (100 days) is qBittorrent's sentinel for infinite/unknown ETA
+	// This happens for paused torrents, unlimited seeding, or other unknown conditions
+	if torrent.ETA == 8640000 {
+		return "∞"
 	}
 
-	remainingBytes := torrent.Size - torrent.Downloaded
-	secondsRemaining := remainingBytes / int64(torrent.SpeedDown)
-
-	// Convert to time.Duration (seconds to nanoseconds)
-	duration := time.Duration(secondsRemaining) * time.Second
+	// ETA is in seconds from the API
+	duration := time.Duration(torrent.ETA) * time.Second
 	return FormatDuration(duration)
 }
 

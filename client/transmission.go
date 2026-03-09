@@ -44,6 +44,7 @@ type trTorrent struct {
 	Comment         string  `json:"comment"`
 	Files           []trFile `json:"files"`
 	FileStats       []trFileStat `json:"fileStats"`
+	ETA             int64   `json:"eta"` // seconds (-1=unknown, -2=unknown, others=seconds)
 }
 
 // trFile represents a file in a Transmission torrent
@@ -396,6 +397,7 @@ func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
 		Downloaded: tr.DownloadedEver,
 		Uploaded:   tr.UploadedEver,
 		Category:   category,
+		ETA:        tr.ETA,
 	}
 }
 

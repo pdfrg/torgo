@@ -31,6 +31,7 @@ type Torrent struct {
 	Downloaded int64 // bytes
 	Uploaded   int64 // bytes
 	Category  string // Category/Label for organizing torrents
+	ETA       int64  // seconds (from API; 8640000 = sentinel for infinite)
 }
 
 // TorrentFile represents a file in a torrent

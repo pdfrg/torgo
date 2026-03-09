@@ -42,6 +42,7 @@ type qbTorrent struct {
 	Comment    string  `json:"comment"`
 	SavePath   string  `json:"save_path"`
 	ContentPath string `json:"content_path"`
+	ETA        int64   `json:"eta"`           // seconds (8640000 = infinite)
 }
 
 // qbFile represents a file in a torrent (from /api/v2/torrents/files)
@@ -347,6 +348,7 @@ func (qa *QBittorrentAdapter) mapTorrent(qb qbTorrent) Torrent {
 		Downloaded: qb.Downloaded,
 		Uploaded:   qb.Uploaded,
 		Category:   qb.Category,
+		ETA:        qb.ETA,
 	}
 }
 
