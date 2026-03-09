@@ -1057,7 +1057,81 @@ func (m *FilesTabModel) buildFileTree() *FileNode {
 		}
 	}
 	
+	// Sort all children at all levels
+	sortFileNodeChildren(root)
+	
 	return root
+}
+
+// sortFileNodeChildren recursively sorts all children in a file tree using natural sort
+func sortFileNodeChildren(node *FileNode) {
+	if !node.IsFolder {
+		return
+	}
+	
+	// Sort children using natural sort order
+	sort.Slice(node.Children, func(i, j int) bool {
+		return naturalSort(node.Children[i].Name, node.Children[j].Name)
+	})
+	
+	// Recursively sort children of folders
+	for _, child := range node.Children {
+		if child.IsFolder {
+			sortFileNodeChildren(child)
+		}
+	}
+}
+
+// naturalSort compares two strings using natural/numeric order
+// e.g., "S01E02" < "S01E03" < "S01E12" (not lexicographic where "S01E12" < "S01E02")
+func naturalSort(a, b string) bool {
+	// Simple implementation: extract numeric sequences and compare them numerically
+	aRunes := []rune(a)
+	bRunes := []rune(b)
+	
+	aIdx, bIdx := 0, 0
+	
+	for aIdx < len(aRunes) && bIdx < len(bRunes) {
+		aIsDigit := isDigit(aRunes[aIdx])
+		bIsDigit := isDigit(bRunes[bIdx])
+		
+		if aIsDigit && bIsDigit {
+			// Both are numbers, parse and compare numerically
+			aNum, aNewIdx := parseNumber(aRunes, aIdx)
+			bNum, bNewIdx := parseNumber(bRunes, bIdx)
+			
+			if aNum != bNum {
+				return aNum < bNum
+			}
+			aIdx = aNewIdx
+			bIdx = bNewIdx
+		} else {
+			// At least one is not a digit, compare as characters
+			if aRunes[aIdx] != bRunes[bIdx] {
+				return aRunes[aIdx] < bRunes[bIdx]
+			}
+			aIdx++
+			bIdx++
+		}
+	}
+	
+	// If all compared characters are equal, shorter string comes first
+	return len(aRunes) < len(bRunes)
+}
+
+// isDigit checks if a rune is a digit
+func isDigit(r rune) bool {
+	return r >= '0' && r <= '9'
+}
+
+// parseNumber extracts a numeric sequence from runes starting at idx, returns the number and the new index
+func parseNumber(runes []rune, idx int) (int64, int) {
+	num := int64(0)
+	for idx < len(runes) && isDigit(runes[idx]) {
+		num = num*10 + int64(runes[idx]-'0')
+		idx++
+	}
+	return num, idx
 }
 
 // getProgressPercent returns progress as a percentage (0-100)
@@ -1182,6 +1256,53 @@ func (m *FilesTabModel) selectFolder(node *FileNode, selected bool) {
 	}
 }
 
+// isFolderSelected checks if any file in a folder is selected
+func isFolderSelected(node *FileNode, selectedFiles map[int]bool) bool {
+	for _, child := range node.Children {
+		if child.IsFolder {
+			if isFolderSelected(child, selectedFiles) {
+				return true
+			}
+		} else {
+			if selectedFiles[child.Index] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// getFolderSelectionState returns "all", "partial", or "none" for a folder's files
+func getFolderSelectionState(node *FileNode, selectedFiles map[int]bool) string {
+	var selectedCount, totalCount int
+	countFolderFiles(node, selectedFiles, &selectedCount, &totalCount)
+	
+	if totalCount == 0 {
+		return "none"
+	}
+	if selectedCount == totalCount {
+		return "all"
+	}
+	if selectedCount > 0 {
+		return "partial"
+	}
+	return "none"
+}
+
+// countFolderFiles recursively counts selected and total files in a folder
+func countFolderFiles(node *FileNode, selectedFiles map[int]bool, selectedCount, totalCount *int) {
+	for _, child := range node.Children {
+		if child.IsFolder {
+			countFolderFiles(child, selectedFiles, selectedCount, totalCount)
+		} else {
+			*totalCount++
+			if selectedFiles[child.Index] {
+				*selectedCount++
+			}
+		}
+	}
+}
+
 // updateViewport adjusts viewport to ensure cursor is visible
 func (m *FilesTabModel) updateViewport(availableHeight int) {
 	m.viewportHeight = availableHeight
@@ -1243,8 +1364,11 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 			if m.cursorIndex >= 0 && m.cursorIndex < len(m.flatTree) {
 				item := m.flatTree[m.cursorIndex]
 				if item.Node.IsFolder {
-					// Toggle folder expansion
-					m.toggleFolder(item.Node.Path, item.Node)
+					// Toggle folder selection (all files in folder)
+					// Determine if folder should be selected or deselected
+					// If any file in folder is selected, deselect all; otherwise select all
+					folderSelected := isFolderSelected(item.Node, m.selectedFiles)
+					m.selectFolder(item.Node, !folderSelected)
 				} else {
 					// Toggle file selection
 					m.selectedFiles[item.Node.Index] = !m.selectedFiles[item.Node.Index]
@@ -1305,15 +1429,25 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 			
 			var line string
 			if node.IsFolder {
-				// Folder display
+				// Folder display with selection checkbox
 				chevron := "▸"
 				if item.IsExpanded {
 					chevron = "▼"
 				}
+				
+				// Determine folder selection state
+				folderState := getFolderSelectionState(node, m.selectedFiles)
+				checkbox := "☐"
+				if folderState == "all" {
+					checkbox = "☑"
+				} else if folderState == "partial" {
+					checkbox = "◐"
+				}
+				
 				fileCount := len(node.Children)
 				folderSize := formatBytes(node.Size)
 				progress := node.getProgressPercent()
-				line = fmt.Sprintf("%s%s %s 📁 (%d items, %s, %d%%)", indent, chevron, node.Name, fileCount, folderSize, progress)
+				line = fmt.Sprintf("%s%s %s %s 📁 (%d items, %s, %d%%)", indent, chevron, checkbox, node.Name, fileCount, folderSize, progress)
 			} else {
 				// File display with checkbox
 				isSelected := m.selectedFiles[node.Index]
