@@ -286,11 +286,13 @@ func (dv *DetailView) renderTabs() string {
 			tabStyle = lipgloss.NewStyle().
 				Border(activeTabBorder, true).
 				BorderForeground(CurrentTheme.DetailTabActiveBorder).
+				Foreground(CurrentTheme.ForegroundColor).
 				Padding(0, 1)
 		} else {
 			tabStyle = lipgloss.NewStyle().
 				Border(inactiveTabBorder, true).
-				BorderForeground(CurrentTheme.DetailTabActiveBorder).  // Use accent for the bottom line too
+				BorderForeground(CurrentTheme.DetailTabActiveBorder).
+				Foreground(CurrentTheme.ForegroundColor).
 				Padding(0, 1)
 		}
 
@@ -344,8 +346,10 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	}
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailCursorColor).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
+	valueStyle := lipgloss.NewStyle().
+		Foreground(CurrentTheme.ForegroundColor)
 
 	var content strings.Builder
 	content.WriteString("\n")
@@ -353,20 +357,21 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	// Name (always shows current edited value if changed)
 	content.WriteString(labelStyle.Render("Name:") + " ")
 	if name := state.GetCurrentValue("name"); name != m.detail.Name {
-		content.WriteString(m.detail.Name + " → " + name)
+		content.WriteString(valueStyle.Render(m.detail.Name + " → " + name))
 	} else {
-		content.WriteString(m.detail.Name)
+		content.WriteString(valueStyle.Render(m.detail.Name))
 	}
 	content.WriteString("\n\n")
 	
 	// Category
 	content.WriteString(labelStyle.Render("Category:") + " ")
 	if category := state.GetCurrentValue("category"); category != m.detail.Category {
-		content.WriteString(m.detail.Category + " → " + category)
+		content.WriteString(valueStyle.Render(m.detail.Category + " → " + category))
 	} else {
-		content.WriteString(m.detail.Category)
 		if m.detail.Category == "" {
-			content.WriteString("(none)")
+			content.WriteString(valueStyle.Render("(none)"))
+		} else {
+			content.WriteString(valueStyle.Render(m.detail.Category))
 		}
 	}
 	content.WriteString("\n\n")
@@ -375,12 +380,12 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	content.WriteString(labelStyle.Render("Tags:") + " ")
 	originalTags := state.OriginalValues["tags"]
 	if tags := state.GetCurrentValue("tags"); tags != originalTags {
-		content.WriteString(originalTags + " → " + tags)
+		content.WriteString(valueStyle.Render(originalTags + " → " + tags))
 	} else {
 		if originalTags == "" {
-			content.WriteString("(none)")
+			content.WriteString(valueStyle.Render("(none)"))
 		} else {
-			content.WriteString(originalTags)
+			content.WriteString(valueStyle.Render(originalTags))
 		}
 	}
 	content.WriteString("\n\n")
@@ -388,14 +393,14 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	// Comments
 	content.WriteString(labelStyle.Render("Comments:") + " ")
 	if m.detail.Comments == "" {
-		content.WriteString("(none)")
+		content.WriteString(valueStyle.Render("(none)"))
 	} else {
-		content.WriteString(m.detail.Comments)
+		content.WriteString(valueStyle.Render(m.detail.Comments))
 	}
 	content.WriteString("\n\n")
 	
 	// Size info and progress
-	content.WriteString(labelStyle.Render("Total Size:") + " " + formatBytes(m.detail.TotalSize) + "\n")
+	content.WriteString(labelStyle.Render("Total Size:") + " " + valueStyle.Render(formatBytes(m.detail.TotalSize)) + "\n")
 	
 	// Calculate and show progress percentage
 	var progress int64
@@ -405,16 +410,16 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	downloaded := formatBytes(m.detail.Downloaded)
 	remaining := formatBytes(m.detail.TotalSize - m.detail.Downloaded)
 	
-	content.WriteString(labelStyle.Render("Progress:") + " " + fmt.Sprintf("%d%%", progress) + " (" + downloaded + " / " + formatBytes(m.detail.TotalSize) + ")\n")
-	content.WriteString(labelStyle.Render("Remaining:") + " " + remaining + "\n")
+	content.WriteString(labelStyle.Render("Progress:") + " " + valueStyle.Render(fmt.Sprintf("%d%%", progress)+" ("+downloaded+" / "+formatBytes(m.detail.TotalSize)+")") + "\n")
+	content.WriteString(labelStyle.Render("Remaining:") + " " + valueStyle.Render(remaining) + "\n")
 	
 	// Save Path
 	content.WriteString("\n" + labelStyle.Render("Save Path:") + "\n")
 	if location := state.GetCurrentValue("location"); location != m.detail.SavePath {
-		content.WriteString("  " + m.detail.SavePath + "\n")
-		content.WriteString("  → " + location + "\n")
+		content.WriteString("  " + valueStyle.Render(m.detail.SavePath) + "\n")
+		content.WriteString("  " + valueStyle.Render("→ "+location) + "\n")
 	} else {
-		content.WriteString("  " + m.detail.SavePath + "\n")
+		content.WriteString("  " + valueStyle.Render(m.detail.SavePath) + "\n")
 	}
 	
 	// Check for any changes (including file priority changes)
@@ -434,7 +439,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 		}
 		
 		content.WriteString("\n" + lipgloss.NewStyle().
-			Foreground(state.Styles.ErrorColor()).
+			Foreground(CurrentTheme.TextError).
 			Bold(true).
 			Render(changeMsg) + " - press Enter to save or Esc to discard\n")
 	} else {
@@ -731,11 +736,11 @@ func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
 
 func (m *EditTabModel) View(state *DetailViewState) string {
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailCursorColor).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
 
-	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
-	selectedStyle := lipgloss.NewStyle().Foreground(state.Styles.SelectColor())
+	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor)
 
 	var content strings.Builder
 	content.WriteString("\n")
@@ -803,9 +808,13 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 	delegate.ShowDescription = false
 	delegate.SetHeight(1)
 	
-	// Customize list item styles - keep defaults, only change selected color
-	styles := list.NewDefaultItemStyles(true)  // dark theme defaults
-	// Override selected title and its left border ("|") to foreground color
+	// Customize list item styles with theme colors
+	styles := list.NewDefaultItemStyles(true)
+	// Normal (unselected) items use TextNormal
+	normalStyle := styles.NormalTitle
+	normalStyle = normalStyle.Foreground(CurrentTheme.TextNormal)
+	styles.NormalTitle = normalStyle
+	// Selected items use ForegroundColor
 	selectedStyle := styles.SelectedTitle
 	selectedStyle = selectedStyle.
 		Foreground(CurrentTheme.ForegroundColor).
@@ -862,7 +871,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailCursorColor).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
 	
 	content.WriteString(labelStyle.Render("Select a category:") + "\n\n")
@@ -872,7 +881,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 	content.WriteString(listView)
 	
 	content.WriteString("\n" + lipgloss.NewStyle().
-		Foreground(state.Styles.HintColor()).
+		Foreground(CurrentTheme.TextMuted).
 		Render("↑/↓ to navigate  •  Enter to select  •  Esc to cancel\n"))
 	
 	return content.String()
@@ -1385,13 +1394,14 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 	
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailCursorColor).
+		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
 	
-	hintStyle := lipgloss.NewStyle().Foreground(state.Styles.HintColor())
+	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+	valueStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor)
 	
-	content.WriteString(labelStyle.Render("Files") + " (" + fmt.Sprintf("%d", len(m.files)) + " total)\n\n")
+	content.WriteString(labelStyle.Render("Files") + " " + valueStyle.Render("("+fmt.Sprintf("%d", len(m.files))+" total)") + "\n\n")
 	
 	hasPositionIndicator := false
 	if len(m.files) == 0 {
@@ -1470,7 +1480,7 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 			if isCursor {
 				line = selectedStyle.Render(prefix + line)
 			} else {
-				line = prefix + line
+				line = valueStyle.Render(prefix + line)
 			}
 			
 			content.WriteString(line + "\n")

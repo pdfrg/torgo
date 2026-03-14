@@ -243,7 +243,7 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 	} else {
 		// Non-cursor row: 4-char right-aligned number = 4 chars ("   1", "  10", etc), styled with fg color
 		numberStr = fmt.Sprintf("%4d", rowNum)
-		numberStyle = lipgloss.NewStyle().Foreground(m.styles.FgColor())
+		numberStyle = lipgloss.NewStyle().Foreground(m.theme.TextNormal)
 	}
 	numberStyled := numberStyle.Render(numberStr)
 
@@ -255,8 +255,8 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 	}
 	numberWithIndicator := numberStyled + indicator
 
-	// Apply text color to name and metadata
-	textStyle := lipgloss.NewStyle().Foreground(m.styles.FgColor())
+	// Apply text color to name (variable data = ForegroundColor)
+	textStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
 
 	// Truncate name to fit width
 	// Account for: number(3) + indicator(1) + space(1) = 5 chars minimum
@@ -292,8 +292,8 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 	total := FormatBytes(torrent.Size)
 	suffix := fmt.Sprintf(" (%s / %s)", downloaded, total)
 
-	// Apply text color to suffix
-	textStyle := lipgloss.NewStyle().Foreground(m.styles.FgColor())
+	// Apply text color to suffix (variable data = ForegroundColor)
+	textStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
 	styledSuffix := textStyle.Render(suffix)
 
 	// Use visual width for calculations
@@ -325,7 +325,7 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 // renderStatusLine: [Icon] [Downloading]  ↓ X.XX MB/s ↑ X.XX MB/s  Ratio: X.XX  Seeds: X  Peers: Y  ETA: [Time]
 func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, width int) string {
 	indent := "      "
-	textStyle := lipgloss.NewStyle().Foreground(m.styles.FgColor())
+	labelStyle := lipgloss.NewStyle().Foreground(m.theme.TextNormal)
 	metricsStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
 	
 	// Get category icon for its own column
@@ -364,13 +364,13 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 	line := fmt.Sprintf("%s%s %s ↓ %s ↑ %s %s %s %s %s",
 		indent,
 		categoryIcon,
-		textStyle.Render(paddedStatus),
+		labelStyle.Render(paddedStatus),
 		metricsStyle.Render(paddedDownSpeed),
 		metricsStyle.Render(paddedUpSpeed),
-		textStyle.Render("Ratio: ") + metricsStyle.Render(paddedRatio),
-		textStyle.Render("Seeds: ") + metricsStyle.Render(paddedSeeds),
-		textStyle.Render("Peers: ") + metricsStyle.Render(paddedPeers),
-		textStyle.Render("ETA: ") + metricsStyle.Render(eta),
+		labelStyle.Render("Ratio: ") + metricsStyle.Render(paddedRatio),
+		labelStyle.Render("Seeds: ") + metricsStyle.Render(paddedSeeds),
+		labelStyle.Render("Peers: ") + metricsStyle.Render(paddedPeers),
+		labelStyle.Render("ETA: ") + metricsStyle.Render(eta),
 	)
 
 	// Check visual width (ignores ANSI codes)

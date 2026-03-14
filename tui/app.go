@@ -81,6 +81,7 @@ func NewApp(appState *state.AppState) *App {
 	
 	// Set the theme globally
 	SetTheme(themeToUse)
+	styles.SyncFromTheme(themeToUse)
 
 	// Initialize text inputs
 	ti := textinput.New()
@@ -165,6 +166,50 @@ func NewApp(appState *state.AppState) *App {
 	}
 
 	return app
+}
+
+// syncComponentStyles re-applies theme colors to all UI components that cache styles.
+// Must be called after SetTheme() and SyncFromTheme() whenever the theme changes.
+func (a *App) syncComponentStyles() {
+	theme := CurrentTheme
+
+	// Text input styles (torrent input and search input)
+	tiStyles := textinput.Styles{
+		Focused: textinput.StyleState{
+			Text:        lipgloss.NewStyle().Foreground(theme.ForegroundColor),
+			Placeholder: lipgloss.NewStyle().Foreground(theme.TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(theme.TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(theme.DetailCursorColor),
+		},
+		Blurred: textinput.StyleState{
+			Text:        lipgloss.NewStyle().Foreground(theme.TextNormal),
+			Placeholder: lipgloss.NewStyle().Foreground(theme.TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(theme.TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(theme.DetailCursorColor),
+		},
+		Cursor: textinput.CursorStyle{
+			Color: theme.DetailCursorColor,
+		},
+	}
+	a.torrentInput.SetStyles(tiStyles)
+	a.searchInput.SetStyles(tiStyles)
+
+	// Category list delegate styling
+	delegate := list.NewDefaultDelegate()
+	delegate.ShowDescription = false
+	delegate.SetHeight(1)
+	listStyles := list.NewDefaultItemStyles(true)
+	selectedStyle := listStyles.SelectedTitle
+	selectedStyle = selectedStyle.
+		Foreground(theme.ForegroundColor).
+		BorderLeftForeground(theme.ForegroundColor)
+	listStyles.SelectedTitle = selectedStyle
+	delegate.Styles = listStyles
+	a.categoryList.SetDelegate(delegate)
+
+	// Category list title
+	a.categoryList.Styles.Title = lipgloss.NewStyle().
+		Foreground(theme.DetailCursorColor)
 }
 
 // Init implements tea.Model
@@ -564,6 +609,7 @@ func (a *App) View() tea.View {
 
 	v := tea.NewView(output)
 	v.AltScreen = true
+	v.BackgroundColor = CurrentTheme.BgNormal
 	return v
 }
 
@@ -909,6 +955,8 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Load and set the theme
 		nextTheme := loadThemeByName(nextThemeName, a.state.Config)
 		SetTheme(nextTheme)
+		a.styles.SyncFromTheme(nextTheme)
+		a.syncComponentStyles()
 		a.currentTheme = nextThemeName
 		
 		// Update hints bar to show new theme
@@ -1336,7 +1384,7 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 	lines = append(lines, "")
 
 	// Key and description styling
-	keyStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor)
+	keyStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
 	descStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 
 	for _, binding := range allBindings {
@@ -1351,7 +1399,7 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 	lines = append(lines, "")
 	
 	// Instructions styled with hints color (same as hints bar)
-	instructStyle := lipgloss.NewStyle().Foreground(a.styles.HintColor()).Italic(true)
+	instructStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Italic(true)
 	lines = append(lines, instructStyle.Render("(Press '?' to close)"))
 
 	content := strings.Join(lines, "\n")
@@ -1567,6 +1615,8 @@ func (a *App) checkThemeFileChanges() {
 		// Reload the theme from disk
 		newTheme := loadThemeByName(a.currentTheme, a.state.Config)
 		SetTheme(newTheme)
+		a.styles.SyncFromTheme(newTheme)
+		a.syncComponentStyles()
 	}
 }
 

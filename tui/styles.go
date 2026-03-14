@@ -49,6 +49,13 @@ func (s *Styles) SeedColor() color.Color       { return lipgloss.Color(s.SeedCol
 func (s *Styles) CompletedColor() color.Color  { return lipgloss.Color(s.CompletedColorStr) }
 func (s *Styles) ErrorStatusColor() color.Color { return lipgloss.Color(s.ErrorStatusColorStr) }
 
+// SyncFromTheme updates style colors to match the current theme
+func (s *Styles) SyncFromTheme(t Theme) {
+	if t.TextNormal != nil {
+		s.FgColorStr = colorToHex(t.TextNormal)
+	}
+}
+
 // DefaultStyles returns the default dark theme
 func DefaultStyles() *Styles {
 	s := &Styles{

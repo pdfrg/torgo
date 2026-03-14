@@ -46,8 +46,8 @@ func (pb *ProgressBarBuilder) BuildForStatus(status string) progress.Model {
 	} else {
 		p.EmptyColor = lipgloss.Color("#333333")
 	}
-	// Style the percentage text with proper foreground color
-	p.PercentageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	// Style the percentage text with TextNormal (label-like, distinct from adjacent data values)
+	p.PercentageStyle = lipgloss.NewStyle().Foreground(pb.theme.TextNormal)
 	p.SetWidth(pb.width)
 	return p
 }
@@ -69,8 +69,8 @@ func (pb *ProgressBarBuilder) BuildCustom(color1, color2 color.Color) progress.M
 	} else {
 		p.EmptyColor = lipgloss.Color("#333333")
 	}
-	// Style the percentage text with proper foreground color
-	p.PercentageStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+	// Style the percentage text with TextNormal (label-like, distinct from adjacent data values)
+	p.PercentageStyle = lipgloss.NewStyle().Foreground(pb.theme.TextNormal)
 	p.SetWidth(pb.width)
 	return p
 }
