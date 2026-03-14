@@ -18,8 +18,7 @@ type Theme struct {
 	TextMuted  color.Color
 	TextError  color.Color
 	// Background
-	BgNormal   color.Color
-	BgSelected color.Color
+	BgNormal color.Color
 	// Progress bar empty color
 	ProgressBarEmptyColor color.Color
 	
@@ -41,7 +40,6 @@ type Theme struct {
 	DetailTabActiveBorder    color.Color  // Active tab border color (bright, stands out)
 	DetailTabInactiveBorder  color.Color  // Inactive tab border color (muted)
 	DetailLabelColor         color.Color  // Field labels and section headers
-	DetailFocusBg            color.Color  // Focused field/form input background
 	DetailCursorColor        color.Color  // Tree/list cursor indicator color
 	
 	// Oneline view solid status colors (not gradients)
@@ -87,7 +85,6 @@ func DefaultTheme() Theme {
 		TextMuted:             lipgloss.Color("#888888"), // Gray
 		TextError:             lipgloss.Color("#FF3333"), // Red
 		BgNormal:              lipgloss.Color("#1A1A1A"), // Very dark gray
-		BgSelected:            lipgloss.Color("#1E1E1E"), // Slight highlight
 		ProgressBarEmptyColor: lipgloss.Color("#333333"), // Dark gray for empty progress bar
 		
 		// Semantic colors for dark theme
@@ -108,7 +105,6 @@ func DefaultTheme() Theme {
 		DetailTabActiveBorder:   lipgloss.Color("#00FF00"),  // Terminal green - stands out
 		DetailTabInactiveBorder: lipgloss.Color("242"),      // Medium gray - muted
 		DetailLabelColor:        lipgloss.Color("#00FF00"),  // Terminal green - same as accent
-		DetailFocusBg:           lipgloss.Color("#006600"),  // Dark green - subtle highlight
 		DetailCursorColor:       lipgloss.Color("214"),      // Orange - matches cursor
 		
 		// Oneline view solid status colors (using gradient endpoints per revised planning)
@@ -177,8 +173,7 @@ func LightTheme() Theme {
 		TextMuted:             lipgloss.Color("#666666"), // Gray
 		TextError:             lipgloss.Color("#CC0000"), // Red
 		BgNormal:              lipgloss.Color("#C0C0C0"), // Medium light gray
-		BgSelected:            lipgloss.Color("#B0B0B0"), // Slightly darker highlight
-		ProgressBarEmptyColor: lipgloss.Color("#333333"), // Dark gray for empty progress bar
+		ProgressBarEmptyColor: lipgloss.Color("#AAAAAA"), // Subtle darker than background
 		
 		// Semantic colors for light theme (no omarchy)
 		AccentColor:     lipgloss.Color("33"),   // Dark cyan
@@ -198,7 +193,6 @@ func LightTheme() Theme {
 		DetailTabActiveBorder:   lipgloss.Color("33"),   // Dark cyan - same as accent
 		DetailTabInactiveBorder: lipgloss.Color("245"),  // Light gray - muted
 		DetailLabelColor:        lipgloss.Color("33"),   // Dark cyan - same as accent
-		DetailFocusBg:           lipgloss.Color("#005555"),  // Dark cyan - subtle highlight
 		DetailCursorColor:       lipgloss.Color("#00AA00"),  // Bright green - matches cursor
 		
 		// Oneline view solid status colors for light theme
@@ -262,7 +256,6 @@ func HighContrastTheme() Theme {
 		TextMuted:             lipgloss.Color("#AAAAAA"), // Gray
 		TextError:             lipgloss.Color("#FF0000"), // Bright red
 		BgNormal:              lipgloss.Color("#000000"), // Pure black
-		BgSelected:            lipgloss.Color("#333333"), // Dark highlight
 		ProgressBarEmptyColor: lipgloss.Color("#333333"), // Dark gray for empty progress bar
 		
 		// Semantic colors for high contrast theme
@@ -283,7 +276,6 @@ func HighContrastTheme() Theme {
 		DetailTabActiveBorder:   lipgloss.Color("226"),  // Bright yellow - stands out
 		DetailTabInactiveBorder: lipgloss.Color("8"),    // Bright black/gray - muted but visible
 		DetailLabelColor:        lipgloss.Color("226"),  // Bright yellow - same as accent
-		DetailFocusBg:           lipgloss.Color("11"),   // Bright blue - strong highlight
 		DetailCursorColor:       lipgloss.Color("51"),   // Bright cyan - matches cursor
 		
 		// Oneline view solid status colors for high contrast theme
@@ -329,7 +321,6 @@ func OmarchyTheme(colors map[string]string) Theme {
 		TextMuted:       lipgloss.Color("#888888"),
 		TextError:       lipgloss.Color("#FF3333"),
 		BgNormal:        lipgloss.Color(""),
-		BgSelected:      lipgloss.Color("#1E1E1E"),
 	}
 
 	bg := colors["background"]
@@ -461,9 +452,6 @@ func OmarchyTheme(colors map[string]string) Theme {
 	
 	// Use accent color for labels (matches search bar, draws attention)
 	theme.DetailLabelColor = theme.AccentColor
-	
-	// Use a slightly adjusted accent for focus background (darker/more muted)
-	theme.DetailFocusBg = lipgloss.Color(desaturateColorHex(accentColor, 0.5))
 	
 	// Use cursor color for tree/list cursor indicator
 	theme.DetailCursorColor = theme.CursorColor
