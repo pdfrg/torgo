@@ -57,7 +57,10 @@ At runtime, press `t` to cycle through all available themes (built-in + any disc
 - [x] Full test coverage
 
 ### Theme System
-- [x] Built-in themes: dark, light, high-contrast
+- [x] Built-in themes: dark, light, high-contrast with consistent semantic color roles
+  - Semantic roles: AccentColor, CursorColor, ForegroundColor, TextNormal, TextMuted
+  - All UI elements use the same role across all themes for consistency
+  - `syncComponentStyles()` ensures cached components update on theme switch
 - [x] **Omarchy theme support** with smart color transformations
   - Auto-discover omarchy theme at `~/.config/omarchy/current/theme/colors.toml`
   - Custom theme support at `~/.config/tqbtui/colors.toml`

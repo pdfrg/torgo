@@ -149,8 +149,8 @@ func LightTheme() Theme {
 				lipgloss.Color("#00A850"), // Dark green
 			},
 			"seeding": {
-				lipgloss.Color("#00A850"), // Dark green
-				lipgloss.Color("#0099AA"), // Dark cyan
+				lipgloss.Color("#009944"), // Dark green
+				lipgloss.Color("#0099BB"), // Dark cyan
 			},
 			"paused": {
 				lipgloss.Color("#CC8800"), // Dark yellow
