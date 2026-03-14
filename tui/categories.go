@@ -37,6 +37,16 @@ func DefaultCategoryMapping() CategoryMapping {
 			"episodes": "📺",
 			"sonarr":   "📺",
 
+			// Adult (Whisparr)
+			"whisparr": "🔞",
+			"adult":    "🔞",
+			"xxx":      "🔞",
+
+			// Comics (Mylar3)
+			"mylar":   "💥",
+			"comic":   "💥",
+			"comics":  "💥",
+
 			// Music & Audio (Lidarr)
 			"music":      "🎵",
 			"audio":      "🎵",
@@ -72,7 +82,8 @@ func DefaultCategoryMapping() CategoryMapping {
 			"nintendo":   "👾",
 			"pc game":    "👾",
 
-			// Books & Documents
+			// Books & Documents (Readarr)
+			"readarr":   "📚",
 			"book":      "📚",
 			"books":     "📚",
 			"ebook":     "📚",

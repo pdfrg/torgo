@@ -361,12 +361,12 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 
 	// Apply text colors - mix of textStyle (labels) and metricsStyle (values)
 	// Build with mixed styling using pre-padded values
-	line := fmt.Sprintf("%s%s %s ↓ %s ↑ %s %s %s %s %s",
+	line := fmt.Sprintf("%s%s %s %s %s %s %s %s %s %s %s",
 		indent,
 		categoryIcon,
 		labelStyle.Render(paddedStatus),
-		metricsStyle.Render(paddedDownSpeed),
-		metricsStyle.Render(paddedUpSpeed),
+		labelStyle.Render("↓"), metricsStyle.Render(paddedDownSpeed),
+		labelStyle.Render("↑"), metricsStyle.Render(paddedUpSpeed),
 		labelStyle.Render("Ratio: ") + metricsStyle.Render(paddedRatio),
 		labelStyle.Render("Seeds: ") + metricsStyle.Render(paddedSeeds),
 		labelStyle.Render("Peers: ") + metricsStyle.Render(paddedPeers),

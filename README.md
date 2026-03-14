@@ -129,6 +129,9 @@ The application includes built-in category-to-emoji mappings for common torrent 
 - **Radarr** - `radarr` → 🎬
 - **Sonarr** - `sonarr` → 📺
 - **Lidarr** - `lidarr` → 🎵
+- **Readarr** - `readarr` → 📚
+- **Whisparr** - `whisparr` → 🔞
+- **Mylar3** - `mylar` → 💥
 
 ### Smart Matching
 Categories/labels are matched via substring matching, so:
