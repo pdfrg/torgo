@@ -504,7 +504,7 @@ func (a *App) View() tea.View {
 	} else {
 		// In list view
 		if a.viewMode == "multiline" {
-			mainView = a.renderMultilineViewPlaceholder(a.width, listHeight)
+			mainView = a.multilineList.Render(a.width, listHeight)
 		} else {
 			mainView = a.list.Render(a.width, listHeight)
 		}
@@ -1062,12 +1062,7 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		a.torrentInput, cmd = a.torrentInput.Update(msg)
 		// Validate as user types (except for backspace, which is always ok)
-		if msg.String() != "backspace" {
-			a.inputValidationErr = ValidateInput(a.torrentInput.Value())
-		} else {
-			// Still validate after backspace for when field becomes empty
-			a.inputValidationErr = ValidateInput(a.torrentInput.Value())
-		}
+		a.inputValidationErr = ValidateInput(a.torrentInput.Value())
 		return a, cmd
 	}
 }
@@ -1337,11 +1332,6 @@ type errorClearedMsg struct{}
 
 type speedLimitToggledMsg struct{}
 
-// renderMultilineViewPlaceholder renders the multiline view
-func (a *App) renderMultilineViewPlaceholder(width, height int) string {
-	return a.multilineList.Render(width, height)
-}
-
 // overlayHelpDialog renders a help popup with all keybindings
 func (a *App) overlayHelpDialog(baseOutput string) string {
 	dialogWidth := 55
@@ -1466,17 +1456,6 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 		// Return a message to trigger an immediate update and redraw
 		return detailViewOpenedMsg{}
 	}
-}
-
-// saveTorrentChanges saves all pending torrent changes via API
-// Deprecated: use saveTorrentChangesWithData instead
-func (a *App) saveTorrentChanges() tea.Cmd {
-	if a.detailView == nil {
-		return func() tea.Msg {
-			return errorMsg{err: fmt.Errorf("no torrent selected")}
-		}
-	}
-	return a.saveTorrentChangesWithData(a.detailView)
 }
 
 // saveTorrentChangesWithData saves torrent changes using provided detail view data

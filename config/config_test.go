@@ -21,7 +21,7 @@ func TestLoadConfig(t *testing.T) {
 [ui]
 default_client = "qbt-local"
 show_hints = true
-color_scheme = "default"
+default_color_scheme = "default"
 
 [[clients]]
 type = "qbittorrent"
@@ -67,8 +67,8 @@ password = "transmission"
 	if !cfg.UI.ShowHints {
 		t.Errorf("Expected show_hints true, got %v", cfg.UI.ShowHints)
 	}
-	if cfg.UI.ColorScheme != "default" {
-		t.Errorf("Expected color_scheme 'default', got %s", cfg.UI.ColorScheme)
+	if cfg.UI.DefaultColorScheme != "default" {
+		t.Errorf("Expected default_color_scheme 'default', got %s", cfg.UI.DefaultColorScheme)
 	}
 
 	// Verify clients loaded

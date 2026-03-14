@@ -11,7 +11,7 @@ func TestNewAppState(t *testing.T) {
 		UI: config.UIConfig{
 			DefaultClient: "qbt-local",
 			ShowHints:     true,
-			ColorScheme:   "default",
+			DefaultColorScheme: "default",
 		},
 		Clients: []config.ClientConfig{
 			{
@@ -73,7 +73,7 @@ func TestSwitchClient(t *testing.T) {
 		UI: config.UIConfig{
 			DefaultClient: "qbt-local",
 			ShowHints:     true,
-			ColorScheme:   "default",
+			DefaultColorScheme: "default",
 		},
 		Clients: []config.ClientConfig{
 			{
@@ -166,7 +166,7 @@ func TestSpeedLimitInitialized(t *testing.T) {
 		UI: config.UIConfig{
 			DefaultClient: "qbt-local",
 			ShowHints:     true,
-			ColorScheme:   "default",
+			DefaultColorScheme: "default",
 		},
 		Clients: []config.ClientConfig{
 			{

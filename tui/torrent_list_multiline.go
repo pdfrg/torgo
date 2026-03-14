@@ -380,11 +380,6 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 	return line
 }
 
-// renderMetricsLine is no longer used - metrics merged into status line
-func (m *MultilineTorrentListView) renderMetricsLine(torrent client.Torrent, width int) string {
-	return ""
-}
-
 // Helper functions
 
 // formatStatus converts torrent status to a readable label
