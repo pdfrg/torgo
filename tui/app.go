@@ -347,7 +347,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.multilineList.SetTorrents(a.state.FilteredTorrents())
 		return a, nil
 	case errorMsg:
-		a.lastError = msg.Error()
+		a.lastError = "Error: " + msg.Error()
+		return a, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
+			return errorClearedMsg{}
+		})
+	case statusMsg:
+		a.lastError = msg.text
 		return a, tea.Tick(3*time.Second, func(t time.Time) tea.Msg {
 			return errorClearedMsg{}
 		})
@@ -523,11 +528,11 @@ func (a *App) View() tea.View {
 		}
 	}
 
-	// Error message if present
+	// Status/error message if present
 	if a.lastError != "" {
 		lines = append(lines, "")
 		lines = append(lines, a.styles.ListItem.Foreground(a.styles.ErrorColor()).
-			Render("Error: "+a.lastError))
+			Render(a.lastError))
 	}
 
 	// Status bar and hints bar at bottom
@@ -974,6 +979,27 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case isKeyMatch(k, a.keys.ToggleSpeedLimit):
 		return a, a.toggleSpeedLimit()
+
+	case isKeyMatch(k, a.keys.Recheck):
+		return a, a.recheckSelected()
+
+	case isKeyMatch(k, a.keys.Reannounce):
+		return a, a.reannounceSelected()
+
+	case isKeyMatch(k, a.keys.CopyMagnet):
+		return a, a.copyMagnetLink()
+
+	case isKeyMatch(k, a.keys.QueueUp):
+		return a, a.setQueuePriority("up")
+
+	case isKeyMatch(k, a.keys.QueueDown):
+		return a, a.setQueuePriority("down")
+
+	case isKeyMatch(k, a.keys.QueueTop):
+		return a, a.setQueuePriority("top")
+
+	case isKeyMatch(k, a.keys.QueueBottom):
+		return a, a.setQueuePriority("bottom")
 	}
 
 	return a, nil
@@ -1272,6 +1298,72 @@ func (a *App) addTorrent(input string, category string) tea.Cmd {
 	}
 }
 
+func (a *App) recheckSelected() tea.Cmd {
+	return func() tea.Msg {
+		selected := a.getSelectedTorrents()
+		adapter := a.state.CurrentClient().Adapter
+		for _, id := range selected {
+			if err := adapter.RecheckTorrent(a.ctx, id); err != nil {
+				return errorMsg{err: err}
+			}
+		}
+		a.list.ClearSelection()
+		a.multilineList.ClearSelection()
+		return a.refreshTorrents()()
+	}
+}
+
+func (a *App) reannounceSelected() tea.Cmd {
+	return func() tea.Msg {
+		selected := a.getSelectedTorrents()
+		adapter := a.state.CurrentClient().Adapter
+		for _, id := range selected {
+			if err := adapter.ReannounceTorrent(a.ctx, id); err != nil {
+				return errorMsg{err: err}
+			}
+		}
+		return a.refreshTorrents()()
+	}
+}
+
+func (a *App) copyMagnetLink() tea.Cmd {
+	return func() tea.Msg {
+		var torrent *client.Torrent
+		if a.viewMode == "multiline" {
+			torrent = a.multilineList.GetCurrentTorrent()
+		} else {
+			torrent = a.list.GetCurrentTorrent()
+		}
+		if torrent == nil {
+			return errorMsg{err: fmt.Errorf("no torrent selected")}
+		}
+
+		magnetURI, err := a.state.CurrentClient().Adapter.GetMagnetURI(a.ctx, torrent.ID)
+		if err != nil {
+			return errorMsg{err: fmt.Errorf("failed to get magnet link: %w", err)}
+		}
+
+		if err := clipboard.WriteAll(magnetURI); err != nil {
+			return errorMsg{err: fmt.Errorf("failed to copy to clipboard: %w", err)}
+		}
+
+		return statusMsg{text: "Magnet link copied ✓"}
+	}
+}
+
+func (a *App) setQueuePriority(action string) tea.Cmd {
+	return func() tea.Msg {
+		selected := a.getSelectedTorrents()
+		adapter := a.state.CurrentClient().Adapter
+		for _, id := range selected {
+			if err := adapter.SetQueuePriority(a.ctx, id, action); err != nil {
+				return errorMsg{err: err}
+			}
+		}
+		return a.refreshTorrents()()
+	}
+}
+
 func (a *App) toggleSpeedLimit() tea.Cmd {
 	return func() tea.Msg {
 		if err := a.state.ToggleSpeedLimit(a.ctx); err != nil {
@@ -1328,16 +1420,18 @@ func (e errorMsg) Error() string {
 	return e.err.Error()
 }
 
+type statusMsg struct {
+	text string
+}
+
 type errorClearedMsg struct{}
 
 type speedLimitToggledMsg struct{}
 
-// overlayHelpDialog renders a help popup with all keybindings
+// overlayHelpDialog renders a help popup with all keybindings in a 2-column layout
 func (a *App) overlayHelpDialog(baseOutput string) string {
-	dialogWidth := 55
-	dialogHeight := 35
-
-	if a.width < 55 {
+	dialogWidth := 72
+	if a.width < 76 {
 		dialogWidth = a.width - 4
 	}
 	if dialogWidth < 40 {
@@ -1357,50 +1451,70 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 		}
 	}
 
-	// Calculate max key width for alignment
-	maxKeyWidth := 0
-	for _, b := range allBindings {
-		if len(b.key) > maxKeyWidth {
-			maxKeyWidth = len(b.key)
+	// Split into two columns
+	half := (len(allBindings) + 1) / 2
+	leftBindings := allBindings[:half]
+	rightBindings := allBindings[half:]
+
+	// Calculate max key width per column for alignment
+	maxKeyWidthL := 0
+	for _, b := range leftBindings {
+		if len(b.key) > maxKeyWidthL {
+			maxKeyWidthL = len(b.key)
 		}
 	}
-
-	// Build help content with 2-column layout (key | desc)
-	var lines []string
-	
-	// Header styled with cursor color
-	headerStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
-	lines = append(lines, headerStyle.Render("Help - Keybindings"))
-	lines = append(lines, "")
+	maxKeyWidthR := 0
+	for _, b := range rightBindings {
+		if len(b.key) > maxKeyWidthR {
+			maxKeyWidthR = len(b.key)
+		}
+	}
 
 	// Key and description styling
 	keyStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
 	descStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 
-	for _, binding := range allBindings {
-		fullDesc := GetFullHelpText(binding.key)
-		// Style key and description separately
-		styledKey := keyStyle.Render(fmt.Sprintf("%-*s", maxKeyWidth, binding.key))
+	// Column width for each side (account for border padding and gap)
+	colWidth := (dialogWidth - 10) / 2 // -10 for borders, padding, gap
+
+	formatEntry := func(b struct{ key, desc string }, maxKeyW int) string {
+		fullDesc := GetFullHelpText(b.key)
+		styledKey := keyStyle.Render(fmt.Sprintf("%-*s", maxKeyW, b.key))
 		styledDesc := descStyle.Render(fullDesc)
-		line := fmt.Sprintf("%s  %s", styledKey, styledDesc)
-		lines = append(lines, line)
+		return styledKey + "  " + styledDesc
+	}
+
+	// Build rows
+	var lines []string
+
+	// Header styled with cursor color
+	headerStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
+	lines = append(lines, headerStyle.Render("Help - Keybindings"))
+	lines = append(lines, "")
+
+	leftColStyle := lipgloss.NewStyle().Width(colWidth)
+
+	rows := half
+	for i := 0; i < rows; i++ {
+		left := leftColStyle.Render(formatEntry(leftBindings[i], maxKeyWidthL))
+		right := ""
+		if i < len(rightBindings) {
+			right = formatEntry(rightBindings[i], maxKeyWidthR)
+		}
+		lines = append(lines, left+"    "+right)
 	}
 
 	lines = append(lines, "")
-	
-	// Instructions styled with hints color (same as hints bar)
+
+	// Instructions styled with hints color
 	instructStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Italic(true)
 	lines = append(lines, instructStyle.Render("(Press '?' to close)"))
 
 	content := strings.Join(lines, "\n")
 
-	// Calculate actual content height to avoid extra padding
+	// Calculate actual content height
 	contentHeight := strings.Count(content, "\n") + 1
-	// Add some breathing room but don't exceed dialog height
-	boxHeight := contentHeight + 2 // +2 for top/bottom padding
-	if boxHeight > dialogHeight-2 {
-		boxHeight = dialogHeight - 2
-	}
+	boxHeight := contentHeight + 2
 
 	// Style the dialog box with theme-aware border color and background
 	helpBox := lipgloss.NewStyle().

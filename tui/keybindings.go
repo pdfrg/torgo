@@ -23,6 +23,15 @@ type KeyMap struct {
 	DeleteData key.Binding
 	Details    key.Binding  // View torrent details
 
+	// Torrent maintenance
+	Recheck     key.Binding
+	Reannounce  key.Binding
+	CopyMagnet  key.Binding
+	QueueUp     key.Binding
+	QueueDown   key.Binding
+	QueueTop    key.Binding
+	QueueBottom key.Binding
+
 	// Client & view
 	AddTorrent   key.Binding
 	SwitchClient key.Binding
@@ -100,6 +109,36 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("enter", "details"),
 		),
 
+		// Torrent maintenance
+		Recheck: key.NewBinding(
+			key.WithKeys("!"),
+			key.WithHelp("!", "recheck"),
+		),
+		Reannounce: key.NewBinding(
+			key.WithKeys("n"),
+			key.WithHelp("n", "reannounce"),
+		),
+		CopyMagnet: key.NewBinding(
+			key.WithKeys("y"),
+			key.WithHelp("y", "yank"),
+		),
+		QueueUp: key.NewBinding(
+			key.WithKeys("="),
+			key.WithHelp("=", "q.up"),
+		),
+		QueueDown: key.NewBinding(
+			key.WithKeys("-"),
+			key.WithHelp("-", "q.down"),
+		),
+		QueueTop: key.NewBinding(
+			key.WithKeys("+"),
+			key.WithHelp("+", "q.top"),
+		),
+		QueueBottom: key.NewBinding(
+			key.WithKeys("_"),
+			key.WithHelp("_", "q.bot"),
+		),
+
 		// Client & view
 		AddTorrent: key.NewBinding(
 			key.WithKeys("a"),
@@ -155,6 +194,7 @@ func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{
 		k.Pause, k.PauseAll, k.Resume, k.ResumeAll,
 		k.Delete, k.DeleteData, k.Details, k.AddTorrent,
+		k.CopyMagnet, k.QueueUp, k.QueueDown,
 		k.SwitchClient, k.Search, k.ToggleSpeedLimit, k.ToggleHints, k.ToggleView, k.Help, k.Quit,
 	}
 }
@@ -164,7 +204,8 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down, k.PageUp, k.PageDown, k.Select, k.SelectAll},
 		{k.Pause, k.PauseAll, k.Resume, k.ResumeAll},
-		{k.Delete, k.DeleteData, k.Details, k.AddTorrent},
+		{k.Delete, k.DeleteData, k.Details, k.AddTorrent, k.CopyMagnet},
+		{k.QueueUp, k.QueueDown, k.QueueTop, k.QueueBottom, k.Recheck, k.Reannounce},
 		{k.SwitchClient, k.Sort, k.Filter, k.Search, k.ToggleView, k.ToggleSpeedLimit},
 		{k.ToggleTheme, k.ToggleHints, k.Help, k.Quit},
 	}
@@ -194,6 +235,13 @@ func GetFullHelpText(keyName string) string {
 		"r":       "resume",
 		"s":       "sort",
 		"f":       "filter",
+		"!":       "force recheck",
+		"n":       "reannounce to trackers",
+		"y":       "copy magnet link",
+		"=":       "queue priority up",
+		"-":       "queue priority down",
+		"+":       "queue to top",
+		"_":       "queue to bottom",
 		"/":       "search",
 		"?":       "help",
 		"q":       "quit",

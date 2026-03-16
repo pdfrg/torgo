@@ -77,6 +77,9 @@ At runtime, press `t` to cycle through all available themes (built-in + any disc
   - Pause/resume individual or all
   - Add torrents (magnet links & .torrent files)
   - Delete torrents with optional file deletion
+  - Force recheck and reannounce
+  - Copy magnet link to clipboard
+  - Queue priority management (up/down/top/bottom)
   - Status mapping (downloading, seeding, paused, error)
 
 - [x] **Transmission** (JSON-RPC)
@@ -85,6 +88,9 @@ At runtime, press `t` to cycle through all available themes (built-in + any disc
   - Pause/resume individual or all
   - Add torrents (magnet links & .torrent files)
   - Delete torrents with optional file deletion
+  - Force recheck and reannounce
+  - Copy magnet link to clipboard
+  - Queue priority management (up/down/top/bottom)
   - Basic auth support
   - Status mapping (downloading, seeding, paused)
 
@@ -152,7 +158,7 @@ The complete mapping includes 50+ category keywords for movies, TV, music, softw
 - [x] Unit & integration tests
 - [x] TUI implementation with bubbletea (BubbleTea v2)
 - [x] Keybinding system with hints bar
-- [x] Help dialog with full keybinding list
+- [x] Help dialog with 2-column keybinding layout
 - [x] Multi-view support (single-line and multi-line views)
 - [x] Progress bars with gradient coloring and texture
 - [x] Category/Label icon mapping system
@@ -184,6 +190,11 @@ The program will:
 | x/X | Delete (without/with data) |
 | enter | View details |
 | a | Add torrent |
+| y | Copy magnet link to clipboard |
+| ! | Force recheck |
+| n | Reannounce to trackers |
+| =/- | Queue priority up/down |
+| +/_ | Queue to top/bottom |
 | c | Cycle clients |
 | v | Cycle views |
 | t | Cycle themes |
