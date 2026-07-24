@@ -54,6 +54,39 @@ func (s *Styles) SyncFromTheme(t Theme) {
 	if t.TextNormal != nil {
 		s.FgColorStr = colorToHex(t.TextNormal)
 	}
+	if t.BgNormal != nil {
+		s.BgColorStr = colorToHex(t.BgNormal)
+	}
+	if t.AccentColor != nil {
+		s.SelectColorStr = colorToHex(t.AccentColor)
+	}
+	if t.TextMuted != nil {
+		s.HintColorStr = colorToHex(t.TextMuted)
+	}
+	if t.TextError != nil {
+		s.ErrorColorStr = colorToHex(t.TextError)
+	}
+
+	// Rebuild pre-built lipgloss style objects from synced strings
+	s.Title = lipgloss.NewStyle().
+		Foreground(s.SelectColor()).
+		Bold(true)
+	s.ListHeader = lipgloss.NewStyle().
+		Foreground(s.SelectColor()).
+		Bold(true).
+		Padding(0, 1)
+	s.ListItem = lipgloss.NewStyle().
+		Foreground(s.FgColor()).
+		Padding(0, 1)
+	s.ListItemSelected = lipgloss.NewStyle().
+		Foreground(s.BgColor()).
+		Background(s.SelectColor()).
+		Padding(0, 1)
+	s.Dialog = lipgloss.NewStyle().
+		Foreground(s.FgColor()).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(s.SelectColor()).
+		Padding(1)
 }
 
 // DefaultStyles returns the default dark theme

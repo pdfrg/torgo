@@ -50,7 +50,7 @@ type TorrentDetail struct {
 	Name        string        // Torrent name
 	Category    string        // Category/Label
 	Tags        []string      // Tags (qBittorrent only)
-	Comments    string        // Torrent comments (from metadata)
+	Comment     string        // Torrent comments (from metadata)
 	SavePath    string        // Download location
 	Files       []TorrentFile // All files in torrent
 	TotalSize   int64         // Total size of all files

@@ -11,7 +11,6 @@ import (
 type Config struct {
 	UI           UIConfig                     `toml:"ui"`
 	Clients      []ClientConfig               `toml:"clients"`
-	Theme        *Theme                       `toml:"-"` // Loaded separately
 	LoadedColors map[string]map[string]string `toml:"-"` // Pre-loaded colors for omarchy/custom themes
 }
 
@@ -50,11 +49,9 @@ func LoadConfig() (*Config, error) {
 	}
 
 	// Load theme
-	theme, err := loadTheme(&cfg, configDir)
-	if err != nil {
+	if err := loadTheme(&cfg, configDir); err != nil {
 		return nil, fmt.Errorf("failed to load theme: %w", err)
 	}
-	cfg.Theme = theme
 
 	// Expand env vars in passwords
 	for i := range cfg.Clients {
@@ -123,7 +120,7 @@ func DiscoverThemes(configDir string) []string {
 
 // loadTheme loads theme from default_color_scheme setting
 // If default_color_scheme is not set, auto-prioritize: custom > omarchy > dark
-func loadTheme(cfg *Config, configDir string) (*Theme, error) {
+func loadTheme(cfg *Config, configDir string) error {
 	scheme := cfg.UI.DefaultColorScheme
 
 	// Discover available themes
@@ -170,37 +167,10 @@ func loadTheme(cfg *Config, configDir string) (*Theme, error) {
 		}
 	}
 
-	switch scheme {
-	case "dark":
-		return DefaultTheme(), nil
-	case "light":
-		return DefaultTheme(), nil // Will need to get this from tui package
-	case "highcontrast":
-		return DefaultTheme(), nil // Will need to get this from tui package
-	case "omarchy":
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get home directory: %w", err)
-		}
-		omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
-		return loadColorsToml(omarchyPath)
-	case "custom":
-		customPath := filepath.Join(configDir, "colors.toml")
-		return loadColorsToml(customPath)
-	default:
-		// Try to load as direct path
-		if _, err := os.Stat(scheme); err == nil {
-			return loadColorsToml(scheme)
-		}
-		// Try relative to config dir
-		relPath := filepath.Join(configDir, scheme)
-		if _, err := os.Stat(relPath); err == nil {
-			return loadColorsToml(relPath)
-		}
-		// Fall back to default with error logged
-		fmt.Printf("Warning: color scheme '%s' not found, using default\n", scheme)
-		return DefaultTheme(), nil
-	}
+	// Save the resolved scheme for use by the tui package at startup
+	cfg.UI.DefaultColorScheme = scheme
+
+	return nil
 }
 
 // loadColorsFile reads and parses a colors.toml file, returning raw colors map
@@ -216,26 +186,6 @@ func loadColorsFile(path string) (map[string]string, error) {
 	}
 
 	return colors, nil
-}
-
-// loadColorsToml loads omarchy colors.toml format
-func loadColorsToml(path string) (*Theme, error) {
-	colors, err := loadColorsFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	// Return the colors map wrapped in a Theme
-	// The actual theme building happens in tui package
-	return buildOmarchyTheme(colors), nil
-}
-
-// buildOmarchyTheme creates a theme with the colors stored for later processing
-func buildOmarchyTheme(colors map[string]string) *Theme {
-	t := DefaultTheme()
-	// Store the raw colors map for tui package to process
-	t.Colors = colors
-	return t
 }
 
 // ReloadThemeColors refreshes the colors for a theme from disk

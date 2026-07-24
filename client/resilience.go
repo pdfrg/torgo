@@ -89,7 +89,6 @@ func IsRetryableError(err error) bool {
 		"i/o timeout",
 		"no such host",
 		"connection declined",
-		"connection refused",
 		"temporarily unavailable",
 		"try again",
 	}

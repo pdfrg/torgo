@@ -66,18 +66,11 @@ func NewApp(appState *state.AppState) *App {
 	keys := DefaultKeyMap()
 
 	// Load the theme from config
-	var themeToUse Theme
-	var themeName string
-
-	if appState.Config.Theme != nil && appState.Config.Theme.Colors != nil && len(appState.Config.Theme.Colors) > 0 {
-		// Build omarchy theme from config colors
-		themeToUse = OmarchyTheme(appState.Config.Theme.Colors)
-		themeName = "omarchy"
-	} else {
-		// Use default dark theme
-		themeToUse = DefaultTheme()
+	themeName := appState.Config.UI.DefaultColorScheme
+	if themeName == "" {
 		themeName = "dark"
 	}
+	themeToUse := loadThemeByName(themeName, appState.Config)
 
 	// Set the theme globally
 	SetTheme(themeToUse)
@@ -1116,13 +1109,9 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 
 		case "ctrl+c":
-			// Exit search mode
+			// Exit search mode (same as esc — just exit, keep filter)
 			a.searchMode = false
 			a.searchInput.Blur()
-			a.searchInput.Reset()
-			a.searchFilter.Clear()
-			a.list.SetTorrents(a.state.FilteredTorrents())
-			a.multilineList.SetTorrents(a.state.FilteredTorrents())
 			return a, nil
 
 		default:
@@ -1189,7 +1178,9 @@ func (a *App) pauseSelected() tea.Cmd {
 		selected := a.getSelectedTorrents()
 
 		for _, id := range selected {
-			_ = a.state.CurrentClient().Adapter.PauseTorrent(a.ctx, id)
+			if err := a.state.CurrentClient().Adapter.PauseTorrent(a.ctx, id); err != nil {
+				return errorMsg{err: err}
+			}
 		}
 
 		a.list.ClearSelection()
@@ -1200,7 +1191,9 @@ func (a *App) pauseSelected() tea.Cmd {
 
 func (a *App) pauseAll() tea.Cmd {
 	return func() tea.Msg {
-		_ = a.state.CurrentClient().Adapter.PauseAll(a.ctx)
+		if err := a.state.CurrentClient().Adapter.PauseAll(a.ctx); err != nil {
+			return errorMsg{err: err}
+		}
 		a.list.ClearSelection()
 		a.multilineList.ClearSelection()
 		return a.refreshTorrents()()
@@ -1212,7 +1205,9 @@ func (a *App) resumeSelected() tea.Cmd {
 		selected := a.getSelectedTorrents()
 
 		for _, id := range selected {
-			_ = a.state.CurrentClient().Adapter.ResumeTorrent(a.ctx, id)
+			if err := a.state.CurrentClient().Adapter.ResumeTorrent(a.ctx, id); err != nil {
+				return errorMsg{err: err}
+			}
 		}
 
 		a.list.ClearSelection()
@@ -1223,7 +1218,9 @@ func (a *App) resumeSelected() tea.Cmd {
 
 func (a *App) resumeAll() tea.Cmd {
 	return func() tea.Msg {
-		_ = a.state.CurrentClient().Adapter.ResumeAll(a.ctx)
+		if err := a.state.CurrentClient().Adapter.ResumeAll(a.ctx); err != nil {
+			return errorMsg{err: err}
+		}
 		a.list.ClearSelection()
 		a.multilineList.ClearSelection()
 		return a.refreshTorrents()()
@@ -1265,10 +1262,14 @@ func (a *App) deleteSelected(withData bool) tea.Cmd {
 
 		adapter := a.state.CurrentClient().Adapter
 		for _, id := range selected {
+			var err error
 			if withData {
-				_ = adapter.RemoveTorrentWithData(a.ctx, id)
+				err = adapter.RemoveTorrentWithData(a.ctx, id)
 			} else {
-				_ = adapter.RemoveTorrent(a.ctx, id)
+				err = adapter.RemoveTorrent(a.ctx, id)
+			}
+			if err != nil {
+				return errorMsg{err: err}
 			}
 		}
 

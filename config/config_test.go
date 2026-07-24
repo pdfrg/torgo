@@ -100,8 +100,8 @@ password = "transmission"
 		t.Errorf("Expected port 6969, got %d", trans.Port)
 	}
 
-	// Verify theme loaded
-	if cfg.Theme == nil {
-		t.Errorf("Expected theme to be loaded, got nil")
+	// Verify theme scheme resolved
+	if cfg.UI.DefaultColorScheme != "default" {
+		t.Errorf("Expected default_color_scheme 'default', got %s", cfg.UI.DefaultColorScheme)
 	}
 }

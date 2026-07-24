@@ -266,7 +266,7 @@ func (ta *TransmissionAdapter) GetCategories(ctx context.Context) ([]string, err
 
 // PauseAll pauses all torrents
 func (ta *TransmissionAdapter) PauseAll(ctx context.Context) error {
-	payload := `{"method":"torrent-stop","arguments":{"ids":"recently-active"}}`
+	payload := `{"method":"torrent-stop"}`
 	resp, err := ta.sendRPC(ctx, payload)
 	if err != nil {
 		return fmt.Errorf("torrent-stop-all failed: %w", err)
@@ -279,7 +279,7 @@ func (ta *TransmissionAdapter) PauseAll(ctx context.Context) error {
 
 // ResumeAll resumes all torrents
 func (ta *TransmissionAdapter) ResumeAll(ctx context.Context) error {
-	payload := `{"method":"torrent-start","arguments":{"ids":"recently-active"}}`
+	payload := `{"method":"torrent-start"}`
 	resp, err := ta.sendRPC(ctx, payload)
 	if err != nil {
 		return fmt.Errorf("torrent-start-all failed: %w", err)
@@ -547,7 +547,7 @@ func (ta *TransmissionAdapter) GetTorrentDetail(ctx context.Context, id string) 
 		Name:       tr.Name,
 		Category:   category,
 		Tags:       tr.Labels, // In Transmission, labels are used like tags
-		Comments:   tr.Comment,
+		Comment:    tr.Comment,
 		SavePath:   tr.DownloadDir,
 		TotalSize:  tr.TotalSize,
 		Downloaded: tr.DownloadedEver,
@@ -629,28 +629,14 @@ func (ta *TransmissionAdapter) SetCategory(ctx context.Context, id string, categ
 		return nil
 	}
 
-	// Split category into individual labels (Transmission supports multiple labels)
-	labels := []string{category}
-
-	// Build labels JSON array
-	labelsJSON := "["
-	for i, label := range labels {
-		if i > 0 {
-			labelsJSON += ","
-		}
-		// Escape label string
-		escaped := strings.ReplaceAll(label, "\"", "\\\"")
-		labelsJSON += "\"" + escaped + "\""
-	}
-	labelsJSON += "]"
-
+	labelsJSON, _ := json.Marshal([]string{category})
 	payload := fmt.Sprintf(`{
 		"method":"torrent-set",
 		"arguments":{
 			"ids":[%s],
 			"labels":%s
 		}
-	}`, id, labelsJSON)
+	}`, id, string(labelsJSON))
 
 	resp, err := ta.sendRPC(ctx, payload)
 	if err != nil {
@@ -672,13 +658,15 @@ func (ta *TransmissionAdapter) SetTags(ctx context.Context, id string, tags []st
 
 // SetSavePath changes the save/download location for a torrent in Transmission
 func (ta *TransmissionAdapter) SetSavePath(ctx context.Context, id string, path string) error {
+	escapedPath := strings.ReplaceAll(path, `\`, `\\`)
+	escapedPath = strings.ReplaceAll(escapedPath, `"`, `\"`)
 	payload := fmt.Sprintf(`{
 		"method":"torrent-set",
 		"arguments":{
 			"ids":[%s],
 			"downloadDir":"%s"
 		}
-	}`, id, path)
+	}`, id, escapedPath)
 
 	resp, err := ta.sendRPC(ctx, payload)
 	if err != nil {

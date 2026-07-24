@@ -1,14 +1,17 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -208,23 +211,35 @@ func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, input string, cate
 	if err != nil {
 		return fmt.Errorf("failed to open torrent file: %w", err)
 	}
-	fileBytes, err := io.ReadAll(file)
-	_ = file.Close()
+	defer file.Close()
+
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	fileName := filepath.Base(input)
+	part, err := writer.CreateFormFile("filedata", fileName)
 	if err != nil {
-		return fmt.Errorf("failed to read torrent file: %w", err)
+		return fmt.Errorf("failed to create form file: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return fmt.Errorf("failed to write file data: %w", err)
 	}
 
-	formData := url.Values{}
-	formData.Set("filedata", string(fileBytes))
 	if category != "" {
-		formData.Set("category", category)
+		if err := writer.WriteField("category", category); err != nil {
+			return fmt.Errorf("failed to write category field: %w", err)
+		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", addURL, strings.NewReader(formData.Encode()))
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("failed to close multipart writer: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", addURL, &buf)
 	if err != nil {
 		return fmt.Errorf("failed to create add request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Content-Type", writer.FormDataContentType())
 
 	resp, err := qa.client.Do(req)
 	if err != nil {
@@ -543,7 +558,7 @@ func (qa *QBittorrentAdapter) GetTorrentDetail(ctx context.Context, id string) (
 		Name:        qb.Name,
 		Category:    qb.Category,
 		Tags:        tags,
-		Comments:    qb.Comment,
+		Comment:     qb.Comment,
 		SavePath:    qb.SavePath,
 		TotalSize:   qb.TotalSize,
 		Downloaded:  qb.Downloaded,
@@ -691,11 +706,6 @@ func (qa *QBittorrentAdapter) SetTags(ctx context.Context, id string, tags []str
 
 // SetSavePath changes the save/download location for a torrent in qBittorrent
 func (qa *QBittorrentAdapter) SetSavePath(ctx context.Context, id string, path string) error {
-	// Check if path exists first
-	if _, err := os.Stat(path); err != nil {
-		return fmt.Errorf("path does not exist: %w", err)
-	}
-
 	setURL := qa.getBaseURL() + "/api/v2/torrents/setLocation"
 
 	form := url.Values{}
@@ -734,16 +744,18 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
 		return fmt.Errorf("get files failed: status %d", resp.StatusCode)
 	}
 
 	var qbFiles []qbFile
 	if err := json.NewDecoder(resp.Body).Decode(&qbFiles); err != nil {
+		resp.Body.Close()
 		return fmt.Errorf("failed to decode response: %w", err)
 	}
+	resp.Body.Close()
 
 	// Create a set of indices to download for quick lookup
 	downloadSet := make(map[int]bool)
@@ -783,11 +795,12 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 		if err != nil {
 			return fmt.Errorf("request failed: %w", err)
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
 			return fmt.Errorf("set skip file priorities failed: status %d", resp.StatusCode)
 		}
+		resp.Body.Close()
 	}
 
 	// Then, set files to download (priority 1)
@@ -808,11 +821,12 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 		if err != nil {
 			return fmt.Errorf("request failed: %w", err)
 		}
-		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
 			return fmt.Errorf("set download file priorities failed: status %d", resp.StatusCode)
 		}
+		resp.Body.Close()
 	}
 
 	return nil

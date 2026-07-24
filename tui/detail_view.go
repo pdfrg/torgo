@@ -105,7 +105,7 @@ func NewDetailViewWithHost(styles *Styles, detail *client.TorrentDetail, files [
 	if len(detail.Tags) > 0 {
 		originalValues["tags"] = strings.Join(detail.Tags, ", ")
 	}
-	originalValues["comments"] = detail.Comments
+	originalValues["comments"] = detail.Comment
 	originalValues["location"] = detail.SavePath
 	originalValues["category"] = detail.Category
 
@@ -392,10 +392,10 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 
 	// Comments
 	content.WriteString(labelStyle.Render("Comments:") + " ")
-	if m.detail.Comments == "" {
+	if m.detail.Comment == "" {
 		content.WriteString(valueStyle.Render("(none)"))
 	} else {
-		content.WriteString(valueStyle.Render(m.detail.Comments))
+		content.WriteString(valueStyle.Render(m.detail.Comment))
 	}
 	content.WriteString("\n\n")
 

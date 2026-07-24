@@ -33,7 +33,6 @@ func TestNewAppState(t *testing.T) {
 				Password: "transmission",
 			},
 		},
-		Theme: config.DefaultTheme(),
 	}
 
 	as, err := NewAppState(cfg)
@@ -91,7 +90,6 @@ func TestSwitchClient(t *testing.T) {
 				Port: 6969,
 			},
 		},
-		Theme: config.DefaultTheme(),
 	}
 
 	as, _ := NewAppState(cfg)
@@ -179,7 +177,6 @@ func TestSpeedLimitInitialized(t *testing.T) {
 				Password: "admin",
 			},
 		},
-		Theme: config.DefaultTheme(),
 	}
 
 	as, _ := NewAppState(cfg)

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"strings"
+	"sync"
 
 	"charm.land/lipgloss/v2"
 	"github.com/teacat/noire"
@@ -510,10 +511,13 @@ func (t *Theme) UpdateStatusColor(status string, color1, color2 color.Color) {
 
 // CurrentTheme holds the active theme
 var CurrentTheme = DefaultTheme()
+var currentThemeMu sync.RWMutex
 
 // SetTheme changes the active theme
 func SetTheme(t Theme) {
+	currentThemeMu.Lock()
 	CurrentTheme = t
+	currentThemeMu.Unlock()
 }
 
 // GetCurrentStatusGradient returns the gradient colors for a status using the current theme
