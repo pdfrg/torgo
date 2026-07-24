@@ -81,7 +81,7 @@ func (t *TorrentListView) SelectAll() {
 			break
 		}
 	}
-	
+
 	// If all selected, deselect all; otherwise select all
 	if allSelected {
 		t.ClearSelection()
@@ -172,12 +172,12 @@ func (t *TorrentListView) Render(width, height int) string {
 	// Always keep header and separator visible (lines 0 and 1)
 	// The minimum YOffset is 0, which shows the header
 	// The maximum YOffset is when the last line is at the bottom
-	
+
 	// If cursor is below the visible area, scroll down
 	// Ensure at least 2 lines of overhead (header + separator) are always visible
 	visibleTop := t.viewport.YOffset()
 	visibleBottom := visibleTop + t.viewport.Height()
-	
+
 	if cursorLine >= visibleBottom {
 		// Cursor is below visible bottom, scroll down
 		// But ensure header+separator remain visible
@@ -199,7 +199,7 @@ func (t *TorrentListView) Render(width, height int) string {
 	if currentYOffset < 0 {
 		t.viewport.SetYOffset(0)
 	}
-	
+
 	// Never scroll past the end
 	currentYOffset = t.viewport.YOffset()
 	if currentYOffset > contentHeight-t.viewport.Height() {
@@ -228,7 +228,7 @@ func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 		Foreground(CurrentTheme.CursorColor).
 		Bold(true).
 		Padding(0, 1)
-	
+
 	return headerStyle.Render(
 		fmt.Sprintf(" %2s  %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
 			"#", "Name", "Size", "Prog", "↓Down", "↑Up", "Seed", "Leech", "Status"),
@@ -242,12 +242,12 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	// Non-cursor: "  N" in text normal with dot indicator (●)
 	// Selected: add dot indicator (●)
 	isSelected := t.selected[torrent.ID]
-	
+
 	// Build number string with cursor prompt or padding
 	// Both formats are 4 chars to prevent title shift when going from single to double digits
 	var numberStr string
-	numberStyle := lipgloss.NewStyle()
-	
+	var numberStyle lipgloss.Style
+
 	if cursor {
 		// Cursor row: "> " + 2-digit number = 4 chars ("> 1", "> 10", etc), styled with cursor color
 		numberStr = fmt.Sprintf("> %2d", rowNum)
@@ -257,9 +257,9 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 		numberStr = fmt.Sprintf("%4d", rowNum)
 		numberStyle = lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal)
 	}
-	
+
 	numberStyled := numberStyle.Render(numberStr)
-	
+
 	// Add dot indicator for selected items (styled with accent color)
 	indicator := " "
 	if isSelected {
@@ -270,7 +270,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 
 	// Pad the name to exact width (using rune-aware width)
 	paddedName := truncate(torrent.Name, nameWidth)
-	
+
 	// Calculate progress bar fill using rune length for unicode-aware width
 	nameRunes := []rune(paddedName)
 	filledWidth := (len(nameRunes) * int(torrent.Progress)) / 100
@@ -292,7 +292,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 
 	// Render the styled name parts
 	renderedName := filledStyle.Render(filledPart) + unfilledStyle.Render(unfilledPart)
-	
+
 	// Note: lipgloss.Width() on styled text returns the visual width (excluding ANSI codes)
 	// We need to account for the original name width in our format string
 	nameColWidth := lipgloss.Width(renderedName)
@@ -310,7 +310,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	seedsStr := fmt.Sprintf("%5d", torrent.Seeds)
 	leechsStr := fmt.Sprintf("%6d", torrent.Leechs)
 	statusStr := fmt.Sprintf("%8s", shortenStatus(string(torrent.Status)))
-	
+
 	// Apply fieldStyle (without padding) to the formatted strings for consistent text color
 	size := fieldStyle.Render(sizeStr)
 	progress := fieldStyle.Render(progressStr)
@@ -341,7 +341,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 func truncate(s string, length int) string {
 	// Use visual width to handle wide characters (emojis, CJK, etc.)
 	visualWidth := lipgloss.Width(s)
-	
+
 	if visualWidth > length {
 		// Truncate character by character, checking visual width
 		runes := []rune(s)
@@ -353,22 +353,13 @@ func truncate(s string, length int) string {
 		}
 		return "..."
 	}
-	
+
 	// Pad to exact length using spaces
 	if visualWidth < length {
 		return s + strings.Repeat(" ", length-visualWidth)
 	}
-	
-	return s
-}
 
-func rightAlign(s string, width int) string {
-	runes := []rune(s)
-	if len(runes) >= width {
-		return s
-	}
-	padding := width - len(runes)
-	return strings.Repeat(" ", padding) + s
+	return s
 }
 
 func formatSize(bytes int64) string {
@@ -378,7 +369,7 @@ func formatSize(bytes int64) string {
 		GB = 1024 * MB
 		TB = 1024 * GB
 	)
-	
+
 	if bytes == 0 {
 		return "0"
 	}

@@ -18,30 +18,30 @@ type ClientInstance struct {
 
 // AppState manages the overall application state
 type AppState struct {
-	Clients              []ClientInstance
-	CurrentClientIdx     int
-	Torrents             []client.Torrent
-	Selected             map[string]bool     // Torrent ID -> selected
-	Filter               FilterType
-	SortBy               SortType
-	ShowHints            bool
-	ErrorMsg             string
-	InputMode            string // "", "add", "search", "command"
-	Config               *config.Config
-	SpeedLimitEnabled    bool   // Cache of speed limit status
-	SpeedLimitDownKBs    int    // Cache of down speed limit
-	SpeedLimitUpKBs      int    // Cache of up speed limit
-	Categories           []string // Cache of category/label names for current client
+	Clients           []ClientInstance
+	CurrentClientIdx  int
+	Torrents          []client.Torrent
+	Selected          map[string]bool // Torrent ID -> selected
+	Filter            FilterType
+	SortBy            SortType
+	ShowHints         bool
+	ErrorMsg          string
+	InputMode         string // "", "add", "search", "command"
+	Config            *config.Config
+	SpeedLimitEnabled bool     // Cache of speed limit status
+	SpeedLimitDownKBs int      // Cache of down speed limit
+	SpeedLimitUpKBs   int      // Cache of up speed limit
+	Categories        []string // Cache of category/label names for current client
 }
 
 // FilterType represents torrent filtering options
 type FilterType string
 
 const (
-	FilterAll         FilterType = "all"
-	FilterActive      FilterType = "active"
-	FilterPaused      FilterType = "paused"
-	FilterCompleted   FilterType = "completed"
+	FilterAll       FilterType = "all"
+	FilterActive    FilterType = "active"
+	FilterPaused    FilterType = "paused"
+	FilterCompleted FilterType = "completed"
 )
 
 // SortType represents torrent sorting options
@@ -57,14 +57,14 @@ const (
 // NewAppState initializes the app state from config
 func NewAppState(cfg *config.Config) (*AppState, error) {
 	as := &AppState{
-		Config:        cfg,
+		Config:           cfg,
 		CurrentClientIdx: 0,
-		Selected:      make(map[string]bool),
-		Filter:        FilterAll,
-		SortBy:        SortByName,
-		ShowHints:     cfg.UI.ShowHints,
-		Torrents:      []client.Torrent{},
-		Clients:       []ClientInstance{},
+		Selected:         make(map[string]bool),
+		Filter:           FilterAll,
+		SortBy:           SortByName,
+		ShowHints:        cfg.UI.ShowHints,
+		Torrents:         []client.Torrent{},
+		Clients:          []ClientInstance{},
 	}
 
 	// Initialize clients from config
@@ -153,10 +153,10 @@ func (as *AppState) FilteredTorrents() []client.Torrent {
 			filtered = append(filtered, t)
 		}
 	}
-	
+
 	// Apply sorting
 	as.sortTorrents(filtered)
-	
+
 	return filtered
 }
 
@@ -173,8 +173,8 @@ func (as *AppState) sortTorrents(torrents []client.Torrent) {
 		})
 	case SortBySpeed:
 		sort.Slice(torrents, func(i, j int) bool {
-			return (torrents[i].SpeedDown + torrents[i].SpeedUp) > 
-				   (torrents[j].SpeedDown + torrents[j].SpeedUp)
+			return (torrents[i].SpeedDown + torrents[i].SpeedUp) >
+				(torrents[j].SpeedDown + torrents[j].SpeedUp)
 		})
 	case SortBySeeds:
 		sort.Slice(torrents, func(i, j int) bool {
@@ -261,7 +261,7 @@ func (as *AppState) ToggleSpeedLimit(ctx context.Context) error {
 	}
 
 	as.SpeedLimitEnabled = newState
-	
+
 	// Also fetch the speed limit values after toggling
 	downKBs, upKBs, err := current.Adapter.GetSpeedLimits(ctx)
 	if err == nil {

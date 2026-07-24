@@ -166,7 +166,7 @@ func TestGetBasePathForListing(t *testing.T) {
 func TestListSubdirectories(t *testing.T) {
 	// Create a temporary directory structure
 	tmpDir := t.TempDir()
-	
+
 	// Create some subdirectories
 	subDirs := []string{"movies", "tv", "music", "other"}
 	for _, dir := range subDirs {
@@ -207,7 +207,7 @@ func TestListSubdirectoriesNonExistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListSubdirectories should not error for missing path: %v", err)
 	}
-	
+
 	if len(result) != 0 {
 		t.Errorf("expected empty list for nonexistent path, got %v", result)
 	}
@@ -215,13 +215,13 @@ func TestListSubdirectoriesNonExistent(t *testing.T) {
 
 func TestSubdirectoryHelper(t *testing.T) {
 	tmpDir := t.TempDir()
-	
+
 	// Create subdirectories
-	os.Mkdir(filepath.Join(tmpDir, "movies"), 0755)
-	os.Mkdir(filepath.Join(tmpDir, "tv"), 0755)
+	_ = os.Mkdir(filepath.Join(tmpDir, "movies"), 0755)
+	_ = os.Mkdir(filepath.Join(tmpDir, "tv"), 0755)
 
 	helper := NewSubdirectoryHelper()
-	
+
 	// Test fetching
 	result, err := helper.FetchSubdirectories(tmpDir + "/")
 	if err != nil {

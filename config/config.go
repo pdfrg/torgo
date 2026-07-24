@@ -9,9 +9,9 @@ import (
 )
 
 type Config struct {
-	UI           UIConfig       `toml:"ui"`
-	Clients      []ClientConfig `toml:"clients"`
-	Theme        *Theme         `toml:"-"` // Loaded separately
+	UI           UIConfig                     `toml:"ui"`
+	Clients      []ClientConfig               `toml:"clients"`
+	Theme        *Theme                       `toml:"-"` // Loaded separately
 	LoadedColors map[string]map[string]string `toml:"-"` // Pre-loaded colors for omarchy/custom themes
 }
 
@@ -22,9 +22,9 @@ type UIConfig struct {
 }
 
 type ClientConfig struct {
-	Type     string `toml:"type"`     // "qbittorrent" or "transmission"
-	ID       string `toml:"id"`       // Unique identifier
-	Name     string `toml:"name"`     // Display name
+	Type     string `toml:"type"` // "qbittorrent" or "transmission"
+	ID       string `toml:"id"`   // Unique identifier
+	Name     string `toml:"name"` // Display name
 	Host     string `toml:"host"`
 	Port     int    `toml:"port"`
 	Username string `toml:"username"`
@@ -128,10 +128,10 @@ func loadTheme(cfg *Config, configDir string) (*Theme, error) {
 
 	// Discover available themes
 	AvailableThemes = DiscoverThemes(configDir)
-	
+
 	// Pre-load colors for omarchy and custom themes
 	cfg.LoadedColors = make(map[string]map[string]string)
-	
+
 	// Load omarchy colors if it exists
 	home, err := os.UserHomeDir()
 	if err == nil {
@@ -140,7 +140,7 @@ func loadTheme(cfg *Config, configDir string) (*Theme, error) {
 			cfg.LoadedColors["omarchy"] = colors
 		}
 	}
-	
+
 	// Load custom colors if it exists
 	customPath := filepath.Join(configDir, "colors.toml")
 	if colors, err := loadColorsFile(customPath); err == nil {
@@ -170,21 +170,21 @@ func loadTheme(cfg *Config, configDir string) (*Theme, error) {
 		}
 	}
 
-	switch {
-	case scheme == "dark":
+	switch scheme {
+	case "dark":
 		return DefaultTheme(), nil
-	case scheme == "light":
+	case "light":
 		return DefaultTheme(), nil // Will need to get this from tui package
-	case scheme == "highcontrast":
+	case "highcontrast":
 		return DefaultTheme(), nil // Will need to get this from tui package
-	case scheme == "omarchy":
+	case "omarchy":
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get home directory: %w", err)
 		}
 		omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
 		return loadColorsToml(omarchyPath)
-	case scheme == "custom":
+	case "custom":
 		customPath := filepath.Join(configDir, "colors.toml")
 		return loadColorsToml(customPath)
 	default:

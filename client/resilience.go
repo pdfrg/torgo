@@ -40,20 +40,20 @@ func DefaultResilienceConfig() ResilienceConfig {
 
 // ResilientAdapter wraps a ClientAdapter with retry logic and health checks
 type ResilientAdapter struct {
-	adapter    ClientAdapter
-	config     ResilienceConfig
-	lastError  error
-	isHealthy  bool
-	lastCheck  time.Time
+	adapter   ClientAdapter
+	config    ResilienceConfig
+	lastError error
+	isHealthy bool
+	lastCheck time.Time
 }
 
 // NewResilientAdapter creates a new resilient adapter
 func NewResilientAdapter(adapter ClientAdapter, config ResilienceConfig) *ResilientAdapter {
 	return &ResilientAdapter{
-		adapter:    adapter,
-		config:     config,
-		isHealthy:  true,
-		lastCheck:  time.Time{}, // Zero time means never checked
+		adapter:   adapter,
+		config:    config,
+		isHealthy: true,
+		lastCheck: time.Time{}, // Zero time means never checked
 	}
 }
 
@@ -74,8 +74,7 @@ func IsRetryableError(err error) bool {
 	// Network-level errors that are retryable
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		// Timeout and temporary errors are retryable
-		if netErr.Timeout() || netErr.Temporary() {
+		if netErr.Timeout() {
 			return true
 		}
 	}
@@ -342,6 +341,96 @@ func (r *ResilientAdapter) GetSpeedLimits(ctx context.Context) (int, int, error)
 		return err
 	})
 	return downKBs, upKBs, err
+}
+
+func (r *ResilientAdapter) GetTorrentDetail(ctx context.Context, id string) (*TorrentDetail, error) {
+	var result *TorrentDetail
+	err := r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		detail, err := r.adapter.GetTorrentDetail(opCtx, id)
+		if err == nil {
+			result = detail
+		}
+		return err
+	})
+	return result, err
+}
+
+func (r *ResilientAdapter) GetTorrentFiles(ctx context.Context, id string) ([]TorrentFile, error) {
+	var result []TorrentFile
+	err := r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		files, err := r.adapter.GetTorrentFiles(opCtx, id)
+		if err == nil {
+			result = files
+		}
+		return err
+	})
+	return result, err
+}
+
+func (r *ResilientAdapter) SetTorrentName(ctx context.Context, id string, newName string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.SetTorrentName(opCtx, id, newName)
+	})
+}
+
+func (r *ResilientAdapter) SetCategory(ctx context.Context, id string, category string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.SetCategory(opCtx, id, category)
+	})
+}
+
+func (r *ResilientAdapter) SetTags(ctx context.Context, id string, tags []string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.SetTags(opCtx, id, tags)
+	})
+}
+
+func (r *ResilientAdapter) SetSavePath(ctx context.Context, id string, path string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.SetSavePath(opCtx, id, path)
+	})
+}
+
+func (r *ResilientAdapter) SetFilePriorities(ctx context.Context, id string, fileIndices []int) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.SetFilePriorities(opCtx, id, fileIndices)
+	})
+}
+
+func (r *ResilientAdapter) SetLabels(ctx context.Context, id string, labels []string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.SetLabels(opCtx, id, labels)
+	})
+}
+
+func (r *ResilientAdapter) RecheckTorrent(ctx context.Context, id string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.RecheckTorrent(opCtx, id)
+	})
+}
+
+func (r *ResilientAdapter) ReannounceTorrent(ctx context.Context, id string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.ReannounceTorrent(opCtx, id)
+	})
+}
+
+func (r *ResilientAdapter) GetMagnetURI(ctx context.Context, id string) (string, error) {
+	var result string
+	err := r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		uri, err := r.adapter.GetMagnetURI(opCtx, id)
+		if err == nil {
+			result = uri
+		}
+		return err
+	})
+	return result, err
+}
+
+func (r *ResilientAdapter) SetQueuePriority(ctx context.Context, id string, action string) error {
+	return r.RetryWithBackoff(ctx, func(opCtx context.Context) error {
+		return r.adapter.SetQueuePriority(opCtx, id, action)
+	})
 }
 
 // LastError returns the last error that occurred

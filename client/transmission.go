@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strconv"
@@ -27,24 +28,24 @@ type TransmissionAdapter struct {
 
 // trTorrent represents a Transmission torrent
 type trTorrent struct {
-	ID              int64   `json:"id"`
-	Name            string  `json:"name"`
-	PercentDone     float64 `json:"percentDone"` // 0-1
-	RateDownload    float64 `json:"rateDownload"`
-	RateUpload      float64 `json:"rateUpload"`
-	Status          int     `json:"status"` // 0=stopped, 1=check waiting, 2=checking, 3=downloading, 4=seeding, 5=seed waiting, 6=stopped
-	PeersSendingToUs int     `json:"peersSendingToUs"`
-	PeersGettingFromUs int  `json:"peersGettingFromUs"`
-	TotalSize       int64   `json:"totalSize"`
-	DownloadedEver  int64   `json:"downloadedEver"`
-	UploadedEver    int64   `json:"uploadedEver"`
-	Hash            string  `json:"hashString"`
-	DownloadDir     string  `json:"downloadDir"`
-	Labels          []string `json:"labels"`
-	Comment         string  `json:"comment"`
-	Files           []trFile `json:"files"`
-	FileStats       []trFileStat `json:"fileStats"`
-	ETA             int64   `json:"eta"` // seconds (-1=unknown, -2=unknown, others=seconds)
+	ID                 int64        `json:"id"`
+	Name               string       `json:"name"`
+	PercentDone        float64      `json:"percentDone"` // 0-1
+	RateDownload       float64      `json:"rateDownload"`
+	RateUpload         float64      `json:"rateUpload"`
+	Status             int          `json:"status"` // 0=stopped, 1=check waiting, 2=checking, 3=downloading, 4=seeding, 5=seed waiting, 6=stopped
+	PeersSendingToUs   int          `json:"peersSendingToUs"`
+	PeersGettingFromUs int          `json:"peersGettingFromUs"`
+	TotalSize          int64        `json:"totalSize"`
+	DownloadedEver     int64        `json:"downloadedEver"`
+	UploadedEver       int64        `json:"uploadedEver"`
+	Hash               string       `json:"hashString"`
+	DownloadDir        string       `json:"downloadDir"`
+	Labels             []string     `json:"labels"`
+	Comment            string       `json:"comment"`
+	Files              []trFile     `json:"files"`
+	FileStats          []trFileStat `json:"fileStats"`
+	ETA                int64        `json:"eta"` // seconds (-1=unknown, -2=unknown, others=seconds)
 }
 
 // trFile represents a file in a Transmission torrent
@@ -55,9 +56,9 @@ type trFile struct {
 
 // trFileStat represents the stats for a file in a Transmission torrent
 type trFileStat struct {
-	BytesCompleted int64  `json:"bytesCompleted"`
-	Wanted         bool   `json:"wanted"`
-	Priority       int    `json:"priority"` // -1=low, 0=normal, 1=high
+	BytesCompleted int64 `json:"bytesCompleted"`
+	Wanted         bool  `json:"wanted"`
+	Priority       int   `json:"priority"` // -1=low, 0=normal, 1=high
 }
 
 // trResponse is the wrapper for Transmission RPC responses
@@ -383,7 +384,7 @@ func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
 	if len(tr.Labels) > 0 {
 		category = tr.Labels[0]
 	}
-	
+
 	return Torrent{
 		ID:         strconv.FormatInt(tr.ID, 10),
 		Name:       tr.Name,
@@ -542,14 +543,14 @@ func (ta *TransmissionAdapter) GetTorrentDetail(ctx context.Context, id string) 
 	}
 
 	return &TorrentDetail{
-		ID:          strconv.FormatInt(tr.ID, 10),
-		Name:        tr.Name,
-		Category:    category,
-		Tags:        tr.Labels, // In Transmission, labels are used like tags
-		Comments:    tr.Comment,
-		SavePath:    tr.DownloadDir,
-		TotalSize:   tr.TotalSize,
-		Downloaded:  tr.DownloadedEver,
+		ID:         strconv.FormatInt(tr.ID, 10),
+		Name:       tr.Name,
+		Category:   category,
+		Tags:       tr.Labels, // In Transmission, labels are used like tags
+		Comments:   tr.Comment,
+		SavePath:   tr.DownloadDir,
+		TotalSize:  tr.TotalSize,
+		Downloaded: tr.DownloadedEver,
 	}, nil
 }
 
@@ -699,12 +700,12 @@ func (ta *TransmissionAdapter) SetFilePriorities(ctx context.Context, id string,
 	for _, idx := range fileIndices {
 		wantedSet[idx] = true
 	}
-	
+
 	// Build wanted and unwanted arrays for all file indices
 	// We need to figure out the file count from the torrent
 	// For now, we'll build both arrays dynamically
 	var wantedArr, unwantedArr []int
-	
+
 	// We need to get the file count first
 	payload := fmt.Sprintf(`{
 		"method":"torrent-get",
@@ -713,19 +714,19 @@ func (ta *TransmissionAdapter) SetFilePriorities(ctx context.Context, id string,
 			"fields":["files"]
 		}
 	}`, id)
-	
+
 	resp, err := ta.sendRPC(ctx, payload)
 	if err != nil {
 		return fmt.Errorf("failed to get file count: %w", err)
 	}
-	
+
 	if len(resp.Arguments.Torrents) == 0 {
 		return fmt.Errorf("torrent not found")
 	}
-	
+
 	torrent := resp.Arguments.Torrents[0]
 	fileCount := len(torrent.Files)
-	
+
 	// Build wanted and unwanted arrays
 	for i := 0; i < fileCount; i++ {
 		if wantedSet[i] {
@@ -734,11 +735,11 @@ func (ta *TransmissionAdapter) SetFilePriorities(ctx context.Context, id string,
 			unwantedArr = append(unwantedArr, i)
 		}
 	}
-	
+
 	// Marshal arrays to JSON
 	wantedJSON, _ := json.Marshal(wantedArr)
 	unwantedJSON, _ := json.Marshal(unwantedArr)
-	
+
 	// Build the set payload
 	payload = fmt.Sprintf(`{
 		"method":"torrent-set",
@@ -748,24 +749,76 @@ func (ta *TransmissionAdapter) SetFilePriorities(ctx context.Context, id string,
 			"files-unwanted":%s
 		}
 	}`, id, string(wantedJSON), string(unwantedJSON))
-	
+
 	setResp, err := ta.sendRPC(ctx, payload)
 	if err != nil {
 		return fmt.Errorf("failed to set file priorities: %w", err)
 	}
-	
+
 	if setResp.Result != "success" {
 		return fmt.Errorf("set file priorities failed: %s", setResp.Result)
 	}
-	
+
 	return nil
+}
+
+// RecheckTorrent forces a hash recheck of a torrent
+func (ta *TransmissionAdapter) RecheckTorrent(ctx context.Context, id string) error {
+	return ta.torrentAction(ctx, "torrent-verify", id)
+}
+
+// ReannounceTorrent forces a tracker reannounce for a torrent
+func (ta *TransmissionAdapter) ReannounceTorrent(ctx context.Context, id string) error {
+	return ta.torrentAction(ctx, "torrent-reannounce", id)
+}
+
+// GetMagnetURI returns the magnet URI for a torrent
+func (ta *TransmissionAdapter) GetMagnetURI(ctx context.Context, id string) (string, error) {
+	payload := fmt.Sprintf(`{
+		"method":"torrent-get",
+		"arguments":{
+			"ids":[%s],
+			"fields":["hashString","name"]
+		}
+	}`, id)
+
+	resp, err := ta.sendRPC(ctx, payload)
+	if err != nil {
+		return "", fmt.Errorf("torrent-get failed: %w", err)
+	}
+
+	if len(resp.Arguments.Torrents) == 0 {
+		return "", fmt.Errorf("torrent not found")
+	}
+
+	tr := resp.Arguments.Torrents[0]
+	magnetURI := fmt.Sprintf("magnet:?xt=urn:btih:%s&dn=%s", tr.Hash, url.QueryEscape(tr.Name))
+	return magnetURI, nil
+}
+
+// SetQueuePriority changes the queue position of a torrent
+func (ta *TransmissionAdapter) SetQueuePriority(ctx context.Context, id string, action string) error {
+	var method string
+	switch action {
+	case "top":
+		method = "queue-move-top"
+	case "bottom":
+		method = "queue-move-bottom"
+	case "up":
+		method = "queue-move-up"
+	case "down":
+		method = "queue-move-down"
+	default:
+		return fmt.Errorf("invalid queue priority action: %s", action)
+	}
+	return ta.torrentAction(ctx, method, id)
 }
 
 // SetLabels updates labels for a Transmission torrent
 func (ta *TransmissionAdapter) SetLabels(ctx context.Context, id string, labels []string) error {
 	// Marshal labels array to JSON
 	labelsJSON, _ := json.Marshal(labels)
-	
+
 	payload := fmt.Sprintf(`{
 		"method":"torrent-set",
 		"arguments":{
@@ -773,15 +826,15 @@ func (ta *TransmissionAdapter) SetLabels(ctx context.Context, id string, labels 
 			"labels":%s
 		}
 	}`, id, string(labelsJSON))
-	
+
 	resp, err := ta.sendRPC(ctx, payload)
 	if err != nil {
 		return fmt.Errorf("failed to set labels: %w", err)
 	}
-	
+
 	if resp.Result != "success" {
 		return fmt.Errorf("set labels failed: %s", resp.Result)
 	}
-	
+
 	return nil
 }

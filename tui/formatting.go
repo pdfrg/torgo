@@ -8,25 +8,39 @@ import (
 
 // FormatBytes converts bytes to human-readable format (B, KB, MB, GB, TB)
 func FormatBytes(bytes int64) string {
-	if bytes == 0 {
-		return "0 B"
-	}
-
 	const unit = 1024
-	units := []string{"B", "KB", "MB", "GB", "TB", "PB"}
-	size := float64(bytes)
-
-	for _, unitName := range units {
-		if size < 1024.0 {
-			if unitName == "B" {
-				return fmt.Sprintf("%d %s", int64(size), unitName)
-			}
-			return fmt.Sprintf("%.1f %s", size, unitName)
-		}
-		size /= unit
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
 	}
 
-	return fmt.Sprintf("%.1f PB", size)
+	exp := 0
+	div := int64(1)
+	for b := bytes; b >= unit; b /= unit {
+		div *= unit
+		exp++
+		if exp >= 4 {
+			break
+		}
+	}
+
+	value := float64(bytes) / float64(div)
+
+	switch exp {
+	case 1:
+		return fmt.Sprintf("%.1f KB", value)
+	case 2:
+		if value >= 100 {
+			return fmt.Sprintf("%.0f MB", value)
+		}
+		return fmt.Sprintf("%.1f MB", value)
+	case 3:
+		if value >= 10 {
+			return fmt.Sprintf("%.1f GB", value)
+		}
+		return fmt.Sprintf("%.2f GB", value)
+	default:
+		return fmt.Sprintf("%.2f TB", value)
+	}
 }
 
 // FormatSpeed converts bytes/sec to human-readable speed (B/s, KB/s, MB/s, etc)

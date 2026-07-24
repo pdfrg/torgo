@@ -16,13 +16,13 @@ func DefaultCategoryMapping() CategoryMapping {
 	return CategoryMapping{
 		mappings: map[string]string{
 			// Movies (Radarr)
-			"movie":    "🎬",
-			"movies":   "🎬",
-			"film":     "🎬",
-			"films":    "🎬",
-			"cinema":   "🎬",
-			"feature":  "🎬",
-			"radarr":   "🎬",
+			"movie":   "🎬",
+			"movies":  "🎬",
+			"film":    "🎬",
+			"films":   "🎬",
+			"cinema":  "🎬",
+			"feature": "🎬",
+			"radarr":  "🎬",
 
 			// TV Shows (Sonarr)
 			"tv":       "📺",
@@ -43,9 +43,9 @@ func DefaultCategoryMapping() CategoryMapping {
 			"xxx":      "🔞",
 
 			// Comics (Mylar3)
-			"mylar":   "💥",
-			"comic":   "💥",
-			"comics":  "💥",
+			"mylar":  "💥",
+			"comic":  "💥",
+			"comics": "💥",
 
 			// Music & Audio (Lidarr)
 			"music":      "🎵",
@@ -61,26 +61,26 @@ func DefaultCategoryMapping() CategoryMapping {
 			"audiobooks": "📖",
 
 			// Software & Applications
-			"software":   "💻",
-			"app":        "💻",
-			"apps":       "💻",
-			"application": "💻",
+			"software":     "💻",
+			"app":          "💻",
+			"apps":         "💻",
+			"application":  "💻",
 			"applications": "💻",
-			"program":    "💻",
-			"programs":   "💻",
-			"tool":       "🔧",
-			"tools":      "🔧",
-			"utility":    "🔧",
-			"utilities":  "🔧",
+			"program":      "💻",
+			"programs":     "💻",
+			"tool":         "🔧",
+			"tools":        "🔧",
+			"utility":      "🔧",
+			"utilities":    "🔧",
 
 			// Games
-			"game":       "👾",
-			"games":      "👾",
-			"gaming":     "👾",
+			"game":        "👾",
+			"games":       "👾",
+			"gaming":      "👾",
 			"playstation": "👾",
-			"xbox":       "👾",
-			"nintendo":   "👾",
-			"pc game":    "👾",
+			"xbox":        "👾",
+			"nintendo":    "👾",
+			"pc game":     "👾",
 
 			// Books & Documents (Readarr)
 			"readarr":   "📚",
@@ -94,35 +94,35 @@ func DefaultCategoryMapping() CategoryMapping {
 			"text":      "📄",
 
 			// Images & Photos
-			"photo":     "📷",
-			"photos":    "📷",
-			"image":     "📷",
-			"images":    "📷",
-			"picture":   "📷",
-			"pictures":  "📷",
-			"wallpaper": "📷",
+			"photo":      "📷",
+			"photos":     "📷",
+			"image":      "📷",
+			"images":     "📷",
+			"picture":    "📷",
+			"pictures":   "📷",
+			"wallpaper":  "📷",
 			"wallpapers": "📷",
 
 			// Video (non-movie)
-			"video":    "🎥",
-			"videos":   "🎥",
-			"tutorial": "🎥",
+			"video":     "🎥",
+			"videos":    "🎥",
+			"tutorial":  "🎥",
 			"tutorials": "🎥",
-			"stream":   "🎥",
+			"stream":    "🎥",
 
 			// Operating Systems
-			"linux":     "🐧",
-			"ubuntu":    "🐧",
-			"debian":    "🐧",
-			"fedora":    "🐧",
-			"arch":      "🐧",
-			"centos":    "🐧",
-			"windows":   "🪟",
-			"macos":     "🍎",
-			"osx":       "🍎",
-			"iso":       "💿",
-			"distro":    "🐧",
-			"distros":   "🐧",
+			"linux":   "🐧",
+			"ubuntu":  "🐧",
+			"debian":  "🐧",
+			"fedora":  "🐧",
+			"arch":    "🐧",
+			"centos":  "🐧",
+			"windows": "🪟",
+			"macos":   "🍎",
+			"osx":     "🍎",
+			"iso":     "💿",
+			"distro":  "🐧",
+			"distros": "🐧",
 
 			// Development
 			"development": "💾",
@@ -152,8 +152,8 @@ func DefaultCategoryMapping() CategoryMapping {
 			"university": "🎓",
 
 			// Anime & Manga
-			"anime":  "🌸",
-			"manga":  "📖",
+			"anime":   "🌸",
+			"manga":   "📖",
 			"donghua": "🌸",
 			"manhua":  "📖",
 			"cartoon": "🎬",
@@ -173,11 +173,11 @@ func DefaultCategoryMapping() CategoryMapping {
 			"rugby":      "⚽",
 
 			// Fitness & Health
-			"fitness":  "💪",
-			"workout":  "💪",
-			"health":   "⚕️",
-			"medical":  "⚕️",
-			"yoga":     "🧘",
+			"fitness": "💪",
+			"workout": "💪",
+			"health":  "⚕️",
+			"medical": "⚕️",
+			"yoga":    "🧘",
 
 			// Nature & Animals
 			"nature":   "🌿",
@@ -187,14 +187,14 @@ func DefaultCategoryMapping() CategoryMapping {
 			"pets":     "🐾",
 
 			// Travel
-			"travel":    "✈️",
-			"tourism":   "✈️",
+			"travel":      "✈️",
+			"tourism":     "✈️",
 			"destination": "🗺️",
-			"guide":     "🗺️",
+			"guide":       "🗺️",
 
 			// News & Media
-			"news":         "📰",
-			"documentary":  "📺",
+			"news":        "📰",
+			"documentary": "📺",
 
 			// Art & Design
 			"art":       "🎨",

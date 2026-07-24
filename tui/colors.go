@@ -21,30 +21,30 @@ type Theme struct {
 	BgNormal color.Color
 	// Progress bar empty color
 	ProgressBarEmptyColor color.Color
-	
+
 	// Omarchy semantic colors
-	AccentColor     color.Color  // For titles, keys, highlights
-	CursorColor     color.Color  // For cursor indicator
-	ForegroundColor color.Color  // For variable text
-	
+	AccentColor     color.Color // For titles, keys, highlights
+	CursorColor     color.Color // For cursor indicator
+	ForegroundColor color.Color // For variable text
+
 	// Bar styling (derived)
-	StatusBarBg    color.Color
-	StatusBarFg    color.Color
+	StatusBarBg     color.Color
+	StatusBarFg     color.Color
 	StatusBarAccent color.Color
-	
+
 	// Hex string versions for convenient access (used by search bar, etc)
-	AccentColorHex string  // Hex version of AccentColor
-	BgNormalHex    string  // Hex version of BgNormal
-	
+	AccentColorHex string // Hex version of AccentColor
+	BgNormalHex    string // Hex version of BgNormal
+
 	// Detail view colors
-	DetailTabActiveBorder    color.Color  // Active tab border color (bright, stands out)
-	DetailTabInactiveBorder  color.Color  // Inactive tab border color (muted)
-	DetailLabelColor         color.Color  // Field labels and section headers
-	DetailCursorColor        color.Color  // Tree/list cursor indicator color
-	
+	DetailTabActiveBorder   color.Color // Active tab border color (bright, stands out)
+	DetailTabInactiveBorder color.Color // Inactive tab border color (muted)
+	DetailLabelColor        color.Color // Field labels and section headers
+	DetailCursorColor       color.Color // Tree/list cursor indicator color
+
 	// Oneline view solid status colors (not gradients)
-	StatusOnlineColors    map[string]color.Color  // Solid colors for oneline view by status
-	StatusOnlineColorsHex map[string]string       // Hex versions for luminance check
+	StatusOnlineColors    map[string]color.Color // Solid colors for oneline view by status
+	StatusOnlineColorsHex map[string]string      // Hex versions for luminance check
 }
 
 // DefaultTheme returns the default light-on-dark theme
@@ -86,27 +86,27 @@ func DefaultTheme() Theme {
 		TextError:             lipgloss.Color("#FF3333"), // Red
 		BgNormal:              lipgloss.Color("#1A1A1A"), // Very dark gray
 		ProgressBarEmptyColor: lipgloss.Color("#333333"), // Dark gray for empty progress bar
-		
+
 		// Semantic colors for dark theme
-		AccentColor:     lipgloss.Color("#00FF00"),  // Terminal green
-		CursorColor:     lipgloss.Color("214"),      // Orange
-		ForegroundColor: lipgloss.Color("#00d7d7"),   // Cyan
-		
+		AccentColor:     lipgloss.Color("#00FF00"), // Terminal green
+		CursorColor:     lipgloss.Color("214"),     // Orange
+		ForegroundColor: lipgloss.Color("#00d7d7"), // Cyan
+
 		// Bar styling
-		StatusBarBg:    lipgloss.Color("237"),   // Dark gray (darkened from 252)
-		StatusBarFg:    lipgloss.Color("252"),   // Light gray text
-		StatusBarAccent: lipgloss.Color("#00FF00"),  // Terminal green for keys
-		
+		StatusBarBg:     lipgloss.Color("237"),     // Dark gray (darkened from 252)
+		StatusBarFg:     lipgloss.Color("252"),     // Light gray text
+		StatusBarAccent: lipgloss.Color("#00FF00"), // Terminal green for keys
+
 		// Hex versions
-		AccentColorHex: "#00ff00",  // Terminal green
-		BgNormalHex:    "#1A1A1A",  // Very dark gray
-		
+		AccentColorHex: "#00ff00", // Terminal green
+		BgNormalHex:    "#1A1A1A", // Very dark gray
+
 		// Detail view colors for dark theme
-		DetailTabActiveBorder:   lipgloss.Color("#00FF00"),  // Terminal green - stands out
-		DetailTabInactiveBorder: lipgloss.Color("242"),      // Medium gray - muted
-		DetailLabelColor:        lipgloss.Color("#00FF00"),  // Terminal green - same as accent
-		DetailCursorColor:       lipgloss.Color("214"),      // Orange - matches cursor
-		
+		DetailTabActiveBorder:   lipgloss.Color("#00FF00"), // Terminal green - stands out
+		DetailTabInactiveBorder: lipgloss.Color("242"),     // Medium gray - muted
+		DetailLabelColor:        lipgloss.Color("#00FF00"), // Terminal green - same as accent
+		DetailCursorColor:       lipgloss.Color("214"),     // Orange - matches cursor
+
 		// Oneline view solid status colors (using gradient endpoints per revised planning)
 		StatusOnlineColors: map[string]color.Color{
 			"downloading": lipgloss.Color("#00D26A"), // Bright green (gradient[1])
@@ -174,27 +174,27 @@ func LightTheme() Theme {
 		TextError:             lipgloss.Color("#CC0000"), // Red
 		BgNormal:              lipgloss.Color("#C0C0C0"), // Medium light gray
 		ProgressBarEmptyColor: lipgloss.Color("#AAAAAA"), // Subtle darker than background
-		
+
 		// Semantic colors for light theme (no omarchy)
-		AccentColor:     lipgloss.Color("33"),   // Dark cyan
-		CursorColor:     lipgloss.Color("#00AA00"),  // Bright green
-		ForegroundColor: lipgloss.Color("#880088"),  // Dark magenta
-		
+		AccentColor:     lipgloss.Color("33"),      // Dark cyan
+		CursorColor:     lipgloss.Color("#00AA00"), // Bright green
+		ForegroundColor: lipgloss.Color("#880088"), // Dark magenta
+
 		// Bar styling for light theme
-		StatusBarBg:    lipgloss.Color("#A0A0A0"),   // Darker gray than background
-		StatusBarFg:    lipgloss.Color("16"),    // Black text
-		StatusBarAccent: lipgloss.Color("33"),   // Dark cyan for keys
-		
+		StatusBarBg:     lipgloss.Color("#A0A0A0"), // Darker gray than background
+		StatusBarFg:     lipgloss.Color("16"),      // Black text
+		StatusBarAccent: lipgloss.Color("33"),      // Dark cyan for keys
+
 		// Hex versions
-		AccentColorHex: "#0099aa",  // Dark cyan
-		BgNormalHex:    "#C0C0C0",  // Medium light gray
-		
+		AccentColorHex: "#0099aa", // Dark cyan
+		BgNormalHex:    "#C0C0C0", // Medium light gray
+
 		// Detail view colors for light theme
-		DetailTabActiveBorder:   lipgloss.Color("33"),   // Dark cyan - same as accent
-		DetailTabInactiveBorder: lipgloss.Color("245"),  // Light gray - muted
-		DetailLabelColor:        lipgloss.Color("33"),   // Dark cyan - same as accent
-		DetailCursorColor:       lipgloss.Color("#00AA00"),  // Bright green - matches cursor
-		
+		DetailTabActiveBorder:   lipgloss.Color("33"),      // Dark cyan - same as accent
+		DetailTabInactiveBorder: lipgloss.Color("245"),     // Light gray - muted
+		DetailLabelColor:        lipgloss.Color("33"),      // Dark cyan - same as accent
+		DetailCursorColor:       lipgloss.Color("#00AA00"), // Bright green - matches cursor
+
 		// Oneline view solid status colors for light theme
 		StatusOnlineColors: map[string]color.Color{
 			"downloading": lipgloss.Color("#0055CC"), // Dark blue (gradient[1])
@@ -257,27 +257,27 @@ func HighContrastTheme() Theme {
 		TextError:             lipgloss.Color("#FF0000"), // Bright red
 		BgNormal:              lipgloss.Color("#000000"), // Pure black
 		ProgressBarEmptyColor: lipgloss.Color("#333333"), // Dark gray for empty progress bar
-		
+
 		// Semantic colors for high contrast theme
-		AccentColor:     lipgloss.Color("226"),  // Bright yellow
-		CursorColor:     lipgloss.Color("51"),   // Bright cyan
-		ForegroundColor: lipgloss.Color("#00FF00"),  // Bright green
-		
+		AccentColor:     lipgloss.Color("226"),     // Bright yellow
+		CursorColor:     lipgloss.Color("51"),      // Bright cyan
+		ForegroundColor: lipgloss.Color("#00FF00"), // Bright green
+
 		// Bar styling for high contrast theme
-		StatusBarBg:    lipgloss.Color("0"),     // Black
-		StatusBarFg:    lipgloss.Color("255"),   // White text
-		StatusBarAccent: lipgloss.Color("226"),  // Bright yellow for keys
-		
+		StatusBarBg:     lipgloss.Color("0"),   // Black
+		StatusBarFg:     lipgloss.Color("255"), // White text
+		StatusBarAccent: lipgloss.Color("226"), // Bright yellow for keys
+
 		// Hex versions
-		AccentColorHex: "#ffff00",  // Bright yellow
-		BgNormalHex:    "#000000",  // Pure black
-		
+		AccentColorHex: "#ffff00", // Bright yellow
+		BgNormalHex:    "#000000", // Pure black
+
 		// Detail view colors for high contrast theme
-		DetailTabActiveBorder:   lipgloss.Color("226"),  // Bright yellow - stands out
-		DetailTabInactiveBorder: lipgloss.Color("8"),    // Bright black/gray - muted but visible
-		DetailLabelColor:        lipgloss.Color("226"),  // Bright yellow - same as accent
-		DetailCursorColor:       lipgloss.Color("51"),   // Bright cyan - matches cursor
-		
+		DetailTabActiveBorder:   lipgloss.Color("226"), // Bright yellow - stands out
+		DetailTabInactiveBorder: lipgloss.Color("8"),   // Bright black/gray - muted but visible
+		DetailLabelColor:        lipgloss.Color("226"), // Bright yellow - same as accent
+		DetailCursorColor:       lipgloss.Color("51"),  // Bright cyan - matches cursor
+
 		// Oneline view solid status colors for high contrast theme
 		StatusOnlineColors: map[string]color.Color{
 			"downloading": lipgloss.Color("#00FF00"), // Bright green (gradient[1])
@@ -333,30 +333,30 @@ func OmarchyTheme(colors map[string]string) Theme {
 	// SEMANTIC COLORS FROM OMARCHY
 	accentColor := colors["accent"]
 	if accentColor == "" {
-		accentColor = "#00d7ff"  // Fallback cyan
+		accentColor = "#00d7ff" // Fallback cyan
 	}
 	theme.AccentColor = lipgloss.Color(accentColor)
 	theme.AccentColorHex = accentColor
 
 	cursorColor := colors["cursor"]
 	if cursorColor == "" {
-		cursorColor = "#888888"  // Fallback gray
+		cursorColor = "#888888" // Fallback gray
 	}
 	theme.CursorColor = lipgloss.Color(cursorColor)
 
 	fgColor := colors["foreground"]
 	if fgColor == "" {
-		fgColor = "#888888"  // Fallback gray
+		fgColor = "#888888" // Fallback gray
 	}
 	theme.ForegroundColor = lipgloss.Color(fgColor)
 
 	// TEXT COLORS: Smart calculation (soft grays, not extreme)
 	if isColorDark(bg) {
-		theme.TextNormal = lipgloss.Color("#d0d0d0")  // Light gray (252-like)
-		theme.TextMuted = lipgloss.Color("#888888")   // Medium gray
+		theme.TextNormal = lipgloss.Color("#d0d0d0") // Light gray (252-like)
+		theme.TextMuted = lipgloss.Color("#888888")  // Medium gray
 	} else {
-		theme.TextNormal = lipgloss.Color("#333333")  // Dark gray (not pure black)
-		theme.TextMuted = lipgloss.Color("#666666")   // Medium gray
+		theme.TextNormal = lipgloss.Color("#333333") // Dark gray (not pure black)
+		theme.TextMuted = lipgloss.Color("#666666")  // Medium gray
 	}
 	theme.TextError = lipgloss.Color("#ff3333")
 
@@ -370,9 +370,9 @@ func OmarchyTheme(colors map[string]string) Theme {
 
 	// STATUS BAR TEXT: Smart calc from bar background
 	if isColorDark(statusBarBg) {
-		theme.StatusBarFg = lipgloss.Color("#d0d0d0")  // Light gray
+		theme.StatusBarFg = lipgloss.Color("#d0d0d0") // Light gray
 	} else {
-		theme.StatusBarFg = lipgloss.Color("#333333")  // Dark gray
+		theme.StatusBarFg = lipgloss.Color("#333333") // Dark gray
 	}
 
 	// STATUS BAR ACCENT: Use accent color
@@ -446,13 +446,13 @@ func OmarchyTheme(colors map[string]string) Theme {
 	// DETAIL VIEW COLORS
 	// Use accent color for active tabs (bright, stands out like search bar edit mode)
 	theme.DetailTabActiveBorder = theme.AccentColor
-	
+
 	// Use muted foreground for inactive tabs
 	theme.DetailTabInactiveBorder = theme.TextMuted
-	
+
 	// Use accent color for labels (matches search bar, draws attention)
 	theme.DetailLabelColor = theme.AccentColor
-	
+
 	// Use cursor color for tree/list cursor indicator
 	theme.DetailCursorColor = theme.CursorColor
 
@@ -461,27 +461,27 @@ func OmarchyTheme(colors map[string]string) Theme {
 	// Completed uses gradient[0] for distinction from seeding
 	// Passive states (paused, error, queueing, stalled) use gradient[0] (semantic color)
 	theme.StatusOnlineColors = map[string]color.Color{
-		"downloading": theme.StatusGradients["downloading"][1],  // Bright color4
-		"seeding":     theme.StatusGradients["seeding"][1],      // Bright color2
-		"paused":      theme.StatusGradients["paused"][0],       // color3
-		"completed":   theme.StatusGradients["completed"][0],    // Desaturated color2 (distinct from seeding)
-		"error":       theme.StatusGradients["error"][0],        // color1
-		"queueing":    theme.StatusGradients["queueing"][0],     // color5
-		"stalled":     theme.StatusGradients["stalled"][0],      // color6
-		"unknown":     theme.StatusGradients["unknown"][0],      // Dark gray
+		"downloading": theme.StatusGradients["downloading"][1], // Bright color4
+		"seeding":     theme.StatusGradients["seeding"][1],     // Bright color2
+		"paused":      theme.StatusGradients["paused"][0],      // color3
+		"completed":   theme.StatusGradients["completed"][0],   // Desaturated color2 (distinct from seeding)
+		"error":       theme.StatusGradients["error"][0],       // color1
+		"queueing":    theme.StatusGradients["queueing"][0],    // color5
+		"stalled":     theme.StatusGradients["stalled"][0],     // color6
+		"unknown":     theme.StatusGradients["unknown"][0],     // Dark gray
 	}
 
 	// Store hex versions for luminance calculation
 	// Map gradient endpoints back to original color strings
 	theme.StatusOnlineColorsHex = map[string]string{
-		"downloading": color4,                          // Bright color4
-		"seeding":     color2,                          // Bright color2
-		"paused":      color3,                          // color3
-		"completed":   color2Desat,                     // Desaturated color2 (distinct from seeding)
-		"error":       color1,                          // color1
-		"queueing":    color5,                          // color5
-		"stalled":     color6,                          // color6
-		"unknown":     "#606060",                       // Fallback gray
+		"downloading": color4,      // Bright color4
+		"seeding":     color2,      // Bright color2
+		"paused":      color3,      // color3
+		"completed":   color2Desat, // Desaturated color2 (distinct from seeding)
+		"error":       color1,      // color1
+		"queueing":    color5,      // color5
+		"stalled":     color6,      // color6
+		"unknown":     "#606060",   // Fallback gray
 	}
 
 	return theme

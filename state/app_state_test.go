@@ -9,8 +9,8 @@ import (
 func TestNewAppState(t *testing.T) {
 	cfg := &config.Config{
 		UI: config.UIConfig{
-			DefaultClient: "qbt-local",
-			ShowHints:     true,
+			DefaultClient:      "qbt-local",
+			ShowHints:          true,
 			DefaultColorScheme: "default",
 		},
 		Clients: []config.ClientConfig{
@@ -49,7 +49,7 @@ func TestNewAppState(t *testing.T) {
 	// Verify current client
 	current := as.CurrentClient()
 	if current == nil {
-		t.Errorf("Expected current client, got nil")
+		t.Fatalf("Expected current client, got nil")
 	}
 	if current.Type != "qbittorrent" {
 		t.Errorf("Expected current client type 'qbittorrent', got %s", current.Type)
@@ -71,8 +71,8 @@ func TestNewAppState(t *testing.T) {
 func TestSwitchClient(t *testing.T) {
 	cfg := &config.Config{
 		UI: config.UIConfig{
-			DefaultClient: "qbt-local",
-			ShowHints:     true,
+			DefaultClient:      "qbt-local",
+			ShowHints:          true,
 			DefaultColorScheme: "default",
 		},
 		Clients: []config.ClientConfig{
@@ -164,8 +164,8 @@ func TestCycleSort(t *testing.T) {
 func TestSpeedLimitInitialized(t *testing.T) {
 	cfg := &config.Config{
 		UI: config.UIConfig{
-			DefaultClient: "qbt-local",
-			ShowHints:     true,
+			DefaultClient:      "qbt-local",
+			ShowHints:          true,
 			DefaultColorScheme: "default",
 		},
 		Clients: []config.ClientConfig{

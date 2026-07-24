@@ -265,7 +265,7 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 	if availableForName < minNameWidth {
 		availableForName = minNameWidth
 	}
-	truncatedName := truncateString(torrent.Name, availableForName)
+	truncatedName := TruncateString(torrent.Name, availableForName)
 	styledName := textStyle.Render(truncatedName)
 
 	// Build the line
@@ -276,7 +276,7 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 
 	// Check visual width (ignores ANSI codes)
 	if lipgloss.Width(line) > width {
-		line = truncateString(line, width)
+		line = TruncateString(line, width)
 	}
 	return line
 }
@@ -286,7 +286,7 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 	// Indent to align with identity line text (add one more space)
 	indent := "      "
 	fixedBarWidth := 90 // Fixed width bar so all lines align
-	
+
 	// Build suffix with file sizes (progress bar renders its own percentage)
 	downloaded := FormatBytes(torrent.Downloaded)
 	total := FormatBytes(torrent.Size)
@@ -299,7 +299,7 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 	// Use visual width for calculations
 	indentLen := lipgloss.Width(indent)
 	suffixLen := lipgloss.Width(suffix)
-	
+
 	// Check if everything fits
 	totalNeeded := indentLen + fixedBarWidth + suffixLen
 	if totalNeeded > width {
@@ -310,7 +310,7 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 			styledSuffix = ""
 		} else if availableForSuffix < suffixLen {
 			// Truncate suffix
-			styledSuffix = textStyle.Render(truncateString(suffix, availableForSuffix))
+			styledSuffix = textStyle.Render(TruncateString(suffix, availableForSuffix))
 		}
 	}
 
@@ -327,14 +327,14 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 	indent := "      "
 	labelStyle := lipgloss.NewStyle().Foreground(m.theme.TextNormal)
 	metricsStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
-	
+
 	// Get category icon for its own column
 	categoryIcon := GetCategoryIcon(torrent.Category)
-	
+
 	statusLabel := m.formatStatus(string(torrent.Status))
 	downSpeed := FormatSpeed(int64(torrent.SpeedDown))
 	upSpeed := FormatSpeed(int64(torrent.SpeedUp))
-	
+
 	// Calculate ratio from uploaded/downloaded
 	var ratio float64
 	if torrent.Downloaded > 0 {
@@ -367,15 +367,15 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 		labelStyle.Render(paddedStatus),
 		labelStyle.Render("↓"), metricsStyle.Render(paddedDownSpeed),
 		labelStyle.Render("↑"), metricsStyle.Render(paddedUpSpeed),
-		labelStyle.Render("Ratio: ") + metricsStyle.Render(paddedRatio),
-		labelStyle.Render("Seeds: ") + metricsStyle.Render(paddedSeeds),
-		labelStyle.Render("Peers: ") + metricsStyle.Render(paddedPeers),
-		labelStyle.Render("ETA: ") + metricsStyle.Render(eta),
+		labelStyle.Render("Ratio: ")+metricsStyle.Render(paddedRatio),
+		labelStyle.Render("Seeds: ")+metricsStyle.Render(paddedSeeds),
+		labelStyle.Render("Peers: ")+metricsStyle.Render(paddedPeers),
+		labelStyle.Render("ETA: ")+metricsStyle.Render(eta),
 	)
 
 	// Check visual width (ignores ANSI codes)
 	if lipgloss.Width(line) > width {
-		return truncateString(line, width)
+		return TruncateString(line, width)
 	}
 	return line
 }
@@ -426,15 +426,4 @@ func (m *MultilineTorrentListView) calculateETA(torrent client.Torrent) string {
 	// ETA is in seconds from the API
 	duration := time.Duration(torrent.ETA) * time.Second
 	return FormatDuration(duration)
-}
-
-// truncateString truncates a string to maxLen characters
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return "…"
-	}
-	return s[:maxLen-1] + "…"
 }

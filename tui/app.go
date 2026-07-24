@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/atotto/clipboard"
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/atotto/clipboard"
 	"tqbtui/client"
 	"tqbtui/config"
 	"tqbtui/state"
@@ -28,34 +28,34 @@ func (i simpleItem) Description() string { return "" }
 
 // App is the main TUI application model
 type App struct {
-	state              *state.AppState
-	styles             *Styles
-	keys               KeyMap
-	list               *TorrentListView
-	multilineList      *MultilineTorrentListView  // Multiline view alternative
-	detailView         *DetailView         // Detail view for selected torrent
-	statusBar          *StatusBar
-	hintsBar           *HintsBar
-	width              int
-	height             int
-	showHints          bool
-	showHelp           bool
-	currentTheme       string        // "dark", "light", or "highcontrast"
-	viewMode           string        // "default" or "multiline"
-	screenMode         string        // "list" or "detail"
-	inputMode          string        // "", "add", "search"
-	torrentInput       textinput.Model
-	categoryList       list.Model
-	lastError          string
-	inputValidationErr string        // validation error for the add dialog
-	searchInput        textinput.Model
-	searchFilter       *SearchFilter
-	searchMode         bool          // true if in search mode
-	ctx                context.Context
-	cancel             context.CancelFunc
-	lastThemeModTime   time.Time     // Track theme file modification time for auto-reload
-	deleteConfirmTorrents []string   // IDs of torrents awaiting deletion confirmation
-	deleteConfirmWithData bool        // Whether to delete with data
+	state                 *state.AppState
+	styles                *Styles
+	keys                  KeyMap
+	list                  *TorrentListView
+	multilineList         *MultilineTorrentListView // Multiline view alternative
+	detailView            *DetailView               // Detail view for selected torrent
+	statusBar             *StatusBar
+	hintsBar              *HintsBar
+	width                 int
+	height                int
+	showHints             bool
+	showHelp              bool
+	currentTheme          string // "dark", "light", or "highcontrast"
+	viewMode              string // "default" or "multiline"
+	screenMode            string // "list" or "detail"
+	inputMode             string // "", "add", "search"
+	torrentInput          textinput.Model
+	categoryList          list.Model
+	lastError             string
+	inputValidationErr    string // validation error for the add dialog
+	searchInput           textinput.Model
+	searchFilter          *SearchFilter
+	searchMode            bool // true if in search mode
+	ctx                   context.Context
+	cancel                context.CancelFunc
+	lastThemeModTime      time.Time // Track theme file modification time for auto-reload
+	deleteConfirmTorrents []string  // IDs of torrents awaiting deletion confirmation
+	deleteConfirmWithData bool      // Whether to delete with data
 }
 
 // NewApp creates a new TUI application
@@ -68,7 +68,7 @@ func NewApp(appState *state.AppState) *App {
 	// Load the theme from config
 	var themeToUse Theme
 	var themeName string
-	
+
 	if appState.Config.Theme != nil && appState.Config.Theme.Colors != nil && len(appState.Config.Theme.Colors) > 0 {
 		// Build omarchy theme from config colors
 		themeToUse = OmarchyTheme(appState.Config.Theme.Colors)
@@ -78,7 +78,7 @@ func NewApp(appState *state.AppState) *App {
 		themeToUse = DefaultTheme()
 		themeName = "dark"
 	}
-	
+
 	// Set the theme globally
 	SetTheme(themeToUse)
 	styles.SyncFromTheme(themeToUse)
@@ -120,16 +120,16 @@ func NewApp(appState *state.AppState) *App {
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
 	delegate.SetHeight(1)
-	
+
 	// Apply theme-aware list styling (matches detail view category tab)
-	listStyles := list.NewDefaultItemStyles(true)  // dark theme defaults
+	listStyles := list.NewDefaultItemStyles(true) // dark theme defaults
 	selectedStyle := listStyles.SelectedTitle
 	selectedStyle = selectedStyle.
 		Foreground(CurrentTheme.ForegroundColor).
 		BorderLeftForeground(CurrentTheme.ForegroundColor)
 	listStyles.SelectedTitle = selectedStyle
 	delegate.Styles = listStyles
-	
+
 	categoryList := list.New([]list.Item{}, delegate, 0, 6)
 	categoryList.SetShowHelp(false)
 	categoryList.SetShowStatusBar(false)
@@ -143,26 +143,26 @@ func NewApp(appState *state.AppState) *App {
 	hintsBar.SetCurrentTheme(themeName)
 
 	app := &App{
-		state:          appState,
-		styles:         styles,
-		keys:           keys,
-		list:           NewTorrentListView(styles),
-		multilineList:  NewMultilineTorrentListView(styles),
-		detailView:     nil,
-		statusBar:      NewStatusBar(styles),
-		hintsBar:       hintsBar,
-		showHints:      appState.Config.UI.ShowHints,
-		showHelp:       false,
-		currentTheme:   themeName,
-		viewMode:       "multiline",
-		screenMode:     "list",
-		torrentInput:   ti,
-		categoryList:   categoryList,
-		searchInput:    si,
-		searchFilter:   searchFilter,
-		searchMode:     false,
-		ctx:            ctx,
-		cancel:         cancel,
+		state:         appState,
+		styles:        styles,
+		keys:          keys,
+		list:          NewTorrentListView(styles),
+		multilineList: NewMultilineTorrentListView(styles),
+		detailView:    nil,
+		statusBar:     NewStatusBar(styles),
+		hintsBar:      hintsBar,
+		showHints:     appState.Config.UI.ShowHints,
+		showHelp:      false,
+		currentTheme:  themeName,
+		viewMode:      "multiline",
+		screenMode:    "list",
+		torrentInput:  ti,
+		categoryList:  categoryList,
+		searchInput:   si,
+		searchFilter:  searchFilter,
+		searchMode:    false,
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 
 	return app
@@ -248,7 +248,7 @@ func (a *App) getSearchBoxBackground(theme Theme) string {
 	if bgStr == "" {
 		bgStr = "#000000"
 	}
-	
+
 	// Adjust by 0.25 for visibility (lighter if dark, darker if light)
 	if isColorDark(bgStr) {
 		return lightenColorHex(bgStr, 0.25)
@@ -262,7 +262,7 @@ func (a *App) getSearchBoxAccentBackground(theme Theme) string {
 	if theme.AccentColorHex != "" {
 		return theme.AccentColorHex
 	}
-	
+
 	// Fallback for built-in themes - use a bright cyan
 	return "#00d7ff"
 }
@@ -270,9 +270,9 @@ func (a *App) getSearchBoxAccentBackground(theme Theme) string {
 // getSearchBoxTextColor calculates text color for search box
 func (a *App) getSearchBoxTextColor(bgHex string) string {
 	if isColorDark(bgHex) {
-		return "#d0d0d0"  // Light gray on dark
+		return "#d0d0d0" // Light gray on dark
 	}
-	return "#333333"  // Dark gray on light
+	return "#333333" // Dark gray on light
 }
 
 // Update implements tea.Model
@@ -281,11 +281,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.screenMode == "detail" && a.detailView != nil {
 		// Update detail view and handle its commands
 		_ = a.detailView.Update(msg)
-		
+
 		// Check for specific keys that should be handled by app
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			k := keyMsg.String()
-			
+
 			// ESC exits detail view (unless already handled by detail view)
 			if k == "esc" && !a.detailView.State.HasChanges {
 				a.screenMode = "list"
@@ -296,14 +296,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.startSpeedLimitTicker(),
 				)
 			}
-			
+
 			// Enter/Return saves changes (from any tab with changes)
 			if k == "enter" || k == "return" {
 				// Check if files tab has file selection changes
 				hasFileChanges := a.detailView.FilesTab != nil && a.detailView.FilesTab.HasFileChanges()
 				// Check if we have field changes (compare current values against original)
 				hasFieldChanges := a.detailView.State.HasChanges
-				
+
 				// Save if we have any changes
 				if hasFileChanges || hasFieldChanges {
 					// Capture data before clearing detail view
@@ -320,7 +320,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-		
+
 		// Still in detail view, but pass through other messages (like ticks)
 		// so they can keep the ui responsive
 		return a, nil
@@ -365,7 +365,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		// Check if current theme file has been modified (for omarchy/custom auto-reload)
 		a.checkThemeFileChanges()
-		
+
 		// Refresh torrents and re-schedule the ticker
 		return a, tea.Batch(
 			a.refreshTorrents(),
@@ -400,7 +400,7 @@ func (a *App) View() tea.View {
 	// Calculate heights for layout
 	// Fixed overhead: title(1) + blank(1) = 2 lines (status and hints go at bottom separately)
 	headerHeight := 2
-	
+
 	// Search mode height (search status + blank line)
 	searchHeight := 0
 	if a.searchMode || (a.searchFilter != nil && a.searchFilter.IsActive()) {
@@ -446,28 +446,28 @@ func (a *App) View() tea.View {
 			query = a.searchFilter.GetQuery()
 			matches = a.searchFilter.GetMatchCount()
 		}
-		
+
 		// Create match count text with proper pluralization
 		matchText := "match"
 		if matches != 1 {
 			matchText = "matches"
 		}
-		
+
 		// Different visual style depending on mode
 		var searchStatus string
 		var searchStatusStyle lipgloss.Style
 		theme := CurrentTheme
-		
+
 		if a.searchMode {
 			// Actively editing search - use bright accent color for visibility
 			inputQuery := a.searchInput.Value()
 			searchStatus = fmt.Sprintf(" 🔍 SEARCH: %s  (%d %s)  [Enter to confirm, ESC to clear] ",
 				inputQuery, matches, matchText)
-			
+
 			// Use accent color for editing mode (bright, draws attention)
 			searchBg := a.getSearchBoxAccentBackground(theme)
 			searchText := a.getSearchBoxTextColor(searchBg)
-			
+
 			searchStatusStyle = lipgloss.NewStyle().
 				Background(lipgloss.Color(searchBg)).
 				Foreground(lipgloss.Color(searchText)).
@@ -477,17 +477,17 @@ func (a *App) View() tea.View {
 			// Search results active - use subtle adjusted background
 			searchStatus = fmt.Sprintf(" 🔍 %s (%d %s) — / to edit, ESC to clear ",
 				query, matches, matchText)
-			
+
 			// Use adjusted background for active mode (subtle, less prominent)
 			searchBg := a.getSearchBoxBackground(theme)
 			searchText := a.getSearchBoxTextColor(searchBg)
-			
+
 			searchStatusStyle = lipgloss.NewStyle().
 				Background(lipgloss.Color(searchBg)).
 				Foreground(lipgloss.Color(searchText)).
 				Padding(0, 1)
 		}
-		
+
 		// Ensure it renders to full width
 		lines = append(lines, searchStatusStyle.Width(a.width).Render(searchStatus))
 		lines = append(lines, "")
@@ -515,7 +515,7 @@ func (a *App) View() tea.View {
 		}
 	}
 	lines = append(lines, mainView)
-	
+
 	// Add spacing to push status/hints to bottom when in detail view
 	if a.screenMode == "detail" && a.detailView != nil {
 		// Calculate remaining height and fill with blank lines
@@ -544,7 +544,7 @@ func (a *App) View() tea.View {
 
 	// Build final output line by line to ensure title is at top
 	finalLines := lines
-	
+
 	// Add status and hints at the end
 	finalLines = append(finalLines, "")
 	finalLines = append(finalLines, statusBarOutput)
@@ -554,11 +554,11 @@ func (a *App) View() tea.View {
 
 	// Join all lines
 	output := strings.Join(finalLines, "\n")
-	
+
 	// Ensure output doesn't exceed terminal height
 	// We need to keep title at top and status/hints at bottom
 	outputLines := strings.Split(output, "\n")
-	
+
 	if len(outputLines) > a.height {
 		// Need to trim: keep title (2 lines) + status/hints (1-3 lines) + trim middle intelligently
 		// Count lines we need at bottom: blank + status + hints
@@ -566,17 +566,17 @@ func (a *App) View() tea.View {
 		if a.showHints {
 			bottomLinesNeeded += 1 // + hints
 		}
-		
+
 		// Keep title (2 lines) + middle content + bottom
 		maxMiddleLines := a.height - 2 - bottomLinesNeeded
 		if maxMiddleLines < 1 {
 			maxMiddleLines = 1
 		}
-		
+
 		// Middle content is everything between line 2 and the last bottomLinesNeeded lines
 		middleStart := 2
 		middleEnd := len(outputLines) - bottomLinesNeeded
-		
+
 		if middleEnd <= middleStart {
 			// Not enough space, show title and status only
 			outputLines = append(outputLines[:2], outputLines[len(outputLines)-bottomLinesNeeded:]...)
@@ -596,7 +596,7 @@ func (a *App) View() tea.View {
 		padding := a.height - len(outputLines)
 		outputLines = append(outputLines, make([]string, padding)...)
 	}
-	
+
 	output = strings.Join(outputLines, "\n")
 
 	// Overlay modals
@@ -665,13 +665,13 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 	contentLines = append(contentLines, "", hint)
 
 	content := strings.Join(contentLines, "\n")
-	
+
 	// Render dialog box with theme-aware border
 	dialogBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(CurrentTheme.AccentColor).
-		Width(dialogWidth - 2).
-		Height(dialogHeight - 2).
+		Width(dialogWidth-2).
+		Height(dialogHeight-2).
 		Padding(1, 2).
 		Render(content)
 
@@ -695,11 +695,11 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 			}
 		}
 	}
-	
+
 	// Build dialog content with theming
 	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor).Bold(true)
 	title := titleStyle.Render("Confirm Delete")
-	
+
 	accentStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
 	var action string
 	if a.deleteConfirmWithData {
@@ -707,12 +707,12 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 	} else {
 		action = accentStyle.Render("Delete (keep files)")
 	}
-	
+
 	contentLines := []string{
 		title,
 		"",
 	}
-	
+
 	// Show torrent names
 	if len(torrentNames) == 1 {
 		contentLines = append(contentLines, fmt.Sprintf("%s?", torrentNames[0]))
@@ -727,24 +727,24 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 			contentLines = append(contentLines, fmt.Sprintf("  ... and %d more", len(torrentNames)-5))
 		}
 	}
-	
+
 	contentLines = append(contentLines, "")
 	contentLines = append(contentLines, action)
 	contentLines = append(contentLines, "")
-	
+
 	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
 	contentLines = append(contentLines, hintStyle.Render("Press Y or Enter to confirm, ESC to cancel"))
-	
+
 	// Create dialog box with theme colors
 	content := strings.Join(contentLines, "\n")
-	
+
 	dialogBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(CurrentTheme.AccentColor).
 		Padding(1, 2).
 		Width(60).
 		Render(content)
-	
+
 	return lipgloss.Place(
 		a.width, a.height,
 		lipgloss.Center, lipgloss.Center,
@@ -763,8 +763,6 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	// Handle detail view specific keys
 	if a.screenMode == "detail" && a.detailView != nil {
-		// TODO: Implement proper key handling for new detail view architecture
-		// For now, ESC exits detail view
 		if k == "esc" {
 			a.screenMode = "list"
 			a.detailView = nil
@@ -943,7 +941,7 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Cycle through available themes
 		// Get the list of available themes from config
 		availableThemes := getAvailableThemesForCycling(a.state.Config)
-		
+
 		// Find current position in the list
 		currentIndex := -1
 		for i, theme := range availableThemes {
@@ -952,21 +950,21 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
-		
+
 		// Move to next theme (or wrap around)
 		nextIndex := (currentIndex + 1) % len(availableThemes)
 		nextThemeName := availableThemes[nextIndex]
-		
+
 		// Load and set the theme
 		nextTheme := loadThemeByName(nextThemeName, a.state.Config)
 		SetTheme(nextTheme)
 		a.styles.SyncFromTheme(nextTheme)
 		a.syncComponentStyles()
 		a.currentTheme = nextThemeName
-		
+
 		// Update hints bar to show new theme
 		a.hintsBar.SetCurrentTheme(nextThemeName)
-		
+
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Help):
@@ -1027,14 +1025,14 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if a.inputMode == "add" {
 			input := a.torrentInput.Value()
-			
+
 			// Validate before submitting
 			validationErr := IsValidForSubmit(input)
 			if validationErr != "" {
 				a.inputValidationErr = validationErr
 				return a, nil
 			}
-			
+
 			// Get selected category from list
 			var category string
 			if a.categoryList.Index() >= 0 && len(a.state.Categories) > 0 {
@@ -1135,7 +1133,7 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.searchFilter.SetQuery(query, a.state.FilteredTorrents())
 			a.list.SetTorrents(a.searchFilter.GetResults())
 			a.multilineList.SetTorrents(a.searchFilter.GetResults())
-			a.list.ClearSelection() // Clear selection when search changes
+			a.list.ClearSelection()          // Clear selection when search changes
 			a.multilineList.ClearSelection() // Clear selection in multiline view too
 			return a, cmd
 		}
@@ -1237,7 +1235,7 @@ func (a *App) resumeAll() tea.Cmd {
 func (a *App) getSelectedTorrents() []string {
 	var selected []string
 	var current *client.Torrent
-	
+
 	if a.viewMode == "multiline" {
 		selected = a.multilineList.GetSelected()
 		if len(selected) == 0 {
@@ -1249,7 +1247,7 @@ func (a *App) getSelectedTorrents() []string {
 			current = a.list.GetCurrentTorrent()
 		}
 	}
-	
+
 	if len(selected) == 0 && current != nil {
 		selected = []string{current.ID}
 	}
@@ -1382,7 +1380,7 @@ func (a *App) refreshCategories() tea.Cmd {
 		} else {
 			a.state.Categories = categories
 		}
-		
+
 		// Build category list items: "None" first, then actual categories
 		items := []list.Item{}
 		items = append(items, simpleItem("None"))
@@ -1391,7 +1389,7 @@ func (a *App) refreshCategories() tea.Cmd {
 		}
 		a.categoryList.SetItems(items)
 		a.categoryList.ResetSelected()
-		
+
 		return nil
 	}
 }
@@ -1521,7 +1519,7 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(CurrentTheme.AccentColor).
 		Foreground(CurrentTheme.ForegroundColor).
-		Width(dialogWidth - 2).
+		Width(dialogWidth-2).
 		Height(boxHeight).
 		Padding(1, 2).
 		Render(content)
@@ -1595,7 +1593,7 @@ func (a *App) saveTorrentChangesWithData(dv *DetailView) tea.Cmd {
 		// Check for location changes
 		newLocation := state.GetCurrentValue("location")
 		locationChanged := newLocation != state.OriginalValues["location"] && newLocation != ""
-		
+
 		if locationChanged {
 			if err := adapter.SetSavePath(a.ctx, torrentID, newLocation); err != nil {
 				return errorMsg{err: fmt.Errorf("failed to save location: %w", err)}
@@ -1615,7 +1613,7 @@ func (a *App) saveTorrentChangesWithData(dv *DetailView) tea.Cmd {
 		// Check for category changes (explicit)
 		newCategory := state.GetCurrentValue("category")
 		categoryChanged := newCategory != state.OriginalValues["category"]
-		
+
 		if categoryChanged && !locationChanged {
 			// Only set category if location wasn't already changed
 			if err := adapter.SetCategory(a.ctx, torrentID, newCategory); err != nil {
@@ -1655,12 +1653,6 @@ type savesCompleteMsg struct{}
 
 // detailViewOpenedMsg is sent when detail view opens to trigger immediate redraw
 type detailViewOpenedMsg struct{}
-
-// syncListViews synchronizes torrents to both single-line and multi-line views
-func (a *App) syncListViews(torrents []client.Torrent) {
-	a.list.SetTorrents(torrents)
-	a.multilineList.SetTorrents(torrents)
-}
 
 // checkThemeFileChanges checks if the current theme file has been modified and reloads if needed
 // Only checks for omarchy and custom themes that read from disk
@@ -1704,7 +1696,7 @@ func (a *App) checkThemeFileChanges() {
 	// If the file has been modified, reload the theme
 	if currentModTime.After(a.lastThemeModTime) {
 		a.lastThemeModTime = currentModTime
-		
+
 		// Reload the theme from disk
 		newTheme := loadThemeByName(a.currentTheme, a.state.Config)
 		SetTheme(newTheme)
@@ -1717,7 +1709,7 @@ func (a *App) checkThemeFileChanges() {
 func (a *App) Shutdown() {
 	a.cancel()
 	if a.state.CurrentClient() != nil {
-		a.state.CurrentClient().Adapter.Disconnect(context.Background())
+		_ = a.state.CurrentClient().Adapter.Disconnect(context.Background())
 	}
 }
 

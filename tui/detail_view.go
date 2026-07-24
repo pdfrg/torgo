@@ -28,8 +28,8 @@ type DetailViewState struct {
 	Styles *Styles
 
 	// Dimensions
-	Width  int
-	Height int
+	Width           int
+	Height          int
 	AvailableHeight int // Height available for tab content (accounting for header/footer overhead)
 }
 
@@ -123,16 +123,16 @@ func NewDetailViewWithHost(styles *Styles, detail *client.TorrentDetail, files [
 	filesTab := NewFilesTabModel(state, files)
 
 	return &DetailView{
-		CurrentTab: "info",
-		TabOrder:   []string{"info", "edit", "category", "files"},
-		Detail:     detail,
-		Files:      files,
-		Categories: categories,
-		State:      state,
-		InfoTab:    infoTab,
-		EditTab:    editTab,
+		CurrentTab:  "info",
+		TabOrder:    []string{"info", "edit", "category", "files"},
+		Detail:      detail,
+		Files:       files,
+		Categories:  categories,
+		State:       state,
+		InfoTab:     infoTab,
+		EditTab:     editTab,
 		CategoryTab: categoryTab,
-		FilesTab:   filesTab,
+		FilesTab:    filesTab,
 	}
 }
 
@@ -353,7 +353,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 
 	var content strings.Builder
 	content.WriteString("\n")
-	
+
 	// Name (always shows current edited value if changed)
 	content.WriteString(labelStyle.Render("Name:") + " ")
 	if name := state.GetCurrentValue("name"); name != m.detail.Name {
@@ -362,7 +362,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 		content.WriteString(valueStyle.Render(m.detail.Name))
 	}
 	content.WriteString("\n\n")
-	
+
 	// Category
 	content.WriteString(labelStyle.Render("Category:") + " ")
 	if category := state.GetCurrentValue("category"); category != m.detail.Category {
@@ -375,7 +375,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 		}
 	}
 	content.WriteString("\n\n")
-	
+
 	// Tags
 	content.WriteString(labelStyle.Render("Tags:") + " ")
 	originalTags := state.OriginalValues["tags"]
@@ -389,7 +389,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 		}
 	}
 	content.WriteString("\n\n")
-	
+
 	// Comments
 	content.WriteString(labelStyle.Render("Comments:") + " ")
 	if m.detail.Comments == "" {
@@ -398,21 +398,21 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 		content.WriteString(valueStyle.Render(m.detail.Comments))
 	}
 	content.WriteString("\n\n")
-	
+
 	// Size info and progress
-	content.WriteString(labelStyle.Render("Total Size:") + " " + valueStyle.Render(formatBytes(m.detail.TotalSize)) + "\n")
-	
+	content.WriteString(labelStyle.Render("Total Size:") + " " + valueStyle.Render(FormatBytes(m.detail.TotalSize)) + "\n")
+
 	// Calculate and show progress percentage
 	var progress int64
 	if m.detail.TotalSize > 0 {
 		progress = (m.detail.Downloaded * 100) / m.detail.TotalSize
 	}
-	downloaded := formatBytes(m.detail.Downloaded)
-	remaining := formatBytes(m.detail.TotalSize - m.detail.Downloaded)
-	
-	content.WriteString(labelStyle.Render("Progress:") + " " + valueStyle.Render(fmt.Sprintf("%d%%", progress)+" ("+downloaded+" / "+formatBytes(m.detail.TotalSize)+")") + "\n")
+	downloaded := FormatBytes(m.detail.Downloaded)
+	remaining := FormatBytes(m.detail.TotalSize - m.detail.Downloaded)
+
+	content.WriteString(labelStyle.Render("Progress:") + " " + valueStyle.Render(fmt.Sprintf("%d%%", progress)+" ("+downloaded+" / "+FormatBytes(m.detail.TotalSize)+")") + "\n")
 	content.WriteString(labelStyle.Render("Remaining:") + " " + valueStyle.Render(remaining) + "\n")
-	
+
 	// Save Path
 	content.WriteString("\n" + labelStyle.Render("Save Path:") + "\n")
 	if location := state.GetCurrentValue("location"); location != m.detail.SavePath {
@@ -421,12 +421,12 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	} else {
 		content.WriteString("  " + valueStyle.Render(m.detail.SavePath) + "\n")
 	}
-	
+
 	// Check for any changes (including file priority changes)
 	hasFieldChanges := state.HasChanges
 	hasFileChanges := filesTab != nil && filesTab.HasFileChanges()
 	hasAnyChanges := hasFieldChanges || hasFileChanges
-	
+
 	// Change indicator
 	if hasAnyChanges {
 		var changeMsg string
@@ -437,7 +437,7 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 		} else {
 			changeMsg = "✎ Changes detected (fields and files)"
 		}
-		
+
 		content.WriteString("\n" + lipgloss.NewStyle().
 			Foreground(CurrentTheme.TextError).
 			Bold(true).
@@ -448,47 +448,6 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	}
 
 	return content.String()
-}
-
-// formatBytes converts bytes to human-readable format
-func formatBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	
-	// Calculate exponent (1=KB, 2=MB, 3=GB, 4=TB, etc.)
-	exp := 0
-	div := int64(1)
-	for bytes := b; bytes >= unit; bytes /= unit {
-		div *= unit
-		exp++
-		if exp >= 4 {
-			// Cap at TB
-			break
-		}
-	}
-	
-	value := float64(b) / float64(div)
-	
-	switch exp {
-	case 1:
-		return fmt.Sprintf("%.1f KB", value)
-	case 2:
-		// Use integer format for MB if it's clean, otherwise .1f
-		if value >= 100 {
-			return fmt.Sprintf("%.0f MB", value)
-		}
-		return fmt.Sprintf("%.1f MB", value)
-	case 3:
-		// Use integer format for GB if it's clean
-		if value >= 10 {
-			return fmt.Sprintf("%.1f GB", value)
-		}
-		return fmt.Sprintf("%.2f GB", value)
-	default:
-		return fmt.Sprintf("%.2f TB", value)
-	}
 }
 
 // ==============================================================================
@@ -509,7 +468,7 @@ type EditTabModel struct {
 
 // subdirectoriesMsg is sent when subdirectories have been fetched
 type subdirectoriesMsg struct {
-	path          string
+	path           string
 	subdirectories []string
 }
 
@@ -580,8 +539,8 @@ func createStyledTextInput(placeholder, value string) textinput.Model {
 	ti := textinput.New()
 	ti.SetValue(value)
 	ti.Placeholder = placeholder
-	ti.SetWidth(60)  // Set width to accommodate placeholder text like "<no comment>"
-	
+	ti.SetWidth(60) // Set width to accommodate placeholder text like "<no comment>"
+
 	// Apply theme-aware styles to text input
 	styles := textinput.Styles{
 		Focused: textinput.StyleState{
@@ -601,7 +560,7 @@ func createStyledTextInput(placeholder, value string) textinput.Model {
 		},
 	}
 	ti.SetStyles(styles)
-	
+
 	return ti
 }
 
@@ -723,10 +682,10 @@ func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
 	return func() tea.Msg {
 		// Wait for debounce
 		time.Sleep(250 * time.Millisecond)
-		
+
 		// Fetch subdirectories
 		subdirs, _ := m.subdirHelper.FetchSubdirectories(path)
-		
+
 		return subdirectoriesMsg{
 			path:           path,
 			subdirectories: subdirs,
@@ -744,21 +703,21 @@ func (m *EditTabModel) View(state *DetailViewState) string {
 
 	var content strings.Builder
 	content.WriteString("\n")
-	
+
 	for i, field := range m.fields {
 		isFocused := i == m.focusIndex
-		
+
 		// Field label - always use consistent styling, no special focus appearance
 		label := labelStyle.Render(field.Label + ":")
-		
+
 		content.WriteString(label + "\n")
 		content.WriteString("  " + field.Input.View() + "\n")
-		
+
 		// Show original value as hint
 		if field.Original != "" && field.Input.Value() != field.Original {
 			content.WriteString("  " + hintStyle.Render("(originally: "+field.Original+")") + "\n")
 		}
-		
+
 		// Show subdirectory list for location field if active
 		if isFocused && i == 3 && m.showSubdirectories && len(m.currentSubdirectories) > 0 {
 			content.WriteString("\n  Available subdirectories:\n")
@@ -767,25 +726,25 @@ func (m *EditTabModel) View(state *DetailViewState) string {
 				prefix := "    • "
 				if isSelected {
 					prefix = "  > "
-					content.WriteString(selectedStyle.Render(prefix + subdir) + "\n")
+					content.WriteString(selectedStyle.Render(prefix+subdir) + "\n")
 				} else {
 					content.WriteString(prefix + subdir + "\n")
 				}
 			}
 			content.WriteString("  " + hintStyle.Render("(↑/↓ to select, Enter to choose, Esc to close)") + "\n")
 		}
-		
+
 		if i < len(m.fields)-1 {
 			content.WriteString("\n")
 		}
 	}
-	
+
 	hint := "↑/↓ or Tab/Shift+Tab to navigate  •  Enter to save  •  Esc to cancel"
 	if m.showSubdirectories && len(m.currentSubdirectories) > 0 {
 		hint = "↑/↓ to select subdirectory  •  Enter to choose  •  Esc to close"
 	}
 	content.WriteString("\n" + hintStyle.Render(hint) + "\n")
-	
+
 	return content.String()
 }
 
@@ -807,7 +766,7 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 	delegate := list.NewDefaultDelegate()
 	delegate.ShowDescription = false
 	delegate.SetHeight(1)
-	
+
 	// Customize list item styles with theme colors
 	styles := list.NewDefaultItemStyles(true)
 	// Normal (unselected) items use TextNormal
@@ -820,7 +779,7 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 		Foreground(CurrentTheme.ForegroundColor).
 		BorderLeftForeground(CurrentTheme.ForegroundColor)
 	styles.SelectedTitle = selectedStyle
-	
+
 	delegate.Styles = styles
 
 	// Width and height will be set dynamically in View based on available space
@@ -869,21 +828,21 @@ func (m *CategoryTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 func (m *CategoryTabModel) View(state *DetailViewState) string {
 	var content strings.Builder
 	content.WriteString("\n")
-	
+
 	labelStyle := lipgloss.NewStyle().
 		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
-	
+
 	content.WriteString(labelStyle.Render("Select a category:") + "\n\n")
-	
+
 	// Get list view with proper dimensions
 	listView := m.list.View()
 	content.WriteString(listView)
-	
+
 	content.WriteString("\n" + lipgloss.NewStyle().
 		Foreground(CurrentTheme.TextMuted).
 		Render("↑/↓ to navigate  •  Enter to select  •  Esc to cancel\n"))
-	
+
 	return content.String()
 }
 
@@ -892,30 +851,30 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 // ==============================================================================
 
 type FilesTabModel struct {
-	files          []client.TorrentFile
-	selectedFiles  map[int]bool // Track which file indices are selected for download
+	files           []client.TorrentFile
+	selectedFiles   map[int]bool    // Track which file indices are selected for download
 	expandedFolders map[string]bool // Track which folder paths are expanded
-	cursorIndex    int           // Currently focused item in flat tree view
-	flatTree       []*TreeItem   // Flattened tree view for navigation
-	viewportStart  int           // First visible item index
-	viewportHeight int           // Number of lines available for display
+	cursorIndex     int             // Currently focused item in flat tree view
+	flatTree        []*TreeItem     // Flattened tree view for navigation
+	viewportStart   int             // First visible item index
+	viewportHeight  int             // Number of lines available for display
 }
 
 // FileNode represents a file or folder in the tree
 type FileNode struct {
-	Index      int            // Original file index from TorrentFile (-1 for folders)
-	Name       string         // Display name (filename only, not full path)
-	Size       int64          // File size in bytes
-	Downloaded int64          // Bytes downloaded (0 for folders, calculated as sum of children)
-	IsFolder   bool           // Whether this is a folder/directory
-	Children   []*FileNode    // Child nodes if folder
-	Depth      int            // Indentation depth
-	Path       string         // Full path for folder (e.g. "dir/subdir")
+	Index      int         // Original file index from TorrentFile (-1 for folders)
+	Name       string      // Display name (filename only, not full path)
+	Size       int64       // File size in bytes
+	Downloaded int64       // Bytes downloaded (0 for folders, calculated as sum of children)
+	IsFolder   bool        // Whether this is a folder/directory
+	Children   []*FileNode // Child nodes if folder
+	Depth      int         // Indentation depth
+	Path       string      // Full path for folder (e.g. "dir/subdir")
 }
 
 // TreeItem represents an item visible in the flattened tree
 type TreeItem struct {
-	Node     *FileNode
+	Node       *FileNode
 	IsExpanded bool
 }
 
@@ -933,13 +892,13 @@ func NewFilesTabModel(state *DetailViewState, files []client.TorrentFile) *Files
 		expandedFolders: make(map[string]bool),
 		cursorIndex:     0,
 	}
-	
+
 	// Build and flatten the tree
 	model.rebuildTree()
-	
+
 	// Auto-expand single top-level folder if there's only one and it has <= 20 files
 	model.autoExpandSingleFolder()
-	
+
 	return model
 }
 
@@ -948,11 +907,11 @@ func (m *FilesTabModel) autoExpandSingleFolder() {
 	if len(m.files) == 0 {
 		return
 	}
-	
+
 	// Count top-level folders in the file tree
 	// We need to check the first level of the tree
 	root := m.buildFileTree()
-	
+
 	// Count folders and files at root level
 	folderCount := 0
 	var singleFolder *FileNode
@@ -962,7 +921,7 @@ func (m *FilesTabModel) autoExpandSingleFolder() {
 			singleFolder = child
 		}
 	}
-	
+
 	// If there's exactly one top-level folder with <= 20 files, auto-expand it
 	if folderCount == 1 && singleFolder != nil && countFilesInFolder(singleFolder) <= 20 {
 		m.expandedFolders[singleFolder.Path] = true
@@ -975,7 +934,7 @@ func countFilesInFolder(node *FileNode) int {
 	if !node.IsFolder {
 		return 1
 	}
-	
+
 	count := 0
 	for _, child := range node.Children {
 		count += countFilesInFolder(child)
@@ -989,13 +948,13 @@ func (m *FilesTabModel) rebuildTree() {
 		m.flatTree = []*TreeItem{}
 		return
 	}
-	
+
 	// Build tree structure
 	root := m.buildFileTree()
-	
+
 	// Calculate progress for all folders
 	root.calculateFolderProgress()
-	
+
 	// Flatten tree for navigation
 	m.flatTree = []*TreeItem{}
 	m.flattenTree(root, &m.flatTree)
@@ -1011,23 +970,23 @@ func (m *FilesTabModel) buildFileTree() *FileNode {
 		Depth:    0,
 		Path:     "",
 	}
-	
+
 	// Insert each file into tree
 	for _, file := range m.files {
 		parts := strings.Split(file.Name, "/")
-		
+
 		// Navigate/create path to file
 		current := root
 		var pathParts []string
-		
+
 		for i, part := range parts {
 			if part == "" {
 				continue
 			}
-			
+
 			pathParts = append(pathParts, part)
 			isLastPart := i == len(parts)-1
-			
+
 			if !isLastPart {
 				// This is a directory, find or create it
 				var found *FileNode
@@ -1065,10 +1024,10 @@ func (m *FilesTabModel) buildFileTree() *FileNode {
 			}
 		}
 	}
-	
+
 	// Sort all children at all levels
 	sortFileNodeChildren(root)
-	
+
 	return root
 }
 
@@ -1077,12 +1036,12 @@ func sortFileNodeChildren(node *FileNode) {
 	if !node.IsFolder {
 		return
 	}
-	
+
 	// Sort children using natural sort order
 	sort.Slice(node.Children, func(i, j int) bool {
 		return naturalSort(node.Children[i].Name, node.Children[j].Name)
 	})
-	
+
 	// Recursively sort children of folders
 	for _, child := range node.Children {
 		if child.IsFolder {
@@ -1097,18 +1056,18 @@ func naturalSort(a, b string) bool {
 	// Simple implementation: extract numeric sequences and compare them numerically
 	aRunes := []rune(a)
 	bRunes := []rune(b)
-	
+
 	aIdx, bIdx := 0, 0
-	
+
 	for aIdx < len(aRunes) && bIdx < len(bRunes) {
 		aIsDigit := isDigit(aRunes[aIdx])
 		bIsDigit := isDigit(bRunes[bIdx])
-		
+
 		if aIsDigit && bIsDigit {
 			// Both are numbers, parse and compare numerically
 			aNum, aNewIdx := parseNumber(aRunes, aIdx)
 			bNum, bNewIdx := parseNumber(bRunes, bIdx)
-			
+
 			if aNum != bNum {
 				return aNum < bNum
 			}
@@ -1123,7 +1082,7 @@ func naturalSort(a, b string) bool {
 			bIdx++
 		}
 	}
-	
+
 	// If all compared characters are equal, shorter string comes first
 	return len(aRunes) < len(bRunes)
 }
@@ -1160,17 +1119,17 @@ func (n *FileNode) calculateFolderProgress() (totalSize, totalDownloaded int64) 
 	if !n.IsFolder {
 		return n.Size, n.Downloaded
 	}
-	
+
 	for _, child := range n.Children {
 		childSize, childDownloaded := child.calculateFolderProgress()
 		totalSize += childSize
 		totalDownloaded += childDownloaded
 	}
-	
+
 	// Store the totals back in the folder node for display
 	n.Size = totalSize
 	n.Downloaded = totalDownloaded
-	
+
 	return totalSize, totalDownloaded
 }
 
@@ -1183,14 +1142,14 @@ func (m *FilesTabModel) flattenTree(node *FileNode, result *[]*TreeItem) {
 		}
 		return
 	}
-	
+
 	// Add current node
 	expanded := m.expandedFolders[node.Path]
 	*result = append(*result, &TreeItem{
 		Node:       node,
 		IsExpanded: expanded,
 	})
-	
+
 	// Add children if expanded (or if it's a file)
 	if !node.IsFolder || expanded {
 		for _, child := range node.Children {
@@ -1228,31 +1187,7 @@ func (m *FilesTabModel) HasFileChanges() bool {
 	return false
 }
 
-// toggleFolder toggles a folder's expansion state and all its files
-func (m *FilesTabModel) toggleFolder(folderPath string, node *FileNode) {
-	expanded := m.expandedFolders[folderPath]
-	m.expandedFolders[folderPath] = !expanded
-	
-	// If collapsing, deselect all files in folder
-	// If expanding, don't change selection (user may want to toggle files individually)
-	if expanded {
-		m.deselectFolder(node)
-	}
-	
-	// Rebuild the flattened tree
-	m.rebuildTree()
-}
 
-// deselectFolder recursively deselects all files in a folder
-func (m *FilesTabModel) deselectFolder(node *FileNode) {
-	for _, child := range node.Children {
-		if child.IsFolder {
-			m.deselectFolder(child)
-		} else {
-			m.selectedFiles[child.Index] = false
-		}
-	}
-}
 
 // selectFolder recursively selects all files in a folder
 func (m *FilesTabModel) selectFolder(node *FileNode, selected bool) {
@@ -1285,7 +1220,7 @@ func isFolderSelected(node *FileNode, selectedFiles map[int]bool) bool {
 func getFolderSelectionState(node *FileNode, selectedFiles map[int]bool) string {
 	var selectedCount, totalCount int
 	countFolderFiles(node, selectedFiles, &selectedCount, &totalCount)
-	
+
 	if totalCount == 0 {
 		return "none"
 	}
@@ -1315,7 +1250,7 @@ func countFolderFiles(node *FileNode, selectedFiles map[int]bool, selectedCount,
 // updateViewport adjusts viewport to ensure cursor is visible
 func (m *FilesTabModel) updateViewport(availableHeight int) {
 	m.viewportHeight = availableHeight
-	
+
 	// Ensure cursor is visible in viewport
 	if m.cursorIndex < m.viewportStart {
 		// Cursor moved above viewport
@@ -1324,12 +1259,12 @@ func (m *FilesTabModel) updateViewport(availableHeight int) {
 		// Cursor moved below viewport
 		m.viewportStart = m.cursorIndex - m.viewportHeight + 1
 	}
-	
+
 	// Ensure viewport doesn't show past the end
 	if m.viewportStart+m.viewportHeight > len(m.flatTree) {
 		m.viewportStart = len(m.flatTree) - m.viewportHeight
 	}
-	
+
 	// Never show negative viewport
 	if m.viewportStart < 0 {
 		m.viewportStart = 0
@@ -1392,17 +1327,17 @@ func (m *FilesTabModel) Update(msg tea.Msg, state *DetailViewState) tea.Cmd {
 func (m *FilesTabModel) View(state *DetailViewState) string {
 	var content strings.Builder
 	content.WriteString("\n")
-	
+
 	labelStyle := lipgloss.NewStyle().
 		Foreground(CurrentTheme.DetailLabelColor).
 		Bold(true)
-	
+
 	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
 	valueStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor)
-	
+
 	content.WriteString(labelStyle.Render("Files") + " " + valueStyle.Render("("+fmt.Sprintf("%d", len(m.files))+" total)") + "\n\n")
-	
+
 	hasPositionIndicator := false
 	if len(m.files) == 0 {
 		content.WriteString("No files in this torrent\n")
@@ -1414,7 +1349,7 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 		if availableHeight < 3 {
 			availableHeight = 3
 		}
-		
+
 		// Account for overhead:
 		// - Initial blank line + "Files (N total)" label + blank = 3 lines
 		// - Position indicator (when more files than viewport): blank + position text = 2 lines
@@ -1424,19 +1359,19 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 		if fileViewportHeight < 3 {
 			fileViewportHeight = 3
 		}
-		
+
 		// Update viewport to show cursor
 		m.updateViewport(fileViewportHeight)
-		
+
 		// Render only visible portion of tree
 		for i := m.viewportStart; i < m.viewportStart+m.viewportHeight && i < len(m.flatTree); i++ {
 			item := m.flatTree[i]
 			isCursor := i == m.cursorIndex
 			node := item.Node
-			
+
 			// Indentation
 			indent := strings.Repeat("  ", node.Depth)
-			
+
 			var line string
 			if node.IsFolder {
 				// Folder display with selection checkbox
@@ -1444,7 +1379,7 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 				if item.IsExpanded {
 					chevron = "▼"
 				}
-				
+
 				// Determine folder selection state
 				folderState := getFolderSelectionState(node, m.selectedFiles)
 				checkbox := "☐"
@@ -1453,9 +1388,9 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 				} else if folderState == "partial" {
 					checkbox = "◐"
 				}
-				
+
 				fileCount := len(node.Children)
-				folderSize := formatBytes(node.Size)
+				folderSize := FormatBytes(node.Size)
 				progress := node.getProgressPercent()
 				line = fmt.Sprintf("%s%s %s %s 📁 (%d items, %s, %d%%)", indent, chevron, checkbox, node.Name, fileCount, folderSize, progress)
 			} else {
@@ -1465,27 +1400,27 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 				if isSelected {
 					checkbox = "☑"
 				}
-				fileSize := formatBytes(node.Size)
+				fileSize := FormatBytes(node.Size)
 				progress := node.getProgressPercent()
 				line = fmt.Sprintf("%s%s %s (%s, %d%%)", indent, checkbox, node.Name, fileSize, progress)
 			}
-			
+
 			// Add cursor indicator
 			prefix := "  "
 			if isCursor {
 				prefix = "> "
 			}
-			
+
 			// Apply styling to the content (not including newline)
 			if isCursor {
 				line = selectedStyle.Render(prefix + line)
 			} else {
 				line = valueStyle.Render(prefix + line)
 			}
-			
+
 			content.WriteString(line + "\n")
 		}
-		
+
 		// Show position in list if there are more items than viewport
 		if len(m.flatTree) > m.viewportHeight {
 			end := m.viewportStart + m.viewportHeight
@@ -1497,13 +1432,13 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 			hasPositionIndicator = true
 		}
 	}
-	
+
 	// Main hints - don't add leading blank if position indicator already present
 	if hasPositionIndicator {
 		content.WriteString(hintStyle.Render("↑/↓ to navigate  •  ←/→ to collapse/expand  •  Space to toggle  •  Tab to return\n"))
 	} else {
 		content.WriteString("\n" + hintStyle.Render("↑/↓ to navigate  •  ←/→ to collapse/expand  •  Space to toggle  •  Tab to return\n"))
 	}
-	
+
 	return content.String()
 }

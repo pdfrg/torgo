@@ -1,14 +1,13 @@
 package tui
 
 import (
-	"charm.land/bubbles/v2/key"
 	"charm.land/lipgloss/v2"
 )
 
 // HintsBar displays keybinding hints
 type HintsBar struct {
-	styles      *Styles
-	keys        KeyMap
+	styles       *Styles
+	keys         KeyMap
 	currentTheme string
 }
 
@@ -86,7 +85,7 @@ func (h *HintsBar) Render(width int) string {
 		}
 	}
 	hintText := lipgloss.JoinHorizontal(lipgloss.Left, spacedParts...)
-	
+
 	// Add theme indicator at the end
 	themeAbbr := abbreviateThemeName(h.currentTheme)
 	themeHint := keyColor.Render("t") + descColor.Render(":theme ("+themeAbbr+")")
@@ -100,21 +99,4 @@ func (h *HintsBar) Render(width int) string {
 	return barStyle.Render(hintText)
 }
 
-// formatKeyHelp formats a single key binding with colored key
-func formatKeyHelp(binding key.Binding) string {
-	help := binding.Help()
-	if help.Key == "" || help.Desc == "" {
-		return ""
-	}
-	// Color the first character of key in bright cyan
-	keyColor := lipgloss.NewStyle().Foreground(lipgloss.Color("51")).Bold(true)
-	
-	var keyPart string
-	if len(help.Key) == 1 {
-		keyPart = keyColor.Render(help.Key)
-	} else {
-		keyPart = keyColor.Render(help.Key[:1]) + help.Key[1:]
-	}
-	
-	return keyPart + ":" + help.Desc
-}
+

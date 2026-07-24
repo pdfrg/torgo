@@ -11,7 +11,6 @@
 *.a
 *.so
 .DS_Store
-go.sum
 
 # IDE
 .vscode/
@@ -23,3 +22,7 @@ go.sum
 
 # Test prototypes and binaries
 /test_prototypes/
+
+# agent docs
+planning_docs/
+*.txt

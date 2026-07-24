@@ -53,13 +53,13 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 		totalDownSpeed += t.SpeedDown
 		totalUpSpeed += t.SpeedUp
 	}
-	
+
 	downSpeedStr := formatSpeedForBar(totalDownSpeed)
 	upSpeedStr := formatSpeedForBar(totalUpSpeed)
 	// Make speeds fixed width (9 chars each) to prevent text from jumping
 	downSpeedStr = fmt.Sprintf("%9s", downSpeedStr)
 	upSpeedStr = fmt.Sprintf("%9s", upSpeedStr)
-	
+
 	torrentCountInfo := fmt.Sprintf("%d/%d torrents",
 		len(filtered), len(appState.Torrents))
 	speedsInfo := fmt.Sprintf("↓%s ↑%s", downSpeedStr, upSpeedStr)
@@ -105,7 +105,7 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	leftWidth := lipgloss.Width(left)
 	rightWidth := lipgloss.Width(right)
 	paddingWidth := width - 2 - leftWidth - rightWidth // -2 for leading and trailing spaces
-	
+
 	// Build middle padding with background
 	middlePadding := defaultColor.Render("")
 	if paddingWidth > 0 {

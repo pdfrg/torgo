@@ -9,12 +9,12 @@ import (
 
 // MockAdapter is a test implementation of ClientAdapter
 type MockAdapter struct {
-	connectErr    error
-	listErr       error
-	callCount     int
-	failUntil     int // Fail first N calls, then succeed
-	isConnected   bool
-	torrents      []Torrent
+	connectErr  error
+	listErr     error
+	callCount   int
+	failUntil   int // Fail first N calls, then succeed
+	isConnected bool
+	torrents    []Torrent
 }
 
 func (m *MockAdapter) Connect(ctx context.Context) error {
@@ -118,6 +118,22 @@ func (m *MockAdapter) SetLabels(ctx context.Context, id string, labels []string)
 	return nil
 }
 
+func (m *MockAdapter) RecheckTorrent(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockAdapter) ReannounceTorrent(ctx context.Context, id string) error {
+	return nil
+}
+
+func (m *MockAdapter) GetMagnetURI(ctx context.Context, id string) (string, error) {
+	return "magnet:?xt=urn:btih:test", nil
+}
+
+func (m *MockAdapter) SetQueuePriority(ctx context.Context, id string, action string) error {
+	return nil
+}
+
 func TestIsRetryableError(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -153,9 +169,9 @@ func TestIsRetryableError(t *testing.T) {
 
 func TestIsAuthError(t *testing.T) {
 	tests := []struct {
-		name    string
-		err     error
-		isAuth  bool
+		name   string
+		err    error
+		isAuth bool
 	}{
 		{
 			name:   "nil error",

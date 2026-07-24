@@ -21,7 +21,7 @@ type KeyMap struct {
 	ResumeAll  key.Binding
 	Delete     key.Binding
 	DeleteData key.Binding
-	Details    key.Binding  // View torrent details
+	Details    key.Binding // View torrent details
 
 	// Torrent maintenance
 	Recheck     key.Binding
@@ -33,15 +33,15 @@ type KeyMap struct {
 	QueueBottom key.Binding
 
 	// Client & view
-	AddTorrent   key.Binding
-	SwitchClient key.Binding
-	Sort         key.Binding
-	Filter       key.Binding
-	ToggleView   key.Binding
-	ToggleTheme  key.Binding
-	ToggleHints  key.Binding
+	AddTorrent       key.Binding
+	SwitchClient     key.Binding
+	Sort             key.Binding
+	Filter           key.Binding
+	ToggleView       key.Binding
+	ToggleTheme      key.Binding
+	ToggleHints      key.Binding
 	ToggleSpeedLimit key.Binding
-	Search       key.Binding
+	Search           key.Binding
 
 	// General
 	Quit key.Binding

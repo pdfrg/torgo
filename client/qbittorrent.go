@@ -21,28 +21,29 @@ type QBittorrentAdapter struct {
 	password  string
 	connected bool
 	client    *http.Client
-	cookieJar http.CookieJar
+
 }
 
 // qbTorrent represents the qBittorrent API torrent response
 type qbTorrent struct {
-	Hash       string  `json:"hash"`
-	Name       string  `json:"name"`
-	Progress   float64 `json:"progress"`      // 0-1
-	DlSpeed    float64 `json:"dlspeed"`       // bytes/sec
-	UpSpeed    float64 `json:"upspeed"`       // bytes/sec
-	State      string  `json:"state"`         // uploading, downloading, etc.
-	NumSeeds   int     `json:"num_seeds"`
-	NumLeechs  int     `json:"num_leechs"`
-	TotalSize  int64   `json:"total_size"`
-	Downloaded int64   `json:"downloaded"`
-	Uploaded   int64   `json:"uploaded"`
-	Category   string  `json:"category"`
-	Tags       string  `json:"tags"`          // Comma-separated
-	Comment    string  `json:"comment"`
-	SavePath   string  `json:"save_path"`
-	ContentPath string `json:"content_path"`
-	ETA        int64   `json:"eta"`           // seconds (8640000 = infinite)
+	Hash        string  `json:"hash"`
+	Name        string  `json:"name"`
+	Progress    float64 `json:"progress"` // 0-1
+	DlSpeed     float64 `json:"dlspeed"`  // bytes/sec
+	UpSpeed     float64 `json:"upspeed"`  // bytes/sec
+	State       string  `json:"state"`    // uploading, downloading, etc.
+	NumSeeds    int     `json:"num_seeds"`
+	NumLeechs   int     `json:"num_leechs"`
+	TotalSize   int64   `json:"total_size"`
+	Downloaded  int64   `json:"downloaded"`
+	Uploaded    int64   `json:"uploaded"`
+	Category    string  `json:"category"`
+	Tags        string  `json:"tags"` // Comma-separated
+	Comment     string  `json:"comment"`
+	SavePath    string  `json:"save_path"`
+	ContentPath string  `json:"content_path"`
+	ETA         int64   `json:"eta"` // seconds (8640000 = infinite)
+	MagnetURI   string  `json:"magnet_uri"`
 }
 
 // qbFile represents a file in a torrent (from /api/v2/torrents/files)
@@ -85,9 +86,8 @@ func (qa *QBittorrentAdapter) Connect(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("login request failed: %w", err)
 	}
-	defer resp.Body.Close()
-
 	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("login failed: %s (status %d)", string(body), resp.StatusCode)
 	}
@@ -120,16 +120,18 @@ func (qa *QBittorrentAdapter) ListTorrents(ctx context.Context) ([]Torrent, erro
 	if err != nil {
 		return nil, fmt.Errorf("list request failed: %w", err)
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("list torrents failed: status %d", resp.StatusCode)
 	}
 
 	var qbTorrents []qbTorrent
 	if err := json.NewDecoder(resp.Body).Decode(&qbTorrents); err != nil {
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("failed to decode torrent list: %w", err)
 	}
+	_ = resp.Body.Close()
 
 	torrents := make([]Torrent, len(qbTorrents))
 	for i, qb := range qbTorrents {
@@ -181,7 +183,7 @@ func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, input string, cate
 		if err != nil {
 			return fmt.Errorf("add failed: %w", err)
 		}
-		defer resp.Body.Close()
+		resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("add failed: status %d", resp.StatusCode)
@@ -194,9 +196,8 @@ func (qa *QBittorrentAdapter) AddTorrent(ctx context.Context, input string, cate
 	if err != nil {
 		return fmt.Errorf("failed to open torrent file: %w", err)
 	}
-	defer file.Close()
-
 	fileBytes, err := io.ReadAll(file)
+	_ = file.Close()
 	if err != nil {
 		return fmt.Errorf("failed to read torrent file: %w", err)
 	}
@@ -256,7 +257,7 @@ func (qa *QBittorrentAdapter) GetCategories(ctx context.Context) ([]string, erro
 	for name := range result.Categories {
 		categories = append(categories, name)
 	}
-	
+
 	sort.Strings(categories)
 	return categories, nil
 }
@@ -286,7 +287,7 @@ func (qa *QBittorrentAdapter) pauseResume(ctx context.Context, action, hash stri
 	if action == "resume" {
 		endpoint = "start"
 	}
-	
+
 	actionURL := qa.getBaseURL() + fmt.Sprintf("/api/v2/torrents/%s", endpoint)
 	formData := url.Values{}
 	formData.Set("hashes", hash)
@@ -349,6 +350,7 @@ func (qa *QBittorrentAdapter) mapTorrent(qb qbTorrent) Torrent {
 		Uploaded:   qb.Uploaded,
 		Category:   qb.Category,
 		ETA:        qb.ETA,
+		MagnetURI:  qb.MagnetURI,
 	}
 }
 
@@ -357,35 +359,35 @@ func (qa *QBittorrentAdapter) mapStatus(qbState string) TorrentStatus {
 	// Actively downloading
 	case "downloading", "metaDL", "forcedDL", "allocating", "checkingDL", "checkingResumeData", "moving":
 		return StatusDownloading
-	
+
 	// Queued for download (blocked, needs slot)
 	case "queuedDL":
 		return StatusQueuedDL
-	
+
 	// Stalled during download (no peers)
 	case "stalledDL":
 		return StatusStalledDL
-	
+
 	// Paused state (both download and upload paused)
 	case "pausedDL", "pausedUP":
 		return StatusPaused
-	
+
 	// Seeding (uploading, at 100%)
 	case "uploading", "forcedUP", "checkingUP", "queuedUP", "stalledUP":
 		return StatusSeeding
-	
+
 	// Stopped while downloading (qB v5)
 	case "stoppedDL":
 		return StatusPaused
-	
+
 	// Fully downloaded and stopped
 	case "stoppedUP":
 		return StatusCompleted
-	
+
 	// Error states
 	case "error", "missingFiles":
 		return StatusError
-	
+
 	// Unknown/unmapped states treat as error
 	default:
 		return StatusError
@@ -741,7 +743,7 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 	// Use the index field from the API response as recommended since 2.8.2
 	var toDownload []string
 	var toSkip []string
-	
+
 	for _, file := range qbFiles {
 		if downloadSet[file.Index] {
 			toDownload = append(toDownload, fmt.Sprintf("%d", file.Index))
@@ -757,7 +759,7 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 		form.Set("hash", id)
 		form.Set("id", strings.Join(toSkip, "|"))
 		form.Set("priority", "0")
-		
+
 		priorityURL := qa.getBaseURL() + "/api/v2/torrents/filePrio"
 		req, err = http.NewRequestWithContext(ctx, "POST", priorityURL, strings.NewReader(form.Encode()))
 		if err != nil {
@@ -782,7 +784,7 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 		form.Set("hash", id)
 		form.Set("id", strings.Join(toDownload, "|"))
 		form.Set("priority", "1")
-		
+
 		priorityURL := qa.getBaseURL() + "/api/v2/torrents/filePrio"
 		req, err = http.NewRequestWithContext(ctx, "POST", priorityURL, strings.NewReader(form.Encode()))
 		if err != nil {
@@ -808,4 +810,124 @@ func (qa *QBittorrentAdapter) SetFilePriorities(ctx context.Context, id string, 
 func (qa *QBittorrentAdapter) SetLabels(ctx context.Context, id string, labels []string) error {
 	// In qBittorrent, labels are represented as tags, so we delegate to SetTags
 	return qa.SetTags(ctx, id, labels)
+}
+
+// RecheckTorrent forces a hash recheck of a torrent
+func (qa *QBittorrentAdapter) RecheckTorrent(ctx context.Context, id string) error {
+	actionURL := qa.getBaseURL() + "/api/v2/torrents/recheck"
+	formData := url.Values{}
+	formData.Set("hashes", id)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", actionURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create recheck request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("recheck request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("recheck failed: status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// ReannounceTorrent forces a tracker reannounce for a torrent
+func (qa *QBittorrentAdapter) ReannounceTorrent(ctx context.Context, id string) error {
+	actionURL := qa.getBaseURL() + "/api/v2/torrents/reannounce"
+	formData := url.Values{}
+	formData.Set("hashes", id)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", actionURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create reannounce request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("reannounce request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("reannounce failed: status %d", resp.StatusCode)
+	}
+	return nil
+}
+
+// GetMagnetURI returns the magnet URI for a torrent
+func (qa *QBittorrentAdapter) GetMagnetURI(ctx context.Context, id string) (string, error) {
+	infoURL := qa.getBaseURL() + "/api/v2/torrents/info?hashes=" + id
+
+	req, err := http.NewRequestWithContext(ctx, "GET", infoURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("get torrent info failed: status %d", resp.StatusCode)
+	}
+
+	var qbTorrents []qbTorrent
+	if err := json.NewDecoder(resp.Body).Decode(&qbTorrents); err != nil {
+		return "", fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if len(qbTorrents) == 0 {
+		return "", fmt.Errorf("torrent not found")
+	}
+
+	return qbTorrents[0].MagnetURI, nil
+}
+
+// SetQueuePriority changes the queue position of a torrent
+func (qa *QBittorrentAdapter) SetQueuePriority(ctx context.Context, id string, action string) error {
+	var endpoint string
+	switch action {
+	case "top":
+		endpoint = "/api/v2/torrents/topPrio"
+	case "bottom":
+		endpoint = "/api/v2/torrents/bottomPrio"
+	case "up":
+		endpoint = "/api/v2/torrents/increasePrio"
+	case "down":
+		endpoint = "/api/v2/torrents/decreasePrio"
+	default:
+		return fmt.Errorf("invalid queue priority action: %s", action)
+	}
+
+	actionURL := qa.getBaseURL() + endpoint
+	formData := url.Values{}
+	formData.Set("hashes", id)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", actionURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return fmt.Errorf("failed to create queue priority request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := qa.client.Do(req)
+	if err != nil {
+		return fmt.Errorf("queue priority request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusConflict {
+		return fmt.Errorf("torrent queueing is not enabled")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("queue priority failed: status %d", resp.StatusCode)
+	}
+	return nil
 }

@@ -9,29 +9,30 @@ type TorrentStatus string
 
 const (
 	StatusDownloading TorrentStatus = "downloading"
-	StatusQueuedDL    TorrentStatus = "queuedDL"   // Queued for download
-	StatusStalledDL   TorrentStatus = "stalledDL"  // Downloading but stalled (no peers)
+	StatusQueuedDL    TorrentStatus = "queuedDL"  // Queued for download
+	StatusStalledDL   TorrentStatus = "stalledDL" // Downloading but stalled (no peers)
 	StatusPaused      TorrentStatus = "paused"
 	StatusSeeding     TorrentStatus = "seeding"
-	StatusCompleted   TorrentStatus = "completed"  // Fully downloaded, ready for removal
+	StatusCompleted   TorrentStatus = "completed" // Fully downloaded, ready for removal
 	StatusError       TorrentStatus = "error"
 )
 
 // Torrent represents a torrent in the client
 type Torrent struct {
-	ID        string
-	Name      string
-	Progress  uint8         // 0-100
-	SpeedDown float64       // bytes/sec
-	SpeedUp   float64       // bytes/sec
-	Status    TorrentStatus
-	Seeds     int
-	Leechs    int
-	Size      int64 // bytes
-	Downloaded int64 // bytes
-	Uploaded   int64 // bytes
-	Category  string // Category/Label for organizing torrents
-	ETA       int64  // seconds (from API; 8640000 = sentinel for infinite)
+	ID         string
+	Name       string
+	Progress   uint8   // 0-100
+	SpeedDown  float64 // bytes/sec
+	SpeedUp    float64 // bytes/sec
+	Status     TorrentStatus
+	Seeds      int
+	Leechs     int
+	Size       int64  // bytes
+	Downloaded int64  // bytes
+	Uploaded   int64  // bytes
+	Category   string // Category/Label for organizing torrents
+	ETA        int64  // seconds (from API; 8640000 = sentinel for infinite)
+	MagnetURI  string // Magnet URI for copying
 }
 
 // TorrentFile represents a file in a torrent
@@ -45,16 +46,16 @@ type TorrentFile struct {
 
 // TorrentDetail contains detailed information about a torrent
 type TorrentDetail struct {
-	ID           string         // Torrent ID/Hash
-	Name         string         // Torrent name
-	Category     string         // Category/Label
-	Tags         []string       // Tags (qBittorrent only)
-	Comments     string         // Torrent comments (from metadata)
-	SavePath     string         // Download location
-	Files        []TorrentFile  // All files in torrent
-	TotalSize    int64          // Total size of all files
-	Downloaded   int64          // Total downloaded bytes
-	ContentPath  string         // Actual content path (qBittorrent)
+	ID          string        // Torrent ID/Hash
+	Name        string        // Torrent name
+	Category    string        // Category/Label
+	Tags        []string      // Tags (qBittorrent only)
+	Comments    string        // Torrent comments (from metadata)
+	SavePath    string        // Download location
+	Files       []TorrentFile // All files in torrent
+	TotalSize   int64         // Total size of all files
+	Downloaded  int64         // Total downloaded bytes
+	ContentPath string        // Actual content path (qBittorrent)
 }
 
 // ClientAdapter is the interface all torrent clients must implement
@@ -130,4 +131,17 @@ type ClientAdapter interface {
 
 	// SetLabels updates the labels/tags for a torrent (Transmission uses labels, qBittorrent uses tags)
 	SetLabels(ctx context.Context, id string, labels []string) error
+
+	// RecheckTorrent forces a hash recheck of a torrent
+	RecheckTorrent(ctx context.Context, id string) error
+
+	// ReannounceTorrent forces a tracker reannounce for a torrent
+	ReannounceTorrent(ctx context.Context, id string) error
+
+	// GetMagnetURI returns the magnet URI for a torrent
+	GetMagnetURI(ctx context.Context, id string) (string, error)
+
+	// SetQueuePriority changes the queue position of a torrent
+	// action: "top", "bottom", "up", "down"
+	SetQueuePriority(ctx context.Context, id string, action string) error
 }
