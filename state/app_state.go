@@ -73,19 +73,21 @@ func NewAppState(cfg *config.Config) (*AppState, error) {
 
 		switch clientCfg.Type {
 		case "qbittorrent":
-			adapter = client.NewQBittorrentAdapter(
+			raw := client.NewQBittorrentAdapter(
 				clientCfg.Host,
 				clientCfg.Port,
 				clientCfg.Username,
 				clientCfg.Password,
 			)
+			adapter = client.NewResilientAdapter(raw, client.DefaultResilienceConfig())
 		case "transmission":
-			adapter = client.NewTransmissionAdapter(
+			raw := client.NewTransmissionAdapter(
 				clientCfg.Host,
 				clientCfg.Port,
 				clientCfg.Username,
 				clientCfg.Password,
 			)
+			adapter = client.NewResilientAdapter(raw, client.DefaultResilienceConfig())
 		default:
 			return nil, fmt.Errorf("unknown client type: %s", clientCfg.Type)
 		}
