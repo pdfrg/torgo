@@ -5,6 +5,26 @@ import (
 	"tqbtui/client"
 )
 
+func TestNormalizeForSearch(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"already fine", "already fine"},
+		{"21.jump.street", "21 jump street"},
+		{"21-jump-street", "21 jump street"},
+		{"21_jump_street", "21 jump street"},
+		{"21.jump_street-2024", "21 jump street 2024"},
+		{"no change", "no change"},
+	}
+	for _, tt := range tests {
+		got := normalizeForSearch(tt.input)
+		if got != tt.expected {
+			t.Errorf("normalizeForSearch(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
 func TestSearchFilter(t *testing.T) {
 	// Create test torrents
 	torrents := []client.Torrent{
@@ -13,6 +33,9 @@ func TestSearchFilter(t *testing.T) {
 		{ID: "3", Name: "Fedora 37"},
 		{ID: "4", Name: "Debian 12"},
 		{ID: "5", Name: "Linux Mint"},
+		{ID: "6", Name: "21.jump.street.2024"},
+		{ID: "7", Name: "the-walking-dead-s01"},
+		{ID: "8", Name: "some_movie_2024"},
 	}
 
 	tests := []struct {
@@ -24,14 +47,14 @@ func TestSearchFilter(t *testing.T) {
 		{
 			name:          "empty query returns all",
 			query:         "",
-			expectedCount: 5,
-			expectedIDs:   []string{"1", "2", "3", "4", "5"},
+			expectedCount: 8,
+			expectedIDs:   []string{"1", "2", "3", "4", "5", "6", "7", "8"},
 		},
 		{
 			name:          "whitespace query returns all",
 			query:         "   ",
-			expectedCount: 5,
-			expectedIDs:   []string{"1", "2", "3", "4", "5"},
+			expectedCount: 8,
+			expectedIDs:   []string{"1", "2", "3", "4", "5", "6", "7", "8"},
 		},
 		{
 			name:          "search for Linux",
@@ -62,6 +85,42 @@ func TestSearchFilter(t *testing.T) {
 			query:         "Deb",
 			expectedCount: 1,
 			expectedIDs:   []string{"4"},
+		},
+		{
+			name:          "space query matches dot-separated name",
+			query:         "21 jump",
+			expectedCount: 1,
+			expectedIDs:   []string{"6"},
+		},
+		{
+			name:          "dot query matches dot-separated name",
+			query:         "21.jump",
+			expectedCount: 1,
+			expectedIDs:   []string{"6"},
+		},
+		{
+			name:          "space query matches dash-separated name",
+			query:         "walking dead",
+			expectedCount: 1,
+			expectedIDs:   []string{"7"},
+		},
+		{
+			name:          "dash query matches dash-separated name",
+			query:         "walking-dead",
+			expectedCount: 1,
+			expectedIDs:   []string{"7"},
+		},
+		{
+			name:          "space query matches underscore-separated name",
+			query:         "some movie",
+			expectedCount: 1,
+			expectedIDs:   []string{"8"},
+		},
+		{
+			name:          "query separator different from name separator",
+			query:         "21-jump-street",
+			expectedCount: 1,
+			expectedIDs:   []string{"6"},
 		},
 	}
 

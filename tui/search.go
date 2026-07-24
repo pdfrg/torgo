@@ -5,6 +5,14 @@ import (
 	"tqbtui/client"
 )
 
+// normalizeForSearch replaces common torrent title separators with spaces
+func normalizeForSearch(s string) string {
+	s = strings.ReplaceAll(s, ".", " ")
+	s = strings.ReplaceAll(s, "-", " ")
+	s = strings.ReplaceAll(s, "_", " ")
+	return s
+}
+
 // SearchFilter filters torrents by name using case-insensitive substring matching
 type SearchFilter struct {
 	query   string
@@ -31,9 +39,10 @@ func (s *SearchFilter) SetQuery(query string, torrents []client.Torrent) {
 	}
 
 	// Filter torrents by case-insensitive substring matching
-	lowerQuery := strings.ToLower(s.query)
+	// with separator normalization (dots, dashes, underscores)
+	lowerQuery := strings.ToLower(normalizeForSearch(s.query))
 	for _, t := range torrents {
-		if strings.Contains(strings.ToLower(t.Name), lowerQuery) {
+		if strings.Contains(strings.ToLower(normalizeForSearch(t.Name)), lowerQuery) {
 			s.results = append(s.results, t)
 		}
 	}
