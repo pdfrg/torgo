@@ -406,11 +406,19 @@ func (a *App) View() tea.View {
 		errorHeight = 2
 	}
 
+	// Render hints bar early to measure actual height
+	hintsBarOutput := ""
+	hintsBarLines := 0
+	if a.showHints {
+		hintsBarOutput = a.hintsBar.Render(a.width)
+		hintsBarLines = strings.Count(hintsBarOutput, "\n") + 1
+	}
+
 	// Status bar and hints bar at bottom
 	// Note: actual output includes blank line before status, then status, then optional hints
 	bottomHeight := 2 // blank + status bar
 	if a.showHints {
-		bottomHeight = 3 // + hints bar
+		bottomHeight = 2 + hintsBarLines // + hints bar (may be multi-line)
 	}
 
 	// List height = total - header - search - error - bottom
@@ -528,12 +536,8 @@ func (a *App) View() tea.View {
 			Render(a.lastError))
 	}
 
-	// Status bar and hints bar at bottom
+	// Status bar at bottom
 	statusBarOutput := a.statusBar.Render(a.state, a.width)
-	hintsBarOutput := ""
-	if a.showHints {
-		hintsBarOutput = a.hintsBar.Render(a.width)
-	}
 
 	// Build final output line by line to ensure title is at top
 	finalLines := lines
@@ -553,11 +557,11 @@ func (a *App) View() tea.View {
 	outputLines := strings.Split(output, "\n")
 
 	if len(outputLines) > a.height {
-		// Need to trim: keep title (2 lines) + status/hints (1-3 lines) + trim middle intelligently
+		// Need to trim: keep title (2 lines) + status/hints + trim middle intelligently
 		// Count lines we need at bottom: blank + status + hints
 		bottomLinesNeeded := 2 // blank + status
 		if a.showHints {
-			bottomLinesNeeded += 1 // + hints
+			bottomLinesNeeded += hintsBarLines
 		}
 
 		// Keep title (2 lines) + middle content + bottom

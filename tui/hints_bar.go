@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	"charm.land/lipgloss/v2"
 )
 
@@ -84,17 +86,36 @@ func (h *HintsBar) Render(width int) string {
 			spacedParts = append(spacedParts, descColor.Render("  "))
 		}
 	}
-	hintText := lipgloss.JoinHorizontal(lipgloss.Left, spacedParts...)
 
 	// Add theme indicator at the end
 	themeAbbr := abbreviateThemeName(h.currentTheme)
 	themeHint := keyColor.Render("t") + descColor.Render(":theme ("+themeAbbr+")")
-	hintText = descColor.Render(" ") + hintText + descColor.Render("  ") + themeHint + descColor.Render(" ")
+	spacedParts = append(spacedParts, descColor.Render("  ")+themeHint)
 
-	// Apply bar style: width and background (background is already on text parts)
-	barStyle := lipgloss.NewStyle().
-		Width(width).
-		Background(barBg)
+	// Line-wrap into multiple lines with leading space on each line
+	var hintLines []string
+	currentLine := descColor.Render(" ")
+	currentLineWidth := 1
 
-	return barStyle.Render(hintText)
+	for _, part := range spacedParts {
+		partWidth := lipgloss.Width(part)
+		if currentLineWidth+partWidth > width && currentLineWidth > 1 {
+			hintLines = append(hintLines, currentLine)
+			currentLine = descColor.Render(" ")
+			currentLineWidth = 1
+		}
+		currentLine += part
+		currentLineWidth += partWidth
+	}
+	if currentLineWidth > 1 {
+		hintLines = append(hintLines, currentLine)
+	}
+
+	// Render each line padded to full width
+	barStyle := lipgloss.NewStyle().Background(barBg)
+	var renderedLines []string
+	for _, line := range hintLines {
+		renderedLines = append(renderedLines, barStyle.Width(width).Render(line))
+	}
+	return strings.Join(renderedLines, "\n")
 }
