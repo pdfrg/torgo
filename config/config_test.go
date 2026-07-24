@@ -55,7 +55,7 @@ password = "transmission"
 		getConfigDirOverride = originalOverride
 	}()
 
-	cfg, err := LoadConfig()
+	cfg, err := LoadConfig("")
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}

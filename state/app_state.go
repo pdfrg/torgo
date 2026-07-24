@@ -104,6 +104,16 @@ func NewAppState(cfg *config.Config) (*AppState, error) {
 		return nil, fmt.Errorf("no clients configured")
 	}
 
+	// Select default client by ID if configured
+	if cfg.UI.DefaultClient != "" {
+		for i, c := range as.Clients {
+			if c.ID == cfg.UI.DefaultClient {
+				as.CurrentClientIdx = i
+				break
+			}
+		}
+	}
+
 	return as, nil
 }
 

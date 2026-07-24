@@ -30,15 +30,18 @@ type ClientConfig struct {
 	Password string `toml:"password"`
 }
 
-// LoadConfig loads config from ~/.config/tqbtui/config.toml
-func LoadConfig() (*Config, error) {
+// LoadConfig loads config from the given path.
+// If cfgPath is empty, defaults to ~/.config/tqbtui/config.toml.
+func LoadConfig(cfgPath string) (*Config, error) {
 	configDir, err := getConfigDir()
 	if err != nil {
 		return nil, err
 	}
 
-	configPath := filepath.Join(configDir, "config.toml")
-	data, err := os.ReadFile(configPath)
+	if cfgPath == "" {
+		cfgPath = filepath.Join(configDir, "config.toml")
+	}
+	data, err := os.ReadFile(cfgPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config: %w", err)
 	}
