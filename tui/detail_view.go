@@ -1187,8 +1187,6 @@ func (m *FilesTabModel) HasFileChanges() bool {
 	return false
 }
 
-
-
 // selectFolder recursively selects all files in a folder
 func (m *FilesTabModel) selectFolder(node *FileNode, selected bool) {
 	for _, child := range node.Children {

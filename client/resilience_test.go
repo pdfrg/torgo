@@ -9,15 +9,18 @@ import (
 
 // MockAdapter is a test implementation of ClientAdapter
 type MockAdapter struct {
-	connectErr  error
-	listErr     error
-	callCount   int
-	failUntil   int // Fail first N calls, then succeed
-	isConnected bool
-	torrents    []Torrent
+	connectErr   error
+	connectCount int
+	listErr      error
+	callCount    int
+	failUntil    int // Fail first N calls, then succeed
+	authUntil    int // Fail with auth error first N calls, then succeed
+	isConnected  bool
+	torrents     []Torrent
 }
 
 func (m *MockAdapter) Connect(ctx context.Context) error {
+	m.connectCount++
 	if m.connectErr != nil {
 		return m.connectErr
 	}
@@ -36,6 +39,9 @@ func (m *MockAdapter) IsConnected() bool {
 
 func (m *MockAdapter) ListTorrents(ctx context.Context) ([]Torrent, error) {
 	m.callCount++
+	if m.callCount <= m.authUntil {
+		return nil, errors.New("forbidden")
+	}
 	if m.callCount <= m.failUntil {
 		return nil, errors.New("connection refused")
 	}
@@ -297,6 +303,75 @@ func TestHealthCheck(t *testing.T) {
 
 	if mockAdapter.callCount <= callCount {
 		t.Error("expected adapter to be called after cache expiration")
+	}
+}
+
+func TestResilientAdapterReconnectsOnAuthError(t *testing.T) {
+	mockAdapter := &MockAdapter{
+		authUntil: 1, // First call returns auth error, then succeeds
+		torrents:  []Torrent{{ID: "1", Name: "Test"}},
+	}
+
+	config := ResilienceConfig{
+		InitialBackoff:    5 * time.Millisecond,
+		MaxBackoff:        10 * time.Millisecond,
+		BackoffMultiplier: 1.0,
+		MaxRetries:        2,
+		OperationTimeout:  1 * time.Second,
+	}
+
+	resilient := NewResilientAdapter(mockAdapter, config)
+	resilient.isHealthy = true
+	ctx := context.Background()
+
+	torrents, err := resilient.ListTorrents(ctx)
+
+	if err != nil {
+		t.Errorf("expected no error after reconnect, got %v", err)
+	}
+	if len(torrents) != 1 || torrents[0].ID != "1" {
+		t.Errorf("expected 1 torrent, got %d", len(torrents))
+	}
+	// Should have reconnected once
+	if mockAdapter.connectCount != 1 {
+		t.Errorf("expected 1 reconnect attempt, got %d", mockAdapter.connectCount)
+	}
+	// Should have called ListTorrents twice: first fails with auth error, retry succeeds
+	if mockAdapter.callCount != 2 {
+		t.Errorf("expected 2 ListTorrents calls, got %d", mockAdapter.callCount)
+	}
+}
+
+func TestResilientAdapterFailsOnAuthErrorWhenReconnectFails(t *testing.T) {
+	mockAdapter := &MockAdapter{
+		authUntil:  1,
+		connectErr: errors.New("login failed"),
+		torrents:   []Torrent{{ID: "1", Name: "Test"}},
+	}
+
+	config := ResilienceConfig{
+		InitialBackoff:    5 * time.Millisecond,
+		MaxBackoff:        10 * time.Millisecond,
+		BackoffMultiplier: 1.0,
+		MaxRetries:        2,
+		OperationTimeout:  1 * time.Second,
+	}
+
+	resilient := NewResilientAdapter(mockAdapter, config)
+	resilient.isHealthy = true
+	ctx := context.Background()
+
+	_, err := resilient.ListTorrents(ctx)
+
+	if err == nil {
+		t.Fatal("expected error when reconnect fails")
+	}
+	if !IsAuthError(err) {
+		t.Errorf("expected auth error, got: %v", err)
+	}
+	// Should have attempted reconnection once
+	if mockAdapter.connectCount != 1 {
+		t.Errorf("expected 1 reconnect attempt, got %d", mockAdapter.connectCount)
 	}
 }
 

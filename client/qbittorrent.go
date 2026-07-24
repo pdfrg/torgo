@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"sort"
@@ -21,7 +22,6 @@ type QBittorrentAdapter struct {
 	password  string
 	connected bool
 	client    *http.Client
-
 }
 
 // qbTorrent represents the qBittorrent API torrent response
@@ -57,6 +57,7 @@ type qbFile struct {
 
 // NewQBittorrentAdapter creates a new qBittorrent adapter
 func NewQBittorrentAdapter(host string, port int, username, password string) *QBittorrentAdapter {
+	jar, _ := cookiejar.New(nil)
 	qa := &QBittorrentAdapter{
 		host:     host,
 		port:     port,
@@ -64,6 +65,7 @@ func NewQBittorrentAdapter(host string, port int, username, password string) *QB
 		password: password,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
+			Jar:     jar,
 		},
 	}
 	return qa
@@ -88,8 +90,18 @@ func (qa *QBittorrentAdapter) Connect(ctx context.Context) error {
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("login failed: %s (status %d)", string(body), resp.StatusCode)
+	bodyStr := strings.TrimSpace(string(body))
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// qBittorrent returns "Ok." on success and "Fails." on failure (both with HTTP 200)
+		if bodyStr != "Ok." {
+			return fmt.Errorf("login failed: %s", bodyStr)
+		}
+	case http.StatusNoContent:
+		// qBittorrent 5.x returns 204 No Content on success (no body)
+	default:
+		return fmt.Errorf("login failed: %s (status %d)", bodyStr, resp.StatusCode)
 	}
 
 	qa.connected = true

@@ -117,6 +117,7 @@ func IsAuthError(err error) bool {
 		"403",
 		"invalid credentials",
 		"authentication failed",
+		"login failed",
 	}
 
 	for _, s := range authStrings {
@@ -184,12 +185,23 @@ func (r *ResilientAdapter) RetryWithBackoff(ctx context.Context, fn func(context
 
 		lastErr = err
 
-		// Check if error is retryable
-		if !IsRetryableError(err) {
-			// Non-retryable error, return immediately
-			if IsAuthError(err) {
-				r.isHealthy = false
+		// Auth errors trigger a reconnection attempt before giving up
+		if IsAuthError(err) {
+			r.isHealthy = false
+
+			reconnectCtx, reconnectCancel := context.WithTimeout(context.Background(), r.config.OperationTimeout)
+			connectErr := r.adapter.Connect(reconnectCtx)
+			reconnectCancel()
+
+			if connectErr != nil {
+				r.lastError = connectErr
+				return err
 			}
+
+			r.isHealthy = true
+			// Reconnected — treat the original failure as retryable and continue to backoff
+		} else if !IsRetryableError(err) {
+			// Non-retryable, non-auth error, return immediately
 			return err
 		}
 

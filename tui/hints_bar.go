@@ -98,5 +98,3 @@ func (h *HintsBar) Render(width int) string {
 
 	return barStyle.Render(hintText)
 }
-
-
