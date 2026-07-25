@@ -193,17 +193,40 @@ External themes use the `teacat/noire` library for:
 
 ### Status gradients
 
-Each torrent status has a 2-color gradient for the multiline progress bar:
+Progress bar gradients are not decorative — they are the fastest way to read torrent
+status at a glance. Each gradient follows one of two visual directions:
 
-| Status | Gradient |
-|--------|----------|
-| downloading | desaturated color4 → color4 |
-| seeding | desaturated color4 → color2 |
-| paused | color3 → background |
-| completed | desaturated color2 → color2 |
-| error | color1 → background |
-| queueing | color5 → background |
-| stalled / unknown | color6 → background |
+- **Filling up** (muted → bright): the torrent is actively progressing. The bar
+  desaturates to muted tones and builds intensity toward full saturation, visually
+  suggesting momentum.
+- **Fading out** (bright → background): the torrent is not actively moving. The bar
+  dissolves into the terminal background, visually de-emphasizing it.
+
+| Status | Gradient (left → right) | Design intent |
+|--------|------------------------|---------------|
+| downloading | desaturated color4 → color4 | "Filling up" — building intensity from muted to pure, suggesting active progress |
+| seeding | desaturated color4 → color2 | "Complete, still active" — starts with a hint of the download color, resolves to a distinct post-download state |
+| completed | desaturated color2 → color2 | "Ready to remove" — built from the same endpoint as seeding but lowered saturation, visually separate |
+| paused | color3 → background | "On hold" — fades into the background, de-emphasized |
+| error | color1 → background | "Broken / stuck" — urgency (red/orange) dissolves into nothing |
+| queueing | color5 → background | "Waiting its turn" — fades out, not progressing |
+| stalled | color6 → background | "Hung" — no activity, washed out |
+
+The same visual language applies to built-in themes:
+
+| Status | Gradient (left → right) | What it tells you |
+|--------|------------------------|-------------------|
+| downloading | Blue → Green | Cold to warm — the fill is *happening* |
+| seeding | Green → Cyan | Resolved to cool tones — steady state |
+| completed | Purple → Magenta | Distinct from seeding — celebratory coloration |
+| paused | Yellow → Orange | Cautionary warm — fading out |
+| error | Orange → Red | Escalating urgency — dissolving |
+| queueing | Magenta → Purple | Waiting — fading out |
+| stalled | Dark gray → Light gray | Washed out — stuck |
+
+This means you can tell a torrent's status from the progress bar appearance alone,
+without reading the status label. A bar that fades into the background is not
+moving; one that builds intensity is actively transferring data.
 
 ### Semantic color roles
 
