@@ -56,6 +56,10 @@ type App struct {
 	lastThemeModTime      time.Time // Track theme file modification time for auto-reload
 	deleteConfirmTorrents []string  // IDs of torrents awaiting deletion confirmation
 	deleteConfirmWithData bool      // Whether to delete with data
+	sortPopupMode         bool
+	sortPopupCursor       int
+	filterPopupMode       bool
+	filterPopupCursor     int
 }
 
 // NewApp creates a new TUI application
@@ -317,6 +321,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Still in detail view, but pass through other messages (like ticks)
 		// so they can keep the ui responsive
 		return a, nil
+	}
+
+	// Handle sort/filter popup modes
+	if a.sortPopupMode {
+		return a.handleSortPopup(msg)
+	}
+	if a.filterPopupMode {
+		return a.handleFilterPopup(msg)
 	}
 
 	// Handle search mode separately (only in list view)
@@ -609,6 +621,14 @@ func (a *App) View() tea.View {
 		output = a.overlayDeleteConfirmDialog(output)
 	}
 
+	if a.sortPopupMode {
+		output = a.overlaySortPopup(output)
+	}
+
+	if a.filterPopupMode {
+		output = a.overlayFilterPopup(output)
+	}
+
 	v := tea.NewView(output)
 	v.AltScreen = true
 	v.BackgroundColor = CurrentTheme.BgNormal
@@ -888,14 +908,29 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		)
 
 	case isKeyMatch(k, a.keys.Sort):
-		a.state.CycleSort()
-		a.list.SetTorrents(a.state.FilteredTorrents())
+		a.sortPopupMode = true
+		a.filterPopupMode = false
+		// Set cursor to current sort option
+		a.sortPopupCursor = 0
+		for i, opt := range state.SortOptions() {
+			if opt.SortBy == a.state.SortBy && opt.Ascending == a.state.SortAscending {
+				a.sortPopupCursor = i
+				break
+			}
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Filter):
-		a.state.CycleFilter()
-		a.list.ClearSelection()
-		a.list.SetTorrents(a.state.FilteredTorrents())
+		a.filterPopupMode = true
+		a.sortPopupMode = false
+		// Set cursor to current filter option
+		a.filterPopupCursor = 0
+		for i, opt := range state.FilterOptions() {
+			if opt.Filter == a.state.Filter {
+				a.filterPopupCursor = i
+				break
+			}
+		}
 		return a, nil
 
 	case isKeyMatch(k, a.keys.Search):
@@ -1140,6 +1175,211 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		return a, nil
 	}
+}
+
+// handleSortPopup handles keyboard input while in sort popup mode
+func (a *App) handleSortPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			a.sortPopupMode = false
+			return a, nil
+
+		case "enter":
+			opts := state.SortOptions()
+			if a.sortPopupCursor >= 0 && a.sortPopupCursor < len(opts) {
+				opt := opts[a.sortPopupCursor]
+				a.state.SetSort(opt.SortBy, opt.Ascending)
+				a.list.SetTorrents(a.state.FilteredTorrents())
+				a.multilineList.SetTorrents(a.state.FilteredTorrents())
+			}
+			a.sortPopupMode = false
+			return a, nil
+
+		case "up", "k":
+			opts := state.SortOptions()
+			a.sortPopupCursor--
+			if a.sortPopupCursor < 0 {
+				a.sortPopupCursor = len(opts) - 1
+			}
+			return a, nil
+
+		case "down", "j":
+			opts := state.SortOptions()
+			a.sortPopupCursor++
+			if a.sortPopupCursor >= len(opts) {
+				a.sortPopupCursor = 0
+			}
+			return a, nil
+		}
+		return a, nil
+
+	case tea.WindowSizeMsg:
+		a.width = msg.Width
+		a.height = msg.Height
+		return a, nil
+
+	default:
+		return a, nil
+	}
+}
+
+// handleFilterPopup handles keyboard input while in filter popup mode
+func (a *App) handleFilterPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "esc":
+			a.filterPopupMode = false
+			return a, nil
+
+		case "enter":
+			opts := state.FilterOptions()
+			if a.filterPopupCursor >= 0 && a.filterPopupCursor < len(opts) {
+				opt := opts[a.filterPopupCursor]
+				a.state.SetFilter(opt.Filter)
+				a.list.ClearSelection()
+				a.list.SetTorrents(a.state.FilteredTorrents())
+				a.multilineList.ClearSelection()
+				a.multilineList.SetTorrents(a.state.FilteredTorrents())
+			}
+			a.filterPopupMode = false
+			return a, nil
+
+		case "up", "k":
+			opts := state.FilterOptions()
+			a.filterPopupCursor--
+			if a.filterPopupCursor < 0 {
+				a.filterPopupCursor = len(opts) - 1
+			}
+			return a, nil
+
+		case "down", "j":
+			opts := state.FilterOptions()
+			a.filterPopupCursor++
+			if a.filterPopupCursor >= len(opts) {
+				a.filterPopupCursor = 0
+			}
+			return a, nil
+		}
+		return a, nil
+
+	case tea.WindowSizeMsg:
+		a.width = msg.Width
+		a.height = msg.Height
+		return a, nil
+
+	default:
+		return a, nil
+	}
+}
+
+// overlaySortPopup renders the sort selection popup over the base output
+func (a *App) overlaySortPopup(baseOutput string) string {
+	opts := state.SortOptions()
+	currentIdx := a.sortPopupCursor
+
+	// Build content
+	contentLines := []string{}
+	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
+	contentLines = append(contentLines, titleStyle.Render("Sort"))
+
+	// Build option lines
+	indicator := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor).Render("●")
+	empty := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Render("○")
+	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor).Bold(true)
+	normalStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+
+	contentLines = append(contentLines, "")
+	for i, opt := range opts {
+		line := ""
+		if i == currentIdx {
+			line = indicator + " " + selectedStyle.Render(opt.Label)
+		} else {
+			line = empty + " " + normalStyle.Render(opt.Label)
+		}
+		contentLines = append(contentLines, line)
+	}
+
+	// Footer hints
+	contentLines = append(contentLines, "")
+	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Italic(true)
+	contentLines = append(contentLines, hintStyle.Render("↑↓/jk navigate  enter select  esc cancel"))
+
+	content := strings.Join(contentLines, "\n")
+
+	// Calculate popup dimensions
+	popupWidth := 32
+	contentHeight := strings.Count(content, "\n") + 1
+	popupHeight := contentHeight + 2
+
+	dialogBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(CurrentTheme.AccentColor).
+		Foreground(CurrentTheme.ForegroundColor).
+		Width(popupWidth-2).
+		Height(popupHeight-2).
+		Padding(1, 2).
+		Render(content)
+
+	return lipgloss.Place(
+		a.width, a.height,
+		lipgloss.Center, lipgloss.Center,
+		dialogBox,
+	)
+}
+
+// overlayFilterPopup renders the filter selection popup over the base output
+func (a *App) overlayFilterPopup(baseOutput string) string {
+	opts := state.FilterOptions()
+	currentIdx := a.filterPopupCursor
+
+	// Build content
+	contentLines := []string{}
+	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
+	contentLines = append(contentLines, titleStyle.Render("Filter"))
+
+	indicator := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor).Render("●")
+	empty := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Render("○")
+	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor).Bold(true)
+	normalStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+
+	contentLines = append(contentLines, "")
+	for i, opt := range opts {
+		line := ""
+		if i == currentIdx {
+			line = indicator + " " + selectedStyle.Render(opt.Label)
+		} else {
+			line = empty + " " + normalStyle.Render(opt.Label)
+		}
+		contentLines = append(contentLines, line)
+	}
+
+	contentLines = append(contentLines, "")
+	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Italic(true)
+	contentLines = append(contentLines, hintStyle.Render("↑↓/jk navigate  enter select  esc cancel"))
+
+	content := strings.Join(contentLines, "\n")
+
+	popupWidth := 32
+	contentHeight := strings.Count(content, "\n") + 1
+	popupHeight := contentHeight + 2
+
+	dialogBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(CurrentTheme.AccentColor).
+		Foreground(CurrentTheme.ForegroundColor).
+		Width(popupWidth-2).
+		Height(popupHeight-2).
+		Padding(1, 2).
+		Render(content)
+
+	return lipgloss.Place(
+		a.width, a.height,
+		lipgloss.Center, lipgloss.Center,
+		dialogBox,
+	)
 }
 
 // Command builders

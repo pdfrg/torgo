@@ -24,6 +24,7 @@ type AppState struct {
 	Selected          map[string]bool // Torrent ID -> selected
 	Filter            FilterType
 	SortBy            SortType
+	SortAscending     bool
 	ShowHints         bool
 	ErrorMsg          string
 	InputMode         string // "", "add", "search", "command"
@@ -38,10 +39,14 @@ type AppState struct {
 type FilterType string
 
 const (
-	FilterAll       FilterType = "all"
-	FilterActive    FilterType = "active"
-	FilterPaused    FilterType = "paused"
-	FilterCompleted FilterType = "completed"
+	FilterAll         FilterType = "all"
+	FilterDownloading FilterType = "downloading"
+	FilterSeeding     FilterType = "seeding"
+	FilterCompleted   FilterType = "completed"
+	FilterPaused      FilterType = "paused"
+	FilterStalled     FilterType = "stalled"
+	FilterError       FilterType = "error"
+	FilterQueued      FilterType = "queued"
 )
 
 // SortType represents torrent sorting options
@@ -52,6 +57,11 @@ const (
 	SortByProgress SortType = "progress"
 	SortBySpeed    SortType = "speed"
 	SortBySeeds    SortType = "seeds"
+	SortByRatio    SortType = "ratio"
+	SortBySize     SortType = "size"
+	SortByAge      SortType = "age"
+	SortByLeech    SortType = "leechers"
+	SortByETA      SortType = "eta"
 )
 
 // NewAppState initializes the app state from config
@@ -62,6 +72,7 @@ func NewAppState(cfg *config.Config) (*AppState, error) {
 		Selected:         make(map[string]bool),
 		Filter:           FilterAll,
 		SortBy:           SortByName,
+		SortAscending:    true,
 		ShowHints:        cfg.UI.ShowHints,
 		Torrents:         []client.Torrent{},
 		Clients:          []ClientInstance{},
@@ -172,68 +183,160 @@ func (as *AppState) FilteredTorrents() []client.Torrent {
 	return filtered
 }
 
-// sortTorrents sorts torrents in place based on current SortBy
+// sortTorrents sorts torrents in place based on current SortBy and SortAscending
 func (as *AppState) sortTorrents(torrents []client.Torrent) {
-	switch as.SortBy {
-	case SortByName:
+	asc := as.SortAscending
+
+	// Handle ETA separately because sentinel values need special treatment
+	// in both ascending and descending modes
+	if as.SortBy == SortByETA {
 		sort.Slice(torrents, func(i, j int) bool {
-			return torrents[i].Name < torrents[j].Name
+			return etaCompare(torrents[i].ETA, torrents[j].ETA, asc)
 		})
-	case SortByProgress:
-		sort.Slice(torrents, func(i, j int) bool {
-			return torrents[i].Progress > torrents[j].Progress
-		})
-	case SortBySpeed:
-		sort.Slice(torrents, func(i, j int) bool {
-			return (torrents[i].SpeedDown + torrents[i].SpeedUp) >
-				(torrents[j].SpeedDown + torrents[j].SpeedUp)
-		})
-	case SortBySeeds:
-		sort.Slice(torrents, func(i, j int) bool {
-			return torrents[i].Seeds > torrents[j].Seeds
-		})
+		return
 	}
+
+	sort.Slice(torrents, func(i, j int) bool {
+		var less bool
+
+		switch as.SortBy {
+		case SortByName:
+			less = torrents[i].Name < torrents[j].Name
+		case SortByProgress:
+			less = torrents[i].Progress < torrents[j].Progress
+		case SortBySpeed:
+			less = (torrents[i].SpeedDown + torrents[i].SpeedUp) <
+				(torrents[j].SpeedDown + torrents[j].SpeedUp)
+		case SortBySeeds:
+			less = torrents[i].Seeds < torrents[j].Seeds
+		case SortByRatio:
+			ri := ratio(torrents[i])
+			rj := ratio(torrents[j])
+			less = ri < rj
+		case SortBySize:
+			less = torrents[i].Size < torrents[j].Size
+		case SortByLeech:
+			less = torrents[i].Leechs < torrents[j].Leechs
+		default:
+			less = torrents[i].Name < torrents[j].Name
+		}
+
+		if asc {
+			return less
+		}
+		return !less
+	})
+}
+
+// ratio computes the share ratio, handling zero-download to avoid division by zero
+func ratio(t client.Torrent) float64 {
+	if t.Downloaded == 0 {
+		return 0
+	}
+	return float64(t.Uploaded) / float64(t.Downloaded)
+}
+
+// etaCompare compares two ETA values, treating sentinel (>= 8640000) as always last
+// regardless of sort direction. asc=true → shortest ETA first; asc=false → longest first.
+func etaCompare(a, b int64, asc bool) bool {
+	const sentinel = 8640000
+	aInf := a >= sentinel
+	bInf := b >= sentinel
+
+	if aInf && bInf {
+		return false
+	}
+	if aInf {
+		return false // sentinel always last
+	}
+	if bInf {
+		return true // non-sentinel always before sentinel
+	}
+	if asc {
+		return a < b
+	}
+	return a > b
 }
 
 // matchesFilter checks if a torrent matches the current filter
 func (as *AppState) matchesFilter(t client.Torrent) bool {
 	switch as.Filter {
-	case FilterActive:
+	case FilterDownloading:
 		return t.Status == client.StatusDownloading
+	case FilterSeeding:
+		return t.Status == client.StatusSeeding
+	case FilterCompleted:
+		return t.Status == client.StatusCompleted
 	case FilterPaused:
 		return t.Status == client.StatusPaused
-	case FilterCompleted:
-		return t.Status == client.StatusSeeding
+	case FilterStalled:
+		return t.Status == client.StatusStalledDL
+	case FilterError:
+		return t.Status == client.StatusError
+	case FilterQueued:
+		return t.Status == client.StatusQueuedDL
 	default: // FilterAll
 		return true
 	}
 }
 
-// CycleFilter moves to the next filter
-func (as *AppState) CycleFilter() {
-	switch as.Filter {
-	case FilterAll:
-		as.Filter = FilterActive
-	case FilterActive:
-		as.Filter = FilterPaused
-	case FilterPaused:
-		as.Filter = FilterCompleted
-	case FilterCompleted:
-		as.Filter = FilterAll
+// SetFilter sets the current filter directly
+func (as *AppState) SetFilter(f FilterType) {
+	as.Filter = f
+}
+
+// SetSort sets the current sort field and direction directly
+func (as *AppState) SetSort(sortBy SortType, ascending bool) {
+	as.SortBy = sortBy
+	as.SortAscending = ascending
+}
+
+// FilterOption represents a selectable filter option for the popup
+type FilterOption struct {
+	Filter FilterType
+	Label  string
+}
+
+// SortOption represents a selectable sort option for the popup
+type SortOption struct {
+	SortBy    SortType
+	Ascending bool
+	Label     string
+}
+
+// FilterOptions returns all available filter options
+func FilterOptions() []FilterOption {
+	return []FilterOption{
+		{FilterAll, "all"},
+		{FilterDownloading, "downloading"},
+		{FilterSeeding, "seeding"},
+		{FilterCompleted, "completed"},
+		{FilterPaused, "paused"},
+		{FilterStalled, "stalled"},
+		{FilterError, "error"},
+		{FilterQueued, "queued"},
 	}
 }
 
-// CycleSort moves to the next sort option
-func (as *AppState) CycleSort() {
-	switch as.SortBy {
-	case SortByName:
-		as.SortBy = SortByProgress
-	case SortByProgress:
-		as.SortBy = SortBySpeed
-	case SortBySpeed:
-		as.SortBy = SortBySeeds
-	case SortBySeeds:
-		as.SortBy = SortByName
+// SortOptions returns all available sort options (field × direction pairs)
+func SortOptions() []SortOption {
+	return []SortOption{
+		{SortByName, true, "name ↑"},
+		{SortByName, false, "name ↓"},
+		{SortByProgress, true, "progress ↑"},
+		{SortByProgress, false, "progress ↓"},
+		{SortBySpeed, true, "speed ↑"},
+		{SortBySpeed, false, "speed ↓"},
+		{SortBySeeds, true, "seeds ↑"},
+		{SortBySeeds, false, "seeds ↓"},
+		{SortByRatio, true, "ratio ↑"},
+		{SortByRatio, false, "ratio ↓"},
+		{SortBySize, true, "size ↑"},
+		{SortBySize, false, "size ↓"},
+		{SortByLeech, true, "leechers ↑"},
+		{SortByLeech, false, "leechers ↓"},
+		{SortByETA, true, "ETA ↑"},
+		{SortByETA, false, "ETA ↓"},
 	}
 }
 

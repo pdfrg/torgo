@@ -90,9 +90,16 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	// Build left side (connection, client info, speed limit, torrent count)
 	left := defaultColor.Render(fmt.Sprintf("%s  %s%s    %s", connStatus, clientInfo, speedLimitStatus, torrentCountInfo))
 
+	// Build sort label with direction indicator
+	sortArrow := "↓"
+	if appState.SortAscending {
+		sortArrow = "↑"
+	}
+	sortLabel := string(appState.SortBy) + " " + sortArrow
+
 	// Build right side with speeds, filter and sort (right-aligned)
 	filterWithValue := keyColor.Render("f") + defaultColor.Render("ilter: "+string(appState.Filter))
-	sortWithValue := keyColor.Render("s") + defaultColor.Render("ort: "+string(appState.SortBy))
+	sortWithValue := keyColor.Render("s") + defaultColor.Render("ort: "+sortLabel)
 	right := lipgloss.JoinHorizontal(lipgloss.Left,
 		defaultColor.Render(speedsInfo),
 		defaultColor.Render("  "),
