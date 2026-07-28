@@ -1137,7 +1137,10 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Show all torrents again
 			a.list.SetTorrents(a.state.FilteredTorrents())
 			a.multilineList.SetTorrents(a.state.FilteredTorrents())
-			return a, nil
+			return a, tea.Batch(
+				a.startRefreshTicker(),
+				a.startSpeedLimitTicker(),
+			)
 
 		case "enter":
 			// Confirm search and exit search mode, keeping filtered results
@@ -1145,13 +1148,19 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Press / again to modify search, or ESC to clear
 			a.searchMode = false
 			a.searchInput.Blur()
-			return a, nil
+			return a, tea.Batch(
+				a.startRefreshTicker(),
+				a.startSpeedLimitTicker(),
+			)
 
 		case "ctrl+c":
 			// Exit search mode (same as esc — just exit, keep filter)
 			a.searchMode = false
 			a.searchInput.Blur()
-			return a, nil
+			return a, tea.Batch(
+				a.startRefreshTicker(),
+				a.startSpeedLimitTicker(),
+			)
 
 		default:
 			// Update search input and filter in real-time
@@ -1171,6 +1180,19 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		return a, nil
 
+	case tickMsg:
+		a.checkThemeFileChanges()
+		return a, tea.Batch(
+			a.refreshTorrents(),
+			a.startRefreshTicker(),
+		)
+
+	case speedLimitTickMsg:
+		return a, tea.Batch(
+			a.refreshSpeedLimitStatus(),
+			a.startSpeedLimitTicker(),
+		)
+
 	// Pass other message types through
 	default:
 		return a, nil
@@ -1184,7 +1206,10 @@ func (a *App) handleSortPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			a.sortPopupMode = false
-			return a, nil
+			return a, tea.Batch(
+				a.startRefreshTicker(),
+				a.startSpeedLimitTicker(),
+			)
 
 		case "enter":
 			opts := state.SortOptions()
@@ -1195,7 +1220,10 @@ func (a *App) handleSortPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.multilineList.SetTorrents(a.state.FilteredTorrents())
 			}
 			a.sortPopupMode = false
-			return a, nil
+			return a, tea.Batch(
+				a.startRefreshTicker(),
+				a.startSpeedLimitTicker(),
+			)
 
 		case "up", "k":
 			opts := state.SortOptions()
@@ -1220,6 +1248,19 @@ func (a *App) handleSortPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		return a, nil
 
+	case tickMsg:
+		a.checkThemeFileChanges()
+		return a, tea.Batch(
+			a.refreshTorrents(),
+			a.startRefreshTicker(),
+		)
+
+	case speedLimitTickMsg:
+		return a, tea.Batch(
+			a.refreshSpeedLimitStatus(),
+			a.startSpeedLimitTicker(),
+		)
+
 	default:
 		return a, nil
 	}
@@ -1232,7 +1273,10 @@ func (a *App) handleFilterPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "esc":
 			a.filterPopupMode = false
-			return a, nil
+			return a, tea.Batch(
+				a.startRefreshTicker(),
+				a.startSpeedLimitTicker(),
+			)
 
 		case "enter":
 			opts := state.FilterOptions()
@@ -1245,7 +1289,10 @@ func (a *App) handleFilterPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.multilineList.SetTorrents(a.state.FilteredTorrents())
 			}
 			a.filterPopupMode = false
-			return a, nil
+			return a, tea.Batch(
+				a.startRefreshTicker(),
+				a.startSpeedLimitTicker(),
+			)
 
 		case "up", "k":
 			opts := state.FilterOptions()
@@ -1269,6 +1316,19 @@ func (a *App) handleFilterPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		return a, nil
+
+	case tickMsg:
+		a.checkThemeFileChanges()
+		return a, tea.Batch(
+			a.refreshTorrents(),
+			a.startRefreshTicker(),
+		)
+
+	case speedLimitTickMsg:
+		return a, tea.Batch(
+			a.refreshSpeedLimitStatus(),
+			a.startSpeedLimitTicker(),
+		)
 
 	default:
 		return a, nil
