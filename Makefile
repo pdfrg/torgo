@@ -1,6 +1,6 @@
 .PHONY: build build-release build-multiplatform install clean test run
 
-VERSION ?= dev
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BINARY := torgo
 
 LDFLAGS = -s -w -X main.Version=$(VERSION)

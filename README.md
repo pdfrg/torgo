@@ -16,8 +16,8 @@ A terminal user interface for managing torrents across **qBittorrent** and **Tra
 ## Quick Install
 
 ```bash
-go install github.com/your-org/torgo@latest          # or:
-git clone https://github.com/your-org/torgo && cd torgo && make build
+go install github.com/pdfrg/torgo@latest          # or:
+git clone https://github.com/pdfrg/torgo && cd torgo && make build
 ```
 
 ## Quickstart

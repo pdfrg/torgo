@@ -41,7 +41,7 @@ main.go → config.LoadConfig() → state.NewAppState() → tui.NewApp() → tea
 ### From source
 
 ```bash
-git clone https://github.com/your-org/torgo
+git clone https://github.com/pdfrg/torgo
 cd torgo
 make build
 ```
@@ -49,7 +49,7 @@ make build
 ### Via `go install`
 
 ```bash
-go install github.com/your-org/torgo@latest
+go install github.com/pdfrg/torgo@latest
 ```
 
 ### Version embedding
