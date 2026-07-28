@@ -1,7 +1,7 @@
 .PHONY: build build-release build-multiplatform install clean test run
 
 VERSION ?= dev
-BINARY := tqbtui
+BINARY := torgo
 
 LDFLAGS = -s -w -X main.Version=$(VERSION)
 
@@ -14,9 +14,9 @@ build-release:
 build-multiplatform:
 	@mkdir -p dist
 	@echo "Building for linux/amd64..."
-	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/tqbtui-linux-amd64 .
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o dist/torgo-linux-amd64 .
 	@echo "Building for linux/arm64..."
-	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/tqbtui-linux-arm64 .
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o dist/torgo-linux-arm64 .
 	@echo ""
 	@echo "Done! Binaries in dist/:"
 	@ls -lh dist/

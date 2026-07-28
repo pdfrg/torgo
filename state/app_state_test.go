@@ -2,8 +2,8 @@ package state
 
 import (
 	"testing"
-	"tqbtui/client"
-	"tqbtui/config"
+	"torgo/client"
+	"torgo/config"
 )
 
 // TestNewAppState tests creating a new app state from config

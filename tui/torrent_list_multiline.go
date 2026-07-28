@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"tqbtui/client"
+	"torgo/client"
 
 	"charm.land/bubbles/v2/viewport"
 	"charm.land/lipgloss/v2"

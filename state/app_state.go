@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"tqbtui/client"
-	"tqbtui/config"
+	"torgo/client"
+	"torgo/config"
 )
 
 // ClientInstance wraps a client adapter with metadata

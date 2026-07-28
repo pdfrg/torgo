@@ -31,7 +31,7 @@ type ClientConfig struct {
 }
 
 // LoadConfig loads config from the given path.
-// If cfgPath is empty, defaults to ~/.config/tqbtui/config.toml.
+// If cfgPath is empty, defaults to ~/.config/torgo/config.toml.
 func LoadConfig(cfgPath string) (*Config, error) {
 	configDir, err := getConfigDir()
 	if err != nil {
@@ -64,14 +64,14 @@ func LoadConfig(cfgPath string) (*Config, error) {
 	return &cfg, nil
 }
 
-// getConfigDirInternal returns ~/.config/tqbtui, creating it if needed
+// getConfigDirInternal returns ~/.config/torgo, creating it if needed
 func getConfigDirInternal() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
 
-	configDir := filepath.Join(home, ".config", "tqbtui")
+	configDir := filepath.Join(home, ".config", "torgo")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return "", fmt.Errorf("failed to create config dir: %w", err)
 	}
@@ -112,7 +112,7 @@ func DiscoverThemes(configDir string) []string {
 		}
 	}
 
-	// Check for custom theme in tqbtui config dir
+	// Check for custom theme in torgo config dir
 	customPath := filepath.Join(configDir, "colors.toml")
 	if _, err := os.Stat(customPath); err == nil {
 		themes = append(themes, "custom")

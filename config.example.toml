@@ -1,5 +1,5 @@
-# tqbtui Configuration File
-# Copy to ~/.config/tqbtui/config.toml and customize
+# torgo Configuration File
+# Copy to ~/.config/torgo/config.toml and customize
 
 # ============================================================================
 # UI Configuration
@@ -17,15 +17,15 @@ show_hints = true
 #   - "light": Built-in light theme
 #   - "highcontrast": Built-in high-contrast theme
 #   - "omarchy": Uses ~/.config/omarchy/current/theme/colors.toml (if it exists)
-#   - "custom": Uses ~/.config/tqbtui/colors.toml (if it exists)
+#   - "custom": Uses ~/.config/torgo/colors.toml (if it exists)
 #
 # Theme auto-discovery:
 #   - If ~/.config/omarchy/current/theme/colors.toml exists, "omarchy" will be available
-#   - If ~/.config/tqbtui/colors.toml exists, "custom" will be available
+#   - If ~/.config/torgo/colors.toml exists, "custom" will be available
 #   - These can be cycled through using the 't' key in the TUI
 #
 # Omarchy format colors.toml:
-#   - Copy your omarchy theme's colors.toml to ~/.config/tqbtui/colors.toml to use as "custom"
+#   - Copy your omarchy theme's colors.toml to ~/.config/torgo/colors.toml to use as "custom"
 #   - Or set up omarchy in ~/.config/omarchy/current/theme/ and use "omarchy" option
 default_color_scheme = "dark"
 

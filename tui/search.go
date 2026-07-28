@@ -2,7 +2,7 @@ package tui
 
 import (
 	"strings"
-	"tqbtui/client"
+	"torgo/client"
 )
 
 // normalizeForSearch replaces common torrent title separators with spaces

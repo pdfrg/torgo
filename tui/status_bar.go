@@ -2,7 +2,7 @@ package tui
 
 import (
 	"fmt"
-	"tqbtui/state"
+	"torgo/state"
 
 	"charm.land/lipgloss/v2"
 )

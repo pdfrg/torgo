@@ -131,7 +131,7 @@ func GetBasePathForListing(path string) string {
 // canWrite checks if a path is writeable
 func canWrite(path string) error {
 	// Try to write a test file
-	testFile := filepath.Join(path, ".tqbtui_write_test")
+	testFile := filepath.Join(path, ".torgo_write_test")
 	if err := os.WriteFile(testFile, []byte("test"), 0600); err != nil {
 		return err
 	}

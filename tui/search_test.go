@@ -2,7 +2,7 @@ package tui
 
 import (
 	"testing"
-	"tqbtui/client"
+	"torgo/client"
 )
 
 func TestNormalizeForSearch(t *testing.T) {

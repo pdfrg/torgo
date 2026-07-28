@@ -1,4 +1,4 @@
-# tqbtui Documentation
+# torgo Documentation
 
 ## Table of Contents
 
@@ -23,7 +23,7 @@
 
 ## Overview
 
-tqbtui is a terminal user interface built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) (v2) that lets you manage **qBittorrent** and **Transmission** torrent clients from a single terminal session. You can connect to unlimited instances of either type, switch between them with one key, and perform all common operations without leaving your terminal.
+torgo is a terminal user interface built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) (v2) that lets you manage **qBittorrent** and **Transmission** torrent clients from a single terminal session. You can connect to unlimited instances of either type, switch between them with one key, and perform all common operations without leaving your terminal.
 
 Architecture:
 
@@ -41,15 +41,15 @@ main.go → config.LoadConfig() → state.NewAppState() → tui.NewApp() → tea
 ### From source
 
 ```bash
-git clone https://github.com/your-org/tqbtui
-cd tqbtui
+git clone https://github.com/your-org/torgo
+cd torgo
 make build
 ```
 
 ### Via `go install`
 
 ```bash
-go install github.com/your-org/tqbtui@latest
+go install github.com/your-org/torgo@latest
 ```
 
 ### Version embedding
@@ -67,7 +67,7 @@ make build VERSION=1.0.0   # version = "1.0.0"
 
 ```bash
 make build-multiplatform
-# Produces dist/tqbtui-linux-amd64 and dist/tqbtui-linux-arm64
+# Produces dist/torgo-linux-amd64 and dist/torgo-linux-arm64
 ```
 
 Other `make` targets:
@@ -80,12 +80,12 @@ Other `make` targets:
 ## CLI Flags
 
 ```
-Usage: tqbtui [flags]
+Usage: torgo [flags]
 
 Flags:
   -h, --help            Show this help text and exit
   -v, --version         Print version and exit
-  -c, --config <path>   Path to config file (default: ~/.config/tqbtui/config.toml)
+  -c, --config <path>   Path to config file (default: ~/.config/torgo/config.toml)
   -i, --client <idx>    Client index to start with (0-based)
 ```
 
@@ -93,7 +93,7 @@ Flags:
 
 ## Configuration
 
-Config file: `~/.config/tqbtui/config.toml`
+Config file: `~/.config/torgo/config.toml`
 
 ### `[ui]` section
 
@@ -165,14 +165,14 @@ All built-in themes use consistent [semantic color roles](#semantic-color-roles)
 | Name | Abbreviation | Source file |
 |------|-------------|-------------|
 | `omarchy` | omarchy | `~/.config/omarchy/current/theme/colors.toml` |
-| `custom` | custom | `~/.config/tqbtui/colors.toml` |
+| `custom` | custom | `~/.config/torgo/colors.toml` |
 
 Omarchy and custom themes are auto-discovered on startup. The hints bar shows the current theme abbreviation after `t:theme (...)`.
 
 ### Theme auto-detection
 
 If `default_color_scheme` is empty:
-1. If `~/.config/tqbtui/colors.toml` exists → `custom`
+1. If `~/.config/torgo/colors.toml` exists → `custom`
 2. Else if `~/.config/omarchy/current/theme/colors.toml` exists → `omarchy`
 3. Else → `dark`
 
@@ -622,7 +622,7 @@ Errors are displayed at the bottom and auto-clear after 3 seconds.
 ### Commands
 
 ```bash
-make build              # Build binary (tqbtui)
+make build              # Build binary (torgo)
 make build-release      # Release build
 make build-multiplatform # Cross-compile for linux/amd64 + linux/arm64
 make install            # go install
@@ -640,7 +640,7 @@ go test ./...
 ### Project layout
 
 ```
-tqbtui/
+torgo/
 ├── main.go                   # Entry point
 ├── config/
 │   ├── config.go             # TOML parsing, theme loading

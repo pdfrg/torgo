@@ -1,4 +1,4 @@
-# tqbtui – Multi-Client Torrent TUI
+# torgo – Multi-Client Torrent TUI
 
 A terminal user interface for managing torrents across **qBittorrent** and **Transmission** instances — simultaneously from one terminal.
 
@@ -16,17 +16,17 @@ A terminal user interface for managing torrents across **qBittorrent** and **Tra
 ## Quick Install
 
 ```bash
-go install github.com/your-org/tqbtui@latest          # or:
-git clone https://github.com/your-org/tqbtui && cd tqbtui && make build
+go install github.com/your-org/torgo@latest          # or:
+git clone https://github.com/your-org/torgo && cd torgo && make build
 ```
 
 ## Quickstart
 
 ```bash
-cp config.example.toml ~/.config/tqbtui/config.toml
-# edit ~/.config/tqbtui/config.toml with your client credentials
+cp config.example.toml ~/.config/torgo/config.toml
+# edit ~/.config/torgo/config.toml with your client credentials
 # (passwords support $ENV_VAR expansion)
-tqbtui
+torgo
 ```
 
 Press `?` for help, `q` to quit.

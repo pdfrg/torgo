@@ -14,9 +14,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/atotto/clipboard"
-	"tqbtui/client"
-	"tqbtui/config"
-	"tqbtui/state"
+	"torgo/client"
+	"torgo/config"
+	"torgo/state"
 )
 
 // simpleItem is a minimal list item for categories
@@ -443,7 +443,7 @@ func (a *App) View() tea.View {
 	lines := []string{}
 
 	// Title
-	titleText := "󰁇  󰁇  tqbtui – Torrent Multi-Client TUI"
+	titleText := "󰁇  󰁇  torgo – Multi-Client Torrent TUI"
 	titleStyle := lipgloss.NewStyle().
 		Foreground(CurrentTheme.AccentColor).
 		Bold(true)

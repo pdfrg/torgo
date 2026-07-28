@@ -6,21 +6,21 @@ import (
 	"log"
 	"os"
 	"strings"
-	"tqbtui/config"
-	"tqbtui/state"
-	"tqbtui/tui"
+	"torgo/config"
+	"torgo/state"
+	"torgo/tui"
 
 	tea "charm.land/bubbletea/v2"
 )
 
 var Version = "dev"
 
-const usageText = `Usage: tqbtui [flags]
+const usageText = `Usage: torgo [flags]
 
 Flags:
   -h, --help            Show this help text and exit
   -v, --version         Print version and exit
-  -c, --config <path>   Path to config file (default: ~/.config/tqbtui/config.toml)
+  -c, --config <path>   Path to config file (default: ~/.config/torgo/config.toml)
   -i, --client <idx>    Client index to start with (0-based)
 `
 
@@ -32,7 +32,7 @@ func main() {
 		clientIdx   int
 	)
 
-	fs := flag.NewFlagSet("tqbtui", flag.ContinueOnError)
+	fs := flag.NewFlagSet("torgo", flag.ContinueOnError)
 	fs.BoolVar(&showHelp, "h", false, "")
 	fs.BoolVar(&showHelp, "help", false, "")
 	fs.BoolVar(&showVersion, "v", false, "")
@@ -60,7 +60,7 @@ func main() {
 	// Load config
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
-		log.Fatalf("Failed to load config: %v\n\nCreate ~/.config/tqbtui/config.toml (see config.example.toml)", err)
+		log.Fatalf("Failed to load config: %v\n\nCreate ~/.config/torgo/config.toml (see config.example.toml)", err)
 	}
 
 	// Print available themes if custom themes were discovered

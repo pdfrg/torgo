@@ -10,7 +10,7 @@ import (
 func TestLoadConfig(t *testing.T) {
 	// Create temporary config directory structure
 	tmpDir := t.TempDir()
-	configDir := filepath.Join(tmpDir, ".config", "tqbtui")
+	configDir := filepath.Join(tmpDir, ".config", "torgo")
 	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		t.Fatalf("Failed to create temp config dir: %v", err)
 	}
