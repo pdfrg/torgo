@@ -49,6 +49,8 @@ type qbTorrent struct {
 	ContentPath   string  `json:"content_path"`
 	ETA           int64   `json:"eta"` // seconds (8640000 = infinite)
 	MagnetURI     string  `json:"magnet_uri"`
+	IsPrivate     bool    `json:"private"`
+	Tracker       string  `json:"tracker"` // First working tracker URL
 }
 
 // qbFile represents a file in a torrent (from /api/v2/torrents/files)
@@ -382,6 +384,8 @@ func (qa *QBittorrentAdapter) mapTorrent(qb qbTorrent) Torrent {
 		Category:    qb.Category,
 		ETA:         qb.ETA,
 		MagnetURI:   qb.MagnetURI,
+		IsPrivate:   qb.IsPrivate,
+		TrackerURL:  qb.Tracker,
 	}
 }
 
@@ -567,6 +571,8 @@ func (qa *QBittorrentAdapter) GetTorrentDetail(ctx context.Context, id string) (
 		TotalSize:   qb.TotalSize,
 		Downloaded:  qb.Downloaded,
 		ContentPath: qb.ContentPath,
+		IsPrivate:   qb.IsPrivate,
+		TrackerURL:  qb.Tracker,
 	}, nil
 }
 

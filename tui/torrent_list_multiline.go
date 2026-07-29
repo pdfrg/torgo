@@ -258,10 +258,18 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 	// Apply text color to name (variable data = ForegroundColor)
 	textStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
 
+	// Reserve space for private tracker indicator 🔒 (emoji width 2 + space = 3)
+	privateSuffix := ""
+	reserveForPrivate := 0
+	if torrent.IsPrivate {
+		reserveForPrivate = 3
+		privateSuffix = " 🔒"
+	}
+
 	// Truncate name to fit width
 	// Account for: number(3) + indicator(1) + space(1) = 5 chars minimum
 	minNameWidth := 10
-	availableForName := width - 6
+	availableForName := width - 6 - reserveForPrivate
 	if availableForName < minNameWidth {
 		availableForName = minNameWidth
 	}
@@ -269,9 +277,10 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 	styledName := textStyle.Render(truncatedName)
 
 	// Build the line
-	line := fmt.Sprintf("%s %s",
+	line := fmt.Sprintf("%s %s%s",
 		numberWithIndicator,
 		styledName,
+		privateSuffix,
 	)
 
 	// Check visual width (ignores ANSI codes)

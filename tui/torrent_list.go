@@ -268,8 +268,16 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	}
 	numberWithIndicator := numberStyled + indicator
 
+	// Reserve space for private tracker indicator 🔒 (emoji width 2 + space = 3)
+	privateSuffix := ""
+	effectiveNameWidth := nameWidth
+	if torrent.IsPrivate {
+		effectiveNameWidth = nameWidth - 3
+		privateSuffix = " 🔒"
+	}
+
 	// Pad the name to exact width (using rune-aware width)
-	paddedName := truncate(torrent.Name, nameWidth)
+	paddedName := truncate(torrent.Name, effectiveNameWidth)
 
 	// Calculate progress bar fill using rune length for unicode-aware width
 	nameRunes := []rune(paddedName)
@@ -291,7 +299,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	unfilledStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 
 	// Render the styled name parts
-	renderedName := filledStyle.Render(filledPart) + unfilledStyle.Render(unfilledPart)
+	renderedName := filledStyle.Render(filledPart) + unfilledStyle.Render(unfilledPart) + privateSuffix
 
 	// Note: lipgloss.Width() on styled text returns the visual width (excluding ANSI codes)
 	// We need to account for the original name width in our format string

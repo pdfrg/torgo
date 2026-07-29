@@ -35,6 +35,8 @@ type Torrent struct {
 	Category    string // Category/Label for organizing torrents
 	ETA         int64  // seconds (from API; 8640000 = sentinel for infinite)
 	MagnetURI   string // Magnet URI for copying
+	IsPrivate   bool   // Private tracker torrent
+	TrackerURL  string // First working tracker URL
 }
 
 // TorrentFile represents a file in a torrent
@@ -58,6 +60,8 @@ type TorrentDetail struct {
 	TotalSize   int64         // Total size of all files
 	Downloaded  int64         // Total downloaded bytes
 	ContentPath string        // Actual content path (qBittorrent)
+	IsPrivate   bool          // Private tracker torrent
+	TrackerURL  string        // First working tracker URL
 }
 
 // ClientAdapter is the interface all torrent clients must implement

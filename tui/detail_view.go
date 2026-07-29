@@ -399,6 +399,19 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	}
 	content.WriteString("\n\n")
 
+	// Tracker
+	content.WriteString(labelStyle.Render("Tracker:") + " ")
+	if m.detail.TrackerURL == "" {
+		content.WriteString(valueStyle.Render("(none)"))
+	} else {
+		trackerStr := m.detail.TrackerURL
+		if m.detail.IsPrivate {
+			trackerStr += " 🔒"
+		}
+		content.WriteString(valueStyle.Render(trackerStr))
+	}
+	content.WriteString("\n\n")
+
 	// Size info and progress
 	content.WriteString(labelStyle.Render("Total Size:") + " " + valueStyle.Render(FormatBytes(m.detail.TotalSize)) + "\n")
 

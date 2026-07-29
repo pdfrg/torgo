@@ -26,26 +26,36 @@ type TransmissionAdapter struct {
 	sessionID string // X-Transmission-Session-Id header
 }
 
+// trTrackerStat represents tracker statistics from Transmission
+type trTrackerStat struct {
+	ID       int    `json:"id"`
+	Host     string `json:"host"`
+	Announce string `json:"announce"`
+	Tier     int    `json:"tier"`
+}
+
 // trTorrent represents a Transmission torrent
 type trTorrent struct {
-	ID                 int64        `json:"id"`
-	Name               string       `json:"name"`
-	PercentDone        float64      `json:"percentDone"` // 0-1
-	RateDownload       float64      `json:"rateDownload"`
-	RateUpload         float64      `json:"rateUpload"`
-	Status             int          `json:"status"` // 0=stopped, 1=check waiting, 2=checking, 3=downloading, 4=seeding, 5=seed waiting, 6=stopped
-	PeersSendingToUs   int          `json:"peersSendingToUs"`
-	PeersGettingFromUs int          `json:"peersGettingFromUs"`
-	TotalSize          int64        `json:"totalSize"`
-	DownloadedEver     int64        `json:"downloadedEver"`
-	UploadedEver       int64        `json:"uploadedEver"`
-	Hash               string       `json:"hashString"`
-	DownloadDir        string       `json:"downloadDir"`
-	Labels             []string     `json:"labels"`
-	Comment            string       `json:"comment"`
-	Files              []trFile     `json:"files"`
-	FileStats          []trFileStat `json:"fileStats"`
-	ETA                int64        `json:"eta"` // seconds (-1=unknown, -2=unknown, others=seconds)
+	ID                 int64           `json:"id"`
+	Name               string          `json:"name"`
+	PercentDone        float64         `json:"percentDone"` // 0-1
+	RateDownload       float64         `json:"rateDownload"`
+	RateUpload         float64         `json:"rateUpload"`
+	Status             int             `json:"status"` // 0=stopped, 1=check waiting, 2=checking, 3=downloading, 4=seeding, 5=seed waiting, 6=stopped
+	PeersSendingToUs   int             `json:"peersSendingToUs"`
+	PeersGettingFromUs int             `json:"peersGettingFromUs"`
+	TotalSize          int64           `json:"totalSize"`
+	DownloadedEver     int64           `json:"downloadedEver"`
+	UploadedEver       int64           `json:"uploadedEver"`
+	Hash               string          `json:"hashString"`
+	DownloadDir        string          `json:"downloadDir"`
+	Labels             []string        `json:"labels"`
+	Comment            string          `json:"comment"`
+	Files              []trFile        `json:"files"`
+	FileStats          []trFileStat    `json:"fileStats"`
+	ETA                int64           `json:"eta"` // seconds (-1=unknown, -2=unknown, others=seconds)
+	IsPrivate          bool            `json:"isPrivate"`
+	TrackerStats       []trTrackerStat `json:"trackerStats"`
 }
 
 // trFile represents a file in a Transmission torrent
@@ -146,7 +156,8 @@ func (ta *TransmissionAdapter) ListTorrents(ctx context.Context) ([]Torrent, err
 		"method":"torrent-get",
 		"arguments":{
 			"fields":["id","name","percentDone","rateDownload","rateUpload","status",
-				"peersSendingToUs","peersGettingFromUs","totalSize","downloadedEver","uploadedEver","hashString"]
+				"peersSendingToUs","peersGettingFromUs","totalSize","downloadedEver","uploadedEver","hashString",
+				"isPrivate"]
 		}
 	}`
 
@@ -385,6 +396,12 @@ func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
 		category = tr.Labels[0]
 	}
 
+	// Extract first tracker URL
+	trackerURL := ""
+	if len(tr.TrackerStats) > 0 {
+		trackerURL = tr.TrackerStats[0].Announce
+	}
+
 	return Torrent{
 		ID:          strconv.FormatInt(tr.ID, 10),
 		Name:        tr.Name,
@@ -401,6 +418,8 @@ func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
 		Uploaded:    tr.UploadedEver,
 		Category:    category,
 		ETA:         tr.ETA,
+		IsPrivate:   tr.IsPrivate,
+		TrackerURL:  trackerURL,
 	}
 }
 
@@ -523,7 +542,8 @@ func (ta *TransmissionAdapter) GetTorrentDetail(ctx context.Context, id string) 
 		"method":"torrent-get",
 		"arguments":{
 			"ids":[%s],
-			"fields":["name","downloadDir","labels","comment","files","fileStats","totalSize","downloadedEver"]
+			"fields":["name","downloadDir","labels","comment","files","fileStats","totalSize","downloadedEver",
+				"isPrivate","trackerStats"]
 		}
 	}`, id)
 
@@ -544,6 +564,12 @@ func (ta *TransmissionAdapter) GetTorrentDetail(ctx context.Context, id string) 
 		category = tr.Labels[0]
 	}
 
+	// Extract first tracker URL
+	trackerURL := ""
+	if len(tr.TrackerStats) > 0 {
+		trackerURL = tr.TrackerStats[0].Announce
+	}
+
 	return &TorrentDetail{
 		ID:         strconv.FormatInt(tr.ID, 10),
 		Name:       tr.Name,
@@ -553,6 +579,8 @@ func (ta *TransmissionAdapter) GetTorrentDetail(ctx context.Context, id string) 
 		SavePath:   tr.DownloadDir,
 		TotalSize:  tr.TotalSize,
 		Downloaded: tr.DownloadedEver,
+		IsPrivate:  tr.IsPrivate,
+		TrackerURL: trackerURL,
 	}, nil
 }
 
