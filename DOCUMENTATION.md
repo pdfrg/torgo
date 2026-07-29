@@ -300,7 +300,7 @@ Compact layout with columns:
    2  Another Torrent..........   1.1G  100%     -      -     -    -   done
 ```
 
-Columns: `#` (cursor + optional selection dot), **Name** (with progress fill as background), **Size**, **Prog** (%), **↓Down**, **↑Up**, **Seed**, **Leech**, **Status**.
+Columns: `#` (cursor + optional selection dot), **Name** (with progress fill as background, 🔒 suffix for private trackers), **Size**, **Prog** (%), **↓Down**, **↑Up**, **Seed**, **Leech**, **Status**.
 
 The name field acts as a progress bar: filled portion uses the status color with smart-contrast text, unfilled portion uses normal foreground color.
 
@@ -314,7 +314,7 @@ Three lines per torrent with a blank line separator:
       🎬 Downloading  ↓ 1.2 MB/s  ↑ 340 KB/s  Ratio: 0.85  Seeds: 12  Peers: 5  ETA: 2h 15m
 ```
 
-- **Line 1**: Row number + cursor indicator + selection dot + name
+- **Line 1**: Row number + cursor indicator + selection dot + name (🔒 suffix for private trackers)
 - **Line 2**: Gradient progress bar (status-colored) + downloaded/total sizes
 - **Line 3**: Category icon + status label + speeds + ratio + seeds + peers + ETA
 
@@ -335,6 +335,7 @@ Displays current torrent properties:
 - Category (shows pending edits)
 - Tags (comma-separated, shows pending edits)
 - Comments
+- Tracker URL (🔒 suffix for private trackers)
 
 ### Edit tab
 
