@@ -386,19 +386,21 @@ func (ta *TransmissionAdapter) mapTorrent(tr trTorrent) Torrent {
 	}
 
 	return Torrent{
-		ID:         strconv.FormatInt(tr.ID, 10),
-		Name:       tr.Name,
-		Progress:   uint8(tr.PercentDone * 100),
-		SpeedDown:  tr.RateDownload,
-		SpeedUp:    tr.RateUpload,
-		Status:     ta.mapStatus(tr.Status),
-		Seeds:      tr.PeersSendingToUs,
-		Leechs:     tr.PeersGettingFromUs,
-		Size:       tr.TotalSize,
-		Downloaded: tr.DownloadedEver,
-		Uploaded:   tr.UploadedEver,
-		Category:   category,
-		ETA:        tr.ETA,
+		ID:          strconv.FormatInt(tr.ID, 10),
+		Name:        tr.Name,
+		Progress:    uint8(tr.PercentDone * 100),
+		SpeedDown:   tr.RateDownload,
+		SpeedUp:     tr.RateUpload,
+		Status:      ta.mapStatus(tr.Status),
+		Seeds:       tr.PeersSendingToUs,
+		TotalSeeds:  tr.PeersSendingToUs,
+		Leechs:      tr.PeersGettingFromUs,
+		TotalLeechs: tr.PeersGettingFromUs,
+		Size:        tr.TotalSize,
+		Downloaded:  tr.DownloadedEver,
+		Uploaded:    tr.UploadedEver,
+		Category:    category,
+		ETA:         tr.ETA,
 	}
 }
 

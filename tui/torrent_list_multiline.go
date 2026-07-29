@@ -346,8 +346,8 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 	}
 	ratioStr := FormatRatio(ratio)
 
-	seeds := FormatPeerCount(int64(torrent.Seeds))
-	peers := FormatPeerCount(int64(torrent.Leechs))
+	seeds := FormatPeerCount(int64(torrent.Seeds), int64(torrent.TotalSeeds))
+	peers := FormatPeerCount(int64(torrent.Leechs), int64(torrent.TotalLeechs))
 	eta := m.calculateETA(torrent)
 
 	// Fixed widths for vertical alignment: icon(2) status(15) speeds(25) ratio(12) seeds(12) peers(12) eta(15)
@@ -356,8 +356,8 @@ func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, widt
 	paddedDownSpeed := fmt.Sprintf("%-12s", downSpeed)
 	paddedUpSpeed := fmt.Sprintf("%-12s", upSpeed)
 	paddedRatio := fmt.Sprintf("%-8s", ratioStr)
-	paddedSeeds := fmt.Sprintf("%-5s", seeds)
-	paddedPeers := fmt.Sprintf("%-5s", peers)
+	paddedSeeds := fmt.Sprintf("%-9s", seeds)
+	paddedPeers := fmt.Sprintf("%-9s", peers)
 
 	// Apply text colors - mix of textStyle (labels) and metricsStyle (values)
 	// Build with mixed styling using pre-padded values

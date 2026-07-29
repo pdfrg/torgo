@@ -19,20 +19,22 @@ const (
 
 // Torrent represents a torrent in the client
 type Torrent struct {
-	ID         string
-	Name       string
-	Progress   uint8   // 0-100
-	SpeedDown  float64 // bytes/sec
-	SpeedUp    float64 // bytes/sec
-	Status     TorrentStatus
-	Seeds      int
-	Leechs     int
-	Size       int64  // bytes
-	Downloaded int64  // bytes
-	Uploaded   int64  // bytes
-	Category   string // Category/Label for organizing torrents
-	ETA        int64  // seconds (from API; 8640000 = sentinel for infinite)
-	MagnetURI  string // Magnet URI for copying
+	ID          string
+	Name        string
+	Progress    uint8   // 0-100
+	SpeedDown   float64 // bytes/sec
+	SpeedUp     float64 // bytes/sec
+	Status      TorrentStatus
+	Seeds       int
+	TotalSeeds  int
+	Leechs      int
+	TotalLeechs int
+	Size        int64  // bytes
+	Downloaded  int64  // bytes
+	Uploaded    int64  // bytes
+	Category    string // Category/Label for organizing torrents
+	ETA         int64  // seconds (from API; 8640000 = sentinel for infinite)
+	MagnetURI   string // Magnet URI for copying
 }
 
 // TorrentFile represents a file in a torrent

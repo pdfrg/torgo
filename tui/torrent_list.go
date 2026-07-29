@@ -125,9 +125,9 @@ func (t *TorrentListView) Render(width, height int) string {
 
 	// Calculate dynamic name width based on terminal width
 	// Account for padding(0,1) in ListHeader which adds 2 chars (1 on each side)
-	// Fixed columns: number(3) + indicator(1) + space(1) + size(7) + space(1) + progress(5) + space(1) + down(7) + space(1) + up(7) + space(1) + seeds(5) + space(1) + leechs(6) + space(1) + status(8)
+	// Fixed columns: number(3) + indicator(1) + space(1) + size(7) + space(1) + progress(5) + space(1) + down(7) + space(1) + up(7) + space(1) + seeds(9) + space(1) + leechs(9) + space(1) + status(8)
 	effectiveWidth := width - 2 // Account for padding
-	fixedWidth := 3 + 1 + 1 + 7 + 1 + 5 + 1 + 7 + 1 + 7 + 1 + 5 + 1 + 6 + 1 + 8
+	fixedWidth := 3 + 1 + 1 + 7 + 1 + 5 + 1 + 7 + 1 + 7 + 1 + 9 + 1 + 9 + 1 + 8
 	nameWidth := effectiveWidth - fixedWidth
 	if nameWidth < 10 {
 		nameWidth = 10
@@ -230,7 +230,7 @@ func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 		Padding(0, 1)
 
 	return headerStyle.Render(
-		fmt.Sprintf(" %2s  %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %5s %6s %8s",
+		fmt.Sprintf(" %2s  %-"+fmt.Sprintf("%d", nameWidth)+"s%7s %5s %7s %7s %9s %9s %8s",
 			"#", "Name", "Size", "Prog", "↓Down", "↑Up", "Seed", "Leech", "Status"),
 	)
 }
@@ -302,13 +302,13 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	fieldStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
 
 	// Format field values with proper alignment BEFORE applying style
-	// Match the header format exactly: %3s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
+	// Match the header format exactly: %3s %-nameWidths %7s %5s %7s %7s %9s %9s %8s
 	sizeStr := fmt.Sprintf("%7s", formatSize(torrent.Size))
 	progressStr := fmt.Sprintf("%5s", fmt.Sprintf("%d%%", torrent.Progress))
 	downSpeedStr := fmt.Sprintf("%7s", formatSpeed(torrent.SpeedDown))
 	upSpeedStr := fmt.Sprintf("%7s", formatSpeed(torrent.SpeedUp))
-	seedsStr := fmt.Sprintf("%5d", torrent.Seeds)
-	leechsStr := fmt.Sprintf("%6d", torrent.Leechs)
+	seedsStr := fmt.Sprintf("%9s", FormatPeerCount(int64(torrent.Seeds), int64(torrent.TotalSeeds)))
+	leechsStr := fmt.Sprintf("%9s", FormatPeerCount(int64(torrent.Leechs), int64(torrent.TotalLeechs)))
 	statusStr := fmt.Sprintf("%8s", shortenStatus(string(torrent.Status)))
 
 	// Apply fieldStyle (without padding) to the formatted strings for consistent text color
@@ -327,7 +327,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 		paddingAfterName = 0
 	}
 
-	// Build row to match header format: %4s %-nameWidths %7s %5s %7s %7s %5s %6s %8s
+	// Build row to match header format: %4s %-nameWidths %7s %5s %7s %7s %9s %9s %8s
 	// The renderedName already includes ANSI codes, so we use padding to account for visual width
 	// numberWithIndicator is 4 chars (3 for number + 1 for indicator)
 	row := fmt.Sprintf("%s %s%*s%s %s %s %s %s %s %s",

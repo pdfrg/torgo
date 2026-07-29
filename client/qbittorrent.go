@@ -29,24 +29,26 @@ type QBittorrentAdapter struct {
 
 // qbTorrent represents the qBittorrent API torrent response
 type qbTorrent struct {
-	Hash        string  `json:"hash"`
-	Name        string  `json:"name"`
-	Progress    float64 `json:"progress"` // 0-1
-	DlSpeed     float64 `json:"dlspeed"`  // bytes/sec
-	UpSpeed     float64 `json:"upspeed"`  // bytes/sec
-	State       string  `json:"state"`    // uploading, downloading, etc.
-	NumSeeds    int     `json:"num_seeds"`
-	NumLeechs   int     `json:"num_leechs"`
-	TotalSize   int64   `json:"total_size"`
-	Downloaded  int64   `json:"downloaded"`
-	Uploaded    int64   `json:"uploaded"`
-	Category    string  `json:"category"`
-	Tags        string  `json:"tags"` // Comma-separated
-	Comment     string  `json:"comment"`
-	SavePath    string  `json:"save_path"`
-	ContentPath string  `json:"content_path"`
-	ETA         int64   `json:"eta"` // seconds (8640000 = infinite)
-	MagnetURI   string  `json:"magnet_uri"`
+	Hash          string  `json:"hash"`
+	Name          string  `json:"name"`
+	Progress      float64 `json:"progress"` // 0-1
+	DlSpeed       float64 `json:"dlspeed"`  // bytes/sec
+	UpSpeed       float64 `json:"upspeed"`  // bytes/sec
+	State         string  `json:"state"`    // uploading, downloading, etc.
+	NumSeeds      int     `json:"num_seeds"`
+	NumLeechs     int     `json:"num_leechs"`
+	NumComplete   int     `json:"num_complete"`
+	NumIncomplete int     `json:"num_incomplete"`
+	TotalSize     int64   `json:"total_size"`
+	Downloaded    int64   `json:"downloaded"`
+	Uploaded      int64   `json:"uploaded"`
+	Category      string  `json:"category"`
+	Tags          string  `json:"tags"` // Comma-separated
+	Comment       string  `json:"comment"`
+	SavePath      string  `json:"save_path"`
+	ContentPath   string  `json:"content_path"`
+	ETA           int64   `json:"eta"` // seconds (8640000 = infinite)
+	MagnetURI     string  `json:"magnet_uri"`
 }
 
 // qbFile represents a file in a torrent (from /api/v2/torrents/files)
@@ -364,20 +366,22 @@ func (qa *QBittorrentAdapter) delete(ctx context.Context, hash string, deleteFil
 func (qa *QBittorrentAdapter) mapTorrent(qb qbTorrent) Torrent {
 	status := qa.mapStatus(qb.State)
 	return Torrent{
-		ID:         qb.Hash,
-		Name:       qb.Name,
-		Progress:   uint8(qb.Progress * 100),
-		SpeedDown:  qb.DlSpeed,
-		SpeedUp:    qb.UpSpeed,
-		Status:     status,
-		Seeds:      qb.NumSeeds,
-		Leechs:     qb.NumLeechs,
-		Size:       qb.TotalSize,
-		Downloaded: qb.Downloaded,
-		Uploaded:   qb.Uploaded,
-		Category:   qb.Category,
-		ETA:        qb.ETA,
-		MagnetURI:  qb.MagnetURI,
+		ID:          qb.Hash,
+		Name:        qb.Name,
+		Progress:    uint8(qb.Progress * 100),
+		SpeedDown:   qb.DlSpeed,
+		SpeedUp:     qb.UpSpeed,
+		Status:      status,
+		Seeds:       qb.NumSeeds,
+		TotalSeeds:  qb.NumComplete,
+		Leechs:      qb.NumLeechs,
+		TotalLeechs: qb.NumIncomplete,
+		Size:        qb.TotalSize,
+		Downloaded:  qb.Downloaded,
+		Uploaded:    qb.Uploaded,
+		Category:    qb.Category,
+		ETA:         qb.ETA,
+		MagnetURI:   qb.MagnetURI,
 	}
 }
 

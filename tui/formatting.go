@@ -142,13 +142,16 @@ func FormatPercent(percent float64) string {
 	return fmt.Sprintf("%.0f%%", percent*100)
 }
 
-// FormatPeerCount formats seed/leech counts
-// Examples: "12", "N/A" for negative numbers
-func FormatPeerCount(count int64) string {
-	if count < 0 {
+// FormatPeerCount formats seed/leech counts with optional total in parentheses.
+// Examples: "5(12)", "5", "N/A" for negative numbers
+func FormatPeerCount(connected, total int64) string {
+	if connected < 0 {
 		return "N/A"
 	}
-	return fmt.Sprintf("%d", count)
+	if total > 0 && total != connected {
+		return fmt.Sprintf("%d(%d)", connected, total)
+	}
+	return fmt.Sprintf("%d", connected)
 }
 
 // TruncateString truncates a string to maxLen with ellipsis if needed
@@ -190,11 +193,11 @@ func FormatStatusLine(status string, downloadSpeed, uploadSpeed, ratio int64) st
 }
 
 // FormatInfoLine creates a formatted info line
-// Example: "Seeds: 12  Peers: 5  ETA: 2h 15m"
-func FormatInfoLine(seeds, peers int64, eta string) string {
+// Example: "Seeds: 12(30)  Peers: 5(20)  ETA: 2h 15m"
+func FormatInfoLine(seeds, totalSeeds, peers, totalPeers int64, eta string) string {
 	return fmt.Sprintf("Seeds: %s  Peers: %s  ETA: %s",
-		FormatPeerCount(seeds),
-		FormatPeerCount(peers),
+		FormatPeerCount(seeds, totalSeeds),
+		FormatPeerCount(peers, totalPeers),
 		eta,
 	)
 }
