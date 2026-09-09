@@ -17,7 +17,7 @@ type Config struct {
 type UIConfig struct {
 	DefaultClient      string `toml:"default_client"`
 	ShowHints          bool   `toml:"show_hints"`
-	DefaultColorScheme string `toml:"default_color_scheme"` // "default", "dark", "light", "highcontrast", "omarchy", or "custom"
+	DefaultColorScheme string `toml:"default_color_scheme"` // "default", "dark", "light", "highcontrast", "omarchy", "custom", or "terminal"
 }
 
 type ClientConfig struct {
@@ -98,18 +98,41 @@ var getConfigDirOverride func() (string, error)
 // AvailableThemes holds the list of theme names that can be cycled through
 var AvailableThemes []string
 
+// omarchyColorsCandidates returns paths to check for the active Omarchy theme,
+// newest location first. Omarchy 4 (quattro) renders the active theme under
+// $XDG_STATE_HOME/omarchy/current/theme/ (default ~/.local/state/...); older
+// releases used ~/.config/omarchy/current/theme/.
+func omarchyColorsCandidates() []string {
+	var dirs []string
+	if xdg := os.Getenv("XDG_STATE_HOME"); xdg != "" {
+		dirs = append(dirs, filepath.Join(xdg, "omarchy", "current", "theme", "colors.toml"))
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		dirs = append(dirs, filepath.Join(home, ".local", "state", "omarchy", "current", "theme", "colors.toml"))
+		dirs = append(dirs, filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml"))
+	}
+	return dirs
+}
+
+// OmarchyColorsPath returns the path of the active Omarchy colors.toml,
+// or "" if no Omarchy theme is present.
+func OmarchyColorsPath() string {
+	for _, p := range omarchyColorsCandidates() {
+		if _, err := os.Stat(p); err == nil {
+			return p
+		}
+	}
+	return ""
+}
+
 // DiscoverThemes finds all available themes at startup
 // Returns slice of theme names in load order
 func DiscoverThemes(configDir string) []string {
-	themes := []string{"dark", "light", "highcontrast"}
+	themes := []string{"dark", "light", "highcontrast", "terminal"}
 
 	// Check for omarchy theme
-	home, err := os.UserHomeDir()
-	if err == nil {
-		omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
-		if _, err := os.Stat(omarchyPath); err == nil {
-			themes = append(themes, "omarchy")
-		}
+	if OmarchyColorsPath() != "" {
+		themes = append(themes, "omarchy")
 	}
 
 	// Check for custom theme in torgo config dir
@@ -133,9 +156,7 @@ func loadTheme(cfg *Config, configDir string) error {
 	cfg.LoadedColors = make(map[string]map[string]string)
 
 	// Load omarchy colors if it exists
-	home, err := os.UserHomeDir()
-	if err == nil {
-		omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
+	if omarchyPath := OmarchyColorsPath(); omarchyPath != "" {
 		if colors, err := loadColorsFile(omarchyPath); err == nil {
 			cfg.LoadedColors["omarchy"] = colors
 		}
@@ -154,17 +175,10 @@ func loadTheme(cfg *Config, configDir string) error {
 			scheme = "custom"
 		} else {
 			// Check for omarchy colors second
-			home, err := os.UserHomeDir()
-			if err == nil {
-				omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
-				if _, err := os.Stat(omarchyPath); err == nil {
-					scheme = "omarchy"
-				} else {
-					// Fall back to dark theme
-					scheme = "dark"
-				}
+			if OmarchyColorsPath() != "" {
+				scheme = "omarchy"
 			} else {
-				// Can't access home dir, fall back to dark
+				// Fall back to dark theme
 				scheme = "dark"
 			}
 		}
@@ -195,11 +209,10 @@ func loadColorsFile(path string) (map[string]string, error) {
 // Used when user switches to omarchy or custom theme to ensure fresh data
 func (c *Config) ReloadThemeColors(themeName string) error {
 	if themeName == "omarchy" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get home directory: %w", err)
+		omarchyPath := OmarchyColorsPath()
+		if omarchyPath == "" {
+			return fmt.Errorf("no omarchy colors.toml found")
 		}
-		omarchyPath := filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
 		colors, err := loadColorsFile(omarchyPath)
 		if err != nil {
 			return err

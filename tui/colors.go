@@ -46,6 +46,12 @@ type Theme struct {
 	// Oneline view solid status colors (not gradients)
 	StatusOnlineColors    map[string]color.Color // Solid colors for oneline view by status
 	StatusOnlineColorsHex map[string]string      // Hex versions for luminance check
+
+	// SolidProgressBars renders multiline progress bars as a single palette
+	// color instead of a blended gradient. Required for themes whose colors
+	// are ANSI slots: blending converts slots to fixed RGB and would bypass
+	// the terminal palette. Only TerminalTheme sets this.
+	SolidProgressBars bool
 }
 
 // DefaultTheme returns the default light-on-dark theme
@@ -303,6 +309,81 @@ func HighContrastTheme() Theme {
 	}
 }
 
+// TerminalTheme returns a theme that inherits the terminal emulator's palette.
+// Every color is either an ANSI 0-15 palette slot or the terminal default
+// (empty string), so whatever the terminal is themed with — e.g. an Omarchy
+// theme applied locally — shows through, even over SSH where no theme files
+// exist on the remote host. Status indicators are solid palette colors;
+// gradients collapse to a single slot (no truecolor blending).
+func TerminalTheme() Theme {
+	solid := func(slot string) [2]color.Color {
+		c := lipgloss.Color(slot)
+		return [2]color.Color{c, c}
+	}
+	flat := func(slot string) color.Color { return lipgloss.Color(slot) }
+	return Theme{
+		StatusGradients: map[string][2]color.Color{
+			"downloading": solid("4"), // blue
+			"seeding":     solid("2"), // green
+			"paused":      solid("3"), // yellow
+			"completed":   solid("5"), // magenta
+			"error":       solid("1"), // red
+			"queueing":    solid("6"), // cyan
+			"stalled":     solid("3"), // yellow
+			"stalledDL":   solid("3"),
+			"stalledUP":   solid("3"),
+			"unknown":     solid("8"), // bright black
+		},
+		TextNormal:            lipgloss.Color(""),  // terminal default fg (adapts to light/dark)
+		TextMuted:             lipgloss.Color("8"), // bright black
+		TextError:             lipgloss.Color("1"), // red
+		BgNormal:              lipgloss.Color(""),  // terminal default bg (transparent)
+		ProgressBarEmptyColor: lipgloss.Color("8"), // bright black
+
+		AccentColor:     lipgloss.Color("4"), // blue
+		CursorColor:     lipgloss.Color("6"), // cyan
+		ForegroundColor: lipgloss.Color(""),  // terminal default fg
+
+		StatusBarBg:     lipgloss.Color("8"), // bright black
+		StatusBarFg:     lipgloss.Color(""),  // terminal default fg
+		StatusBarAccent: lipgloss.Color("4"), // blue
+
+		// Hex versions: ANSI slot strings pass through to lipgloss as-is;
+		// empty means "use terminal default".
+		AccentColorHex: "4",
+		BgNormalHex:    "",
+
+		DetailTabActiveBorder:   lipgloss.Color("4"), // blue
+		DetailTabInactiveBorder: lipgloss.Color("8"), // bright black
+		DetailLabelColor:        lipgloss.Color("4"), // blue
+		DetailCursorColor:       lipgloss.Color("6"), // cyan
+
+		StatusOnlineColors: map[string]color.Color{
+			"downloading": flat("4"),
+			"seeding":     flat("2"),
+			"paused":      flat("3"),
+			"completed":   flat("5"),
+			"error":       flat("1"),
+			"queueing":    flat("6"),
+			"stalled":     flat("3"),
+			"unknown":     flat("8"),
+		},
+		// Empty hex = "terminal palette fill": GetContrastTextColorForBg
+		// answers dark overlay text (see below) instead of guessing luminance.
+		SolidProgressBars: true,
+		StatusOnlineColorsHex: map[string]string{
+			"downloading": "",
+			"seeding":     "",
+			"paused":      "",
+			"completed":   "",
+			"error":       "",
+			"queueing":    "",
+			"stalled":     "",
+			"unknown":     "",
+		},
+	}
+}
+
 // BuildThemeFromConfigColors creates a tui.Theme from config theme colors
 // If the config theme has Colors set, builds an OmarchyTheme
 // Otherwise returns a standard theme
@@ -543,8 +624,16 @@ func (t Theme) GetStatusColorHexForOneline(status string) string {
 	return "#FFFFFF"
 }
 
-// GetContrastTextColorForBg returns light or dark text color based on background luminance
+// GetContrastTextColorForBg returns light or dark text color based on background luminance.
+// An empty bgHex means "terminal palette fill of unknown luminance" (used by
+// TerminalTheme, whose StatusOnlineColorsHex entries are empty). Luminance
+// can't be computed, so use palette black: correct on pastel-on-dark palettes
+// (Omarchy style) and light terminals, mirroring the dark-on-light-fill look
+// of the omarchy theme. May be low-contrast on stock-dark palettes.
 func (t Theme) GetContrastTextColorForBg(bgHex string) color.Color {
+	if bgHex == "" {
+		return lipgloss.Color("0")
+	}
 	if isColorDark(bgHex) {
 		return lipgloss.Color("#d0d0d0") // Light gray on dark background
 	}
@@ -559,8 +648,29 @@ func colorToHex(c color.Color) string {
 
 // Color transformation helper functions for omarchy themes
 
+// isValidHex reports whether s is a parseable #rrggbb or #rgb hex color.
+// The noire parser panics on malformed input, so every entry point that may
+// receive ANSI slots ("4") or empty terminal-theme values must check first.
+func isValidHex(s string) bool {
+	cleanHex := strings.TrimPrefix(s, "#")
+	if len(cleanHex) != 3 && len(cleanHex) != 6 {
+		return false
+	}
+	for _, r := range cleanHex {
+		isDigit := r >= '0' && r <= '9'
+		isHexLetter := r >= 'a' && r <= 'f' || r >= 'A' && r <= 'F'
+		if !isDigit && !isHexLetter {
+			return false
+		}
+	}
+	return true
+}
+
 // lightenColorHex lightens a hex color by the given amount (0.0-1.0)
 func lightenColorHex(hexColor string, amount float64) string {
+	if !isValidHex(hexColor) {
+		return hexColor
+	}
 	cleanHex := strings.TrimPrefix(hexColor, "#")
 	c := noire.NewHex(cleanHex)
 	lightened := c.Lighten(amount)
@@ -569,6 +679,9 @@ func lightenColorHex(hexColor string, amount float64) string {
 
 // darkenColorHex darkens a hex color by the given amount (0.0-1.0)
 func darkenColorHex(hexColor string, amount float64) string {
+	if !isValidHex(hexColor) {
+		return hexColor
+	}
 	cleanHex := strings.TrimPrefix(hexColor, "#")
 	c := noire.NewHex(cleanHex)
 	darkened := c.Darken(amount)
@@ -577,14 +690,21 @@ func darkenColorHex(hexColor string, amount float64) string {
 
 // desaturateColorHex desaturates a hex color by the given amount (0.0-1.0)
 func desaturateColorHex(hexColor string, amount float64) string {
+	if !isValidHex(hexColor) {
+		return hexColor
+	}
 	cleanHex := strings.TrimPrefix(hexColor, "#")
 	c := noire.NewHex(cleanHex)
 	desaturated := c.Desaturate(amount)
 	return "#" + desaturated.Hex()
 }
 
-// isColorDark checks if a hex color is dark
+// isColorDark checks if a hex color is dark.
+// Invalid (non-hex) input is treated as dark, matching dark terminal defaults.
 func isColorDark(hexColor string) bool {
+	if !isValidHex(hexColor) {
+		return true
+	}
 	cleanHex := strings.TrimPrefix(hexColor, "#")
 	c := noire.NewHex(cleanHex)
 	return c.IsDark()

@@ -243,7 +243,13 @@ type speedLimitTickMsg struct{}
 func (a *App) getSearchBoxBackground(theme Theme) string {
 	bgStr := theme.BgNormalHex
 	if bgStr == "" {
-		bgStr = "#000000"
+		// Terminal theme: no base bg to adjust, inherit terminal default.
+		return ""
+	}
+	if !strings.HasPrefix(bgStr, "#") {
+		// ANSI palette slot (terminal theme): pass through as-is so the
+		// terminal resolves it; noire hex math can't apply.
+		return bgStr
 	}
 
 	// Adjust by 0.25 for visibility (lighter if dark, darker if light)
@@ -266,6 +272,16 @@ func (a *App) getSearchBoxAccentBackground(theme Theme) string {
 
 // getSearchBoxTextColor calculates text color for search box
 func (a *App) getSearchBoxTextColor(bgHex string) string {
+	if bgHex == "" {
+		// Terminal default background: inherit terminal default fg for
+		// guaranteed terminal-designed contrast.
+		return ""
+	}
+	if !strings.HasPrefix(bgHex, "#") {
+		// ANSI palette fill (terminal theme): unknown luminance, use dark
+		// overlay text, consistent with GetContrastTextColorForBg.
+		return "0"
+	}
 	if isColorDark(bgHex) {
 		return "#d0d0d0" // Light gray on dark
 	}
@@ -348,8 +364,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 	case torrentRefreshMsg:
-		a.list.SetTorrents(a.state.FilteredTorrents())
-		a.multilineList.SetTorrents(a.state.FilteredTorrents())
+		a.refreshVisibleTorrents()
 		return a, nil
 	case errorMsg:
 		a.lastError = "Error: " + msg.Error()
@@ -795,8 +810,7 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.searchInput.Blur()
 		a.searchInput.Reset()
 		a.searchFilter.Clear()
-		a.list.SetTorrents(a.state.FilteredTorrents())
-		a.multilineList.SetTorrents(a.state.FilteredTorrents())
+		a.refreshVisibleTorrents()
 		return a, nil
 	}
 
@@ -959,8 +973,8 @@ func (a *App) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			// Sync cursor and selection from single-line to multiline view
 			a.multilineList.cursor = a.list.cursor
 			a.multilineList.selected = a.list.selected
-			// Also sync the torrent list
-			a.multilineList.SetTorrents(a.state.FilteredTorrents())
+			// Also sync the torrent list (keeping any active search filter)
+			a.multilineList.SetTorrents(a.visibleTorrents())
 		} else {
 			a.viewMode = "default"
 			// Sync cursor and selection from multiline to single-line view
@@ -1123,6 +1137,26 @@ func (a *App) handleInputMode(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
+// visibleTorrents returns the state-filtered torrents with the active search
+// query re-applied on top. Search results are derived, not stored, so every
+// path that resets the visible list (background refresh, sort/filter popups,
+// view toggle) must go through here or the search filter is lost.
+func (a *App) visibleTorrents() []client.Torrent {
+	torrents := a.state.FilteredTorrents()
+	if a.searchFilter != nil && a.searchFilter.IsActive() {
+		a.searchFilter.SetQuery(a.searchFilter.GetQuery(), torrents)
+		return a.searchFilter.GetResults()
+	}
+	return torrents
+}
+
+// refreshVisibleTorrents re-applies state + search filters to both list views.
+func (a *App) refreshVisibleTorrents() {
+	torrents := a.visibleTorrents()
+	a.list.SetTorrents(torrents)
+	a.multilineList.SetTorrents(torrents)
+}
+
 // handleSearchMode handles keyboard input while in search mode
 func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -1135,8 +1169,7 @@ func (a *App) handleSearchMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.searchInput.Reset()
 			a.searchFilter.Clear()
 			// Show all torrents again
-			a.list.SetTorrents(a.state.FilteredTorrents())
-			a.multilineList.SetTorrents(a.state.FilteredTorrents())
+			a.refreshVisibleTorrents()
 			return a, tea.Batch(
 				a.startRefreshTicker(),
 				a.startSpeedLimitTicker(),
@@ -1216,8 +1249,7 @@ func (a *App) handleSortPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.sortPopupCursor >= 0 && a.sortPopupCursor < len(opts) {
 				opt := opts[a.sortPopupCursor]
 				a.state.SetSort(opt.SortBy, opt.Ascending)
-				a.list.SetTorrents(a.state.FilteredTorrents())
-				a.multilineList.SetTorrents(a.state.FilteredTorrents())
+				a.refreshVisibleTorrents()
 			}
 			a.sortPopupMode = false
 			return a, tea.Batch(
@@ -1284,9 +1316,8 @@ func (a *App) handleFilterPopup(msg tea.Msg) (tea.Model, tea.Cmd) {
 				opt := opts[a.filterPopupCursor]
 				a.state.SetFilter(opt.Filter)
 				a.list.ClearSelection()
-				a.list.SetTorrents(a.state.FilteredTorrents())
 				a.multilineList.ClearSelection()
-				a.multilineList.SetTorrents(a.state.FilteredTorrents())
+				a.refreshVisibleTorrents()
 			}
 			a.filterPopupMode = false
 			return a, tea.Batch(
@@ -1970,11 +2001,10 @@ func (a *App) checkThemeFileChanges() {
 	// Get the path to check
 	var themeFilePath string
 	if a.currentTheme == "omarchy" {
-		home, err := os.UserHomeDir()
-		if err != nil {
+		themeFilePath = config.OmarchyColorsPath()
+		if themeFilePath == "" {
 			return
 		}
-		themeFilePath = filepath.Join(home, ".config", "omarchy", "current", "theme", "colors.toml")
 	} else if a.currentTheme == "custom" {
 		configDir, err := config.GetConfigDirForThemeMonitoring()
 		if err != nil {
@@ -2033,6 +2063,8 @@ func loadThemeByName(themeName string, cfg *config.Config) Theme {
 		return LightTheme()
 	case "highcontrast":
 		return HighContrastTheme()
+	case "terminal":
+		return TerminalTheme()
 	case "omarchy":
 		// Re-read omarchy theme from disk to catch any changes the user made in omarchy
 		if err := cfg.ReloadThemeColors("omarchy"); err == nil {

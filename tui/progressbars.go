@@ -81,12 +81,22 @@ func (pb *ProgressBarBuilder) BuildSolid(color color.Color) progress.Model {
 		progress.WithColors(color),
 	)
 	p.Full = progress.DefaultFullCharFullBlock // Use full block for solid fills
+	// A single stop bypasses gradient blending, preserving ANSI palette
+	// indices so the terminal resolves them from its live palette.
+	if pb.theme.ProgressBarEmptyColor != nil {
+		p.EmptyColor = pb.theme.ProgressBarEmptyColor
+	}
+	p.PercentageStyle = lipgloss.NewStyle().Foreground(pb.theme.TextNormal)
 	p.SetWidth(pb.width)
 	return p
 }
 
 // RenderProgressBar renders a progress bar at a given percentage with a status label
 func (pb *ProgressBarBuilder) RenderProgressBar(status string, percent float64) string {
+	if pb.theme.SolidProgressBars {
+		p := pb.BuildSolid(pb.theme.GetStatusGradient(status)[0])
+		return p.ViewAs(percent)
+	}
 	p := pb.BuildForStatus(status)
 	return p.ViewAs(percent)
 }
