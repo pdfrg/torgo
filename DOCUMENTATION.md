@@ -157,6 +157,7 @@ Passwords are expanded via `os.ExpandEnv()` at startup, so `$QBT_PASS`, `${QBT_P
 | `dark` | dark | Light text on dark background (default) |
 | `light` | lite | Dark text on light background |
 | `highcontrast` | HC | Bright, high contrast for accessibility |
+| `terminal` | terminal | Inherits your terminal emulator's palette (ANSI 0–15 + default fg/bg). Ideal over SSH: the local terminal's theme shows through, no theme files needed on the remote host |
 
 All built-in themes use consistent [semantic color roles](#semantic-color-roles).
 
@@ -164,7 +165,7 @@ All built-in themes use consistent [semantic color roles](#semantic-color-roles)
 
 | Name | Abbreviation | Source file |
 |------|-------------|-------------|
-| `omarchy` | omarchy | `~/.config/omarchy/current/theme/colors.toml` |
+| `omarchy` | omarchy | Active Omarchy theme's `colors.toml` — resolved from `$XDG_STATE_HOME/omarchy/current/theme/` (usually `~/.local/state/omarchy/current/theme/`), falling back to legacy `~/.config/omarchy/current/theme/` (Omarchy v3 layout) |
 | `custom` | custom | `~/.config/torgo/colors.toml` |
 
 Omarchy and custom themes are auto-discovered on startup. The hints bar shows the current theme abbreviation after `t:theme (...)`.
@@ -173,12 +174,12 @@ Omarchy and custom themes are auto-discovered on startup. The hints bar shows th
 
 If `default_color_scheme` is empty:
 1. If `~/.config/torgo/colors.toml` exists → `custom`
-2. Else if `~/.config/omarchy/current/theme/colors.toml` exists → `omarchy`
+2. Else if an Omarchy `colors.toml` exists (`$XDG_STATE_HOME/omarchy/current/theme/`, usually `~/.local/state/omarchy/current/theme/`, or legacy `~/.config/omarchy/current/theme/`) → `omarchy`
 3. Else → `dark`
 
 ### Theme cycling
 
-Press **`t`** to cycle through all discovered themes (built-in + omarchy + custom). The order is `dark → light → highcontrast → omarchy → custom → dark...`.
+Press **`t`** to cycle through all discovered themes (built-in + omarchy + custom). The order is `dark → light → highcontrast → terminal → omarchy → custom → dark...` (`terminal` is always available; `omarchy`/`custom` appear only when their files exist).
 
 ### Hot-reload
 
@@ -302,6 +303,8 @@ Compact layout with columns:
 
 Columns: `#` (cursor + optional selection dot), **Name** (with progress fill as background, 🔒 suffix for private trackers), **Size**, **Prog** (%), **↓Down**, **↑Up**, **Seed**, **Leech**, **Status**.
 
+**Seed** shows connected seeds with the tracker's total in parentheses when they differ (e.g. `12(45)`); same for **Leech**. `-`/`N/A` when unknown.
+
 The name field acts as a progress bar: filled portion uses the status color with smart-contrast text, unfilled portion uses normal foreground color.
 
 ### Multi-line view
@@ -316,7 +319,7 @@ Three lines per torrent with a blank line separator:
 
 - **Line 1**: Row number + cursor indicator + selection dot + name (🔒 suffix for private trackers)
 - **Line 2**: Gradient progress bar (status-colored) + downloaded/total sizes
-- **Line 3**: Category icon + status label + speeds + ratio + seeds + peers + ETA
+- **Line 3**: Category icon + status label + speeds + ratio + seeds + peers + ETA (seed/peer counts use the same `connected(total)` format as single-line view)
 
 ### View cycling
 
@@ -474,6 +477,9 @@ Press **`/`** to enter search mode.
 - **Real-time filtering**: results update as you type
 - **Case-insensitive**: "ubuntu" matches "Ubuntu"
 - **Separator normalization**: dots, dashes, and underscores are treated as spaces
+- **Tracker filter**: tokens of the form `tr:<text>` or `tracker:<text>` narrow results to torrents whose tracker hostname contains `<text>` (case-insensitive, separators ignored — `tr:torrent-leech`, `tr:torrent leech`, and `tr:torrentleech` all match `tracker.torrentleech.org`). Short substrings work too, so `tr:tl` is a fast shortcut. Torrents with no tracker URL are excluded whenever a tracker term is present.
+- **Combined search**: tracker tokens and title text compose — `tr:torrentleech ubuntu` means "on that tracker AND title contains ubuntu". Comma-separated values match OR across trackers: `tr:tl,mao arch`. Bare text with no `tr:` token is title-only, exactly as before.
+- **Visible filter**: confirmed tracker filters are shown explicitly in the results bar, e.g. `🔍 ubuntu [tr:torrentleech] (3 matches)` — or `🔍 * [tr:...]` when there is no title text — so it's always visible that a tracker filter is active
 - **Match count**: shows `(N matches)` in the search bar
 - **Visual modes**:
   - *Editing* (bright accent background): shows current input with match count
@@ -487,6 +493,8 @@ Workflow:
 5. Press **Esc** → clear search, show all torrents
 
 Search applies on top of the current filter (e.g., filter=downloading + search="ubuntu" shows downloading torrents with "ubuntu" in name).
+
+Search survives background refreshes (every 2s) and sort/filter popup confirmations — the query is re-applied on top of the refreshed list, so results don't silently reset while you work.
 
 ---
 
