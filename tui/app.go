@@ -105,7 +105,7 @@ func NewApp(appState *state.AppState) *App {
 	ti.SetStyles(tiStyles)
 
 	si := textinput.New()
-	si.Placeholder = "Search torrents..."
+	si.Placeholder = "Search torrents... (tr:<tracker> <title>)"
 	si.CharLimit = 256
 	// Apply same theme styles to search input
 	si.SetStyles(tiStyles)
@@ -489,7 +489,7 @@ func (a *App) View() tea.View {
 		if a.searchMode {
 			// Actively editing search - use bright accent color for visibility
 			inputQuery := a.searchInput.Value()
-			searchStatus = fmt.Sprintf(" 🔍 SEARCH: %s  (%d %s)  [Enter to confirm, ESC to clear] ",
+			searchStatus = fmt.Sprintf(" 🔍 SEARCH: %s  (%d %s)  [tr:<tracker> filters tracker • Enter confirm • ESC clear] ",
 				inputQuery, matches, matchText)
 
 			// Use accent color for editing mode (bright, draws attention)
@@ -503,8 +503,19 @@ func (a *App) View() tea.View {
 				Padding(0, 1)
 		} else {
 			// Search results active - use subtle adjusted background
+			// Show tracker terms as an explicit pill so the filter is visible at a glance
+			displayQuery := query
+			if a.searchFilter != nil {
+				if terms := a.searchFilter.GetTrackerTerms(); len(terms) > 0 {
+					title := a.searchFilter.GetTitleQuery()
+					if strings.TrimSpace(title) == "" {
+						title = "*"
+					}
+					displayQuery = fmt.Sprintf("%s [tr:%s]", title, strings.Join(terms, ","))
+				}
+			}
 			searchStatus = fmt.Sprintf(" 🔍 %s (%d %s) — / to edit, ESC to clear ",
-				query, matches, matchText)
+				displayQuery, matches, matchText)
 
 			// Use adjusted background for active mode (subtle, less prominent)
 			searchBg := a.getSearchBoxBackground(theme)

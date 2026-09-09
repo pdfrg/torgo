@@ -195,3 +195,93 @@ func TestSearchFilterIsActive(t *testing.T) {
 		t.Error("expected inactive filter after setting empty query")
 	}
 }
+
+func TestTrackerHost(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"https://tracker.torrentleech.org:443/announce", "tracker.torrentleech.org"},
+		{"udp://tracker.opentrackr.org:1337/announce", "tracker.opentrackr.org"},
+		{"http://www.example.com/announce", "example.com"},
+		{"", ""},
+		{"   ", ""},
+	}
+	for _, tt := range tests {
+		if got := trackerHost(tt.input); got != tt.expected {
+			t.Errorf("trackerHost(%q) = %q, want %q", tt.input, got, tt.expected)
+		}
+	}
+}
+
+func TestParseSearchQuery(t *testing.T) {
+	title, terms := parseSearchQuery("tr:torrentleech arch linux")
+	if title != "arch linux" {
+		t.Errorf("expected title %q, got %q", "arch linux", title)
+	}
+	if len(terms) != 1 || terms[0] != "torrentleech" {
+		t.Errorf("expected terms [torrentleech], got %v", terms)
+	}
+
+	title, terms = parseSearchQuery("tracker:tl,mao arch")
+	if title != "arch" {
+		t.Errorf("expected title %q, got %q", "arch", title)
+	}
+	if len(terms) != 2 || terms[0] != "tl" || terms[1] != "mao" {
+		t.Errorf("expected terms [tl mao], got %v", terms)
+	}
+
+	title, terms = parseSearchQuery("TR:TorrentLeech arch")
+	if title != "arch" || len(terms) != 1 || terms[0] != "TorrentLeech" {
+		t.Errorf("case-insensitive prefix failed: title=%q terms=%v", title, terms)
+	}
+
+	title, terms = parseSearchQuery("plain title only")
+	if title != "plain title only" || len(terms) != 0 {
+		t.Errorf("plain query failed: title=%q terms=%v", title, terms)
+	}
+}
+
+func TestSearchFilterTracker(t *testing.T) {
+	torrents := []client.Torrent{
+		{ID: "1", Name: "Ubuntu 22.04", TrackerURL: "https://tracker.torrentleech.org:443/announce"},
+		{ID: "2", Name: "Ubuntu 20.04", TrackerURL: "udp://tracker.opentrackr.org:1337/announce"},
+		{ID: "3", Name: "Fedora 37", TrackerURL: "https://tracker.torrentleech.org:443/announce"},
+		{ID: "4", Name: "Debian 12", TrackerURL: ""},
+	}
+
+	tests := []struct {
+		name        string
+		query       string
+		expectedIDs []string
+	}{
+		{"tracker only short", "tr:torrentleech", []string{"1", "3"}},
+		{"tracker long prefix", "tracker:torrentleech", []string{"1", "3"}},
+		{"tracker abbreviation substring", "tr:tl", []string{"1", "3"}},
+		{"tracker combined with title", "tr:torrentleech ubuntu", []string{"1"}},
+		{"tracker combined no title match", "tr:opentrackr ubuntu", []string{"2"}},
+		{"tracker combined excludes", "tr:torrentleech fedora", []string{"3"}},
+		{"tracker OR list", "tr:torrentleech,opentrackr", []string{"1", "2", "3"}},
+		{"tracker no match", "tr:nonexistent", []string{}},
+		{"title only ignores tracker", "ubuntu", []string{"1", "2"}},
+		{"empty tracker value is title-only", "tr: ubuntu", []string{"1", "2"}},
+		{"torrent without tracker excluded", "tr:torrentleech debian", []string{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := NewSearchFilter()
+			filter.SetQuery(tt.query, torrents)
+			results := filter.GetResults()
+			if len(results) != len(tt.expectedIDs) {
+				t.Fatalf("query %q: expected %d results %v, got %d (%v)",
+					tt.query, len(tt.expectedIDs), tt.expectedIDs, len(results), results)
+			}
+			for i, id := range tt.expectedIDs {
+				if results[i].ID != id {
+					t.Errorf("query %q: expected ID %s at %d, got %s", tt.query, id, i, results[i].ID)
+				}
+			}
+		})
+	}
+}
