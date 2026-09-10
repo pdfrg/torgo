@@ -33,3 +33,7 @@ torgo
 Press `?` for help, `q` to quit.
 
 > **Full documentation:** [DOCUMENTATION.md](DOCUMENTATION.md)
+
+## License
+
+MIT — see [LICENSE](LICENSE).
