@@ -546,8 +546,11 @@ func (a *App) View() tea.View {
 		a.detailView.SetAvailableHeight(detailViewAvailableHeight)
 		mainView = a.detailView.View()
 	} else {
-		// In list view
-		if a.viewMode == "multiline" {
+		// In list view — show a centered empty state when nothing is visible
+		// so the footer stays pinned to the bottom of the terminal.
+		if len(a.visibleTorrents()) == 0 {
+			mainView = a.renderEmptyState(listHeight)
+		} else if a.viewMode == "multiline" {
 			mainView = a.multilineList.Render(a.width, listHeight)
 		} else {
 			mainView = a.list.Render(a.width, listHeight)
@@ -627,14 +630,29 @@ func (a *App) View() tea.View {
 			outputLines = append(outputLines[:2], append(middleLines, outputLines[middleEnd:]...)...)
 		}
 	} else if len(outputLines) < a.height {
-		// Pad with blank lines to fill terminal
+		// Pad with blank lines BEFORE the footer so the status/hints bars
+		// stay pinned to the bottom of the terminal instead of floating
+		// up under the header when the list is short/empty.
 		padding := a.height - len(outputLines)
-		outputLines = append(outputLines, make([]string, padding)...)
+		bottomLinesNeeded := 2 // blank + status bar
+		if a.showHints {
+			bottomLinesNeeded += hintsBarLines
+		}
+		if bottomLinesNeeded > len(outputLines) {
+			bottomLinesNeeded = len(outputLines)
+		}
+		insertAt := len(outputLines) - bottomLinesNeeded
+		pad := make([]string, padding)
+		padded := make([]string, 0, a.height)
+		padded = append(padded, outputLines[:insertAt]...)
+		padded = append(padded, pad...)
+		padded = append(padded, outputLines[insertAt:]...)
+		outputLines = padded
 	}
 
 	output = strings.Join(outputLines, "\n")
 
-	// Overlay modals
+	// Overlay modals (empty-state helper is defined below, near the overlays)
 	if a.showHelp {
 		output = a.overlayHelpDialog(output)
 	}
@@ -659,6 +677,47 @@ func (a *App) View() tea.View {
 	v.AltScreen = true
 	v.BackgroundColor = CurrentTheme.BgNormal
 	return v
+}
+
+// renderEmptyState returns a centered boxed message filling listHeight lines
+// so the footer stays pinned to the bottom when no torrents are visible.
+func (a *App) renderEmptyState(listHeight int) string {
+	if listHeight < 3 {
+		listHeight = 3
+	}
+	width := a.width
+	if width < 1 {
+		width = 1
+	}
+
+	var title, hint string
+	switch {
+	case len(a.state.Torrents) == 0:
+		title = "No torrents"
+		hint = "Press 'a' to add a torrent"
+	case a.searchFilter != nil && a.searchFilter.IsActive():
+		title = fmt.Sprintf("No torrents match %q", a.searchFilter.GetQuery())
+		hint = "Press '/' to edit  •  ESC to clear"
+	default:
+		title = fmt.Sprintf("No torrents for this filter (%s)", string(a.state.Filter))
+		hint = "Press 'f' to change filter  •  'a' to add"
+	}
+
+	titleStyle := lipgloss.NewStyle().
+		Foreground(CurrentTheme.ForegroundColor).
+		Bold(true)
+	hintStyle := lipgloss.NewStyle().
+		Foreground(CurrentTheme.TextMuted)
+	content := titleStyle.Render("📂 "+title) + "\n" + hintStyle.Render(hint)
+
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(CurrentTheme.AccentColor).
+		Padding(1, 4).
+		Render(content)
+
+	// Fill the full list area and center the box both ways.
+	return lipgloss.Place(width, listHeight, lipgloss.Center, lipgloss.Center, box)
 }
 
 // overlayAddDialog renders the add torrent dialog as a centered modal overlay on top
