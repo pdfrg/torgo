@@ -6,19 +6,31 @@ import (
 	"time"
 	"torgo/client"
 
-	"charm.land/bubbles/v2/viewport"
 	"charm.land/lipgloss/v2"
 )
 
-// MultilineTorrentListView displays torrents in a 4-line format per entry
-// Each torrent occupies 4 lines: Identity, Progress, Status, Metrics + blank line
+// MultilineTorrentListView displays torrents in a 3-line format per entry
+// Each torrent occupies 3 lines: Identity, Progress, Status/Metrics + blank line
+// Rendering is virtualized: only the visible window is styled per frame.
 type MultilineTorrentListView struct {
 	torrents []client.Torrent
 	selected map[string]bool
 	cursor   int
-	styles   *Styles
-	theme    Theme
-	viewport viewport.Model
+	// yOffset is the first visible content line (line-based scroll offset,
+	// mirroring the old viewport behavior including partial blocks).
+	yOffset int
+	styles  *Styles
+	theme   Theme
+
+	// Per-frame cached styles (rebuilt once per Render, reused by all rows).
+	stNumCursor lipgloss.Style
+	stNumNormal lipgloss.Style
+	stSel       lipgloss.Style
+	stText      lipgloss.Style
+	stLabel     lipgloss.Style
+	stMetrics   lipgloss.Style
+	barModels   map[string]*ProgressBarBuilder
+	barModelW   int
 }
 
 // NewMultilineTorrentListView creates a new multi-line torrent list view
@@ -37,6 +49,13 @@ func (m *MultilineTorrentListView) SetTorrents(torrents []client.Torrent) {
 	m.torrents = torrents
 	if m.cursor >= len(torrents) {
 		m.cursor = 0
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	// yOffset is clamped against content height in Render (needs height).
+	if m.yOffset < 0 {
+		m.yOffset = 0
 	}
 }
 
@@ -122,13 +141,12 @@ func (m *MultilineTorrentListView) GetCurrentTorrent() *client.Torrent {
 	return nil
 }
 
-// Update handles keyboard input and viewport scrolling
+// Update is a no-op kept for API compatibility (scrolling is cursor-driven).
 func (m *MultilineTorrentListView) Update(msg interface{}) {
-	// Pass scroll messages to viewport
-	m.viewport.Update(msg)
 }
 
-// Render returns the rendered list with viewport-based scrolling
+// Render returns only the visible window of torrent blocks (virtualized).
+// Blocks are 4 lines each (3 content + 1 blank separator).
 func (m *MultilineTorrentListView) Render(width, height int) string {
 	if len(m.torrents) == 0 {
 		return m.styles.ListItem.Render("No torrents")
@@ -142,68 +160,81 @@ func (m *MultilineTorrentListView) Render(width, height int) string {
 	// Sync theme on every render
 	m.theme = CurrentTheme
 
-	// Build the full content
-	lines := []string{}
+	// Build per-frame shared styles once (not per row).
+	m.stNumCursor = lipgloss.NewStyle().Foreground(m.theme.CursorColor)
+	m.stNumNormal = lipgloss.NewStyle().Foreground(m.theme.TextNormal)
+	m.stSel = lipgloss.NewStyle().Foreground(m.theme.AccentColor)
+	m.stText = lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
+	m.stLabel = lipgloss.NewStyle().Foreground(m.theme.TextNormal)
+	m.stMetrics = lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
 
-	// Render each torrent as a 3-line block
-	for i := 0; i < len(m.torrents); i++ {
-		block := m.renderTorrentBlock(m.torrents[i], i == m.cursor, width, i+1)
-		lines = append(lines, block...)
-		// Add blank line between entries (except after last)
-		if i < len(m.torrents)-1 {
-			lines = append(lines, "")
-		}
-	}
-
-	content := strings.Join(lines, "\n")
-
-	// Only update viewport dimensions if they actually changed
-	if m.viewport.Width() != width {
-		m.viewport.SetWidth(width)
-	}
-	if m.viewport.Height() != height {
-		m.viewport.SetHeight(height)
-	}
-
-	// Set content in viewport
-	m.viewport.SetContent(content)
-
-	// Ensure cursor is visible in viewport
-	// In multiline mode, each torrent takes 4 lines (3 lines + 1 blank)
-	cursorLineStart := m.cursor * 4 // Each torrent block is 4 lines (3 content + 1 blank)
-	cursorLineEnd := cursorLineStart + 3
-	contentHeight := strings.Count(content, "\n") + 1
-
-	visibleTop := m.viewport.YOffset()
-	visibleBottom := visibleTop + m.viewport.Height()
-
-	// Only adjust scroll if needed
-	if cursorLineEnd >= visibleBottom {
-		// Cursor is below visible bottom, scroll down
-		newOffset := cursorLineEnd - m.viewport.Height() + 1
-		if newOffset < 0 {
-			newOffset = 0
-		}
-		m.viewport.SetYOffset(newOffset)
-	} else if cursorLineStart < visibleTop {
-		// Cursor is above visible top
-		m.viewport.SetYOffset(cursorLineStart)
-	}
-
-	// Final safety check for offset bounds
-	maxOffset := contentHeight - m.viewport.Height()
+	// Virtual full-content geometry: each torrent is 3 content lines + 1
+	// blank separator line, except the last torrent (no trailing blank).
+	// Only blocks overlapping the [yOffset, yOffset+height) window are
+	// styled, so a 900-torrent list renders ~height/4 rows per frame.
+	// Output never exceeds height lines, so the caller's overflow trim
+	// can't chop the cursor block.
+	totalLines := len(m.torrents)*4 - 1
+	maxOffset := totalLines - height
 	if maxOffset < 0 {
 		maxOffset = 0
 	}
-	currentYOffset := m.viewport.YOffset()
-	if currentYOffset > maxOffset {
-		m.viewport.SetYOffset(maxOffset)
+	if m.yOffset > maxOffset {
+		m.yOffset = maxOffset
 	}
-	if currentYOffset < 0 {
-		m.viewport.SetYOffset(0)
+	if m.yOffset < 0 {
+		m.yOffset = 0
 	}
 
-	return m.viewport.View()
+	// Keep the whole cursor block (3 content lines) visible.
+	cursorStart := m.cursor * 4
+	cursorEnd := cursorStart + 2
+	if cursorStart < m.yOffset {
+		m.yOffset = cursorStart
+	}
+	if cursorEnd >= m.yOffset+height {
+		m.yOffset = cursorEnd - height + 1
+	}
+	if m.yOffset > maxOffset {
+		m.yOffset = maxOffset
+	}
+	if m.yOffset < 0 {
+		m.yOffset = 0
+	}
+
+	winTop := m.yOffset
+	winBottom := m.yOffset + height // exclusive
+
+	// Build only the visible content, slicing partial edge blocks.
+	lines := []string{}
+	for i := 0; i < len(m.torrents) && len(lines) < height; i++ {
+		base := i * 4
+		// Block content lines base..base+2, separator blank at base+3
+		// (no trailing blank after the last torrent).
+		blockEnd := base + 3
+		if i == len(m.torrents)-1 {
+			blockEnd = base + 2
+		}
+		if blockEnd < winTop || base >= winBottom {
+			continue
+		}
+		block := m.renderTorrentBlock(m.torrents[i], i == m.cursor, width, i+1)
+		for k := 0; k < 3; k++ {
+			lineNo := base + k
+			if lineNo >= winTop && lineNo < winBottom {
+				lines = append(lines, block[k])
+			}
+		}
+		// Separator blank between entries (except after last torrent).
+		if i < len(m.torrents)-1 {
+			sepNo := base + 3
+			if sepNo >= winTop && sepNo < winBottom {
+				lines = append(lines, "")
+			}
+		}
+	}
+
+	return strings.Join(lines, "\n")
 }
 
 // renderTorrentBlock returns 3 lines representing a single torrent
@@ -235,28 +266,28 @@ func (m *MultilineTorrentListView) renderIdentityLine(torrent client.Torrent, cu
 	// Row number styling with cursor prompt - use cursor color when cursor is on this row
 	// Both formats are 4 chars to prevent title shift when going from single to double digits
 	var numberStr string
-	var numberStyle lipgloss.Style
 	if cursor {
 		// Cursor row: "> " + 2-digit number = 4 chars ("> 1", "> 10", etc), styled with cursor color
 		numberStr = fmt.Sprintf("> %2d", rowNum)
-		numberStyle = lipgloss.NewStyle().Foreground(m.theme.CursorColor)
 	} else {
 		// Non-cursor row: 4-char right-aligned number = 4 chars ("   1", "  10", etc), styled with fg color
 		numberStr = fmt.Sprintf("%4d", rowNum)
-		numberStyle = lipgloss.NewStyle().Foreground(m.theme.TextNormal)
+	}
+	numberStyle := m.stNumNormal
+	if cursor {
+		numberStyle = m.stNumCursor
 	}
 	numberStyled := numberStyle.Render(numberStr)
 
 	// Selection indicator - use accent color
 	indicator := " "
 	if isSelected {
-		selectionStyle := lipgloss.NewStyle().Foreground(m.theme.AccentColor)
-		indicator = selectionStyle.Render("●")
+		indicator = m.stSel.Render("●")
 	}
 	numberWithIndicator := numberStyled + indicator
 
 	// Apply text color to name (variable data = ForegroundColor)
-	textStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
+	textStyle := m.stText
 
 	// Reserve space for private tracker indicator 🔒 (emoji width 2 + space = 3)
 	privateSuffix := ""
@@ -302,7 +333,7 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 	suffix := fmt.Sprintf(" (%s / %s)", downloaded, total)
 
 	// Apply text color to suffix (variable data = ForegroundColor)
-	textStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
+	textStyle := m.stText
 	styledSuffix := textStyle.Render(suffix)
 
 	// Use visual width for calculations
@@ -323,9 +354,20 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 		}
 	}
 
-	// Build progress bar with fixed width
-	pb := NewProgressBarBuilder().WithWidth(fixedBarWidth)
-	progressBar := pb.RenderProgressBar(string(torrent.Status), float64(torrent.Progress)/100.0)
+	// Reuse one progress model per status per frame (identical output,
+	// avoids rebuilding gradient models for every row).
+	barW := fixedBarWidth
+	if m.barModels == nil || m.barModelW != barW {
+		m.barModels = make(map[string]*ProgressBarBuilder)
+		m.barModelW = barW
+	}
+	status := string(torrent.Status)
+	pb, ok := m.barModels[status]
+	if !ok {
+		pb = NewProgressBarBuilder().WithWidth(barW)
+		m.barModels[status] = pb
+	}
+	progressBar := pb.RenderProgressBar(status, float64(torrent.Progress)/100.0)
 
 	line := indent + progressBar + styledSuffix
 	return line
@@ -334,8 +376,8 @@ func (m *MultilineTorrentListView) renderProgressLine(torrent client.Torrent, wi
 // renderStatusLine: [Icon] [Downloading]  ↓ X.XX MB/s ↑ X.XX MB/s  Ratio: X.XX  Seeds: X  Peers: Y  ETA: [Time]
 func (m *MultilineTorrentListView) renderStatusLine(torrent client.Torrent, width int) string {
 	indent := "      "
-	labelStyle := lipgloss.NewStyle().Foreground(m.theme.TextNormal)
-	metricsStyle := lipgloss.NewStyle().Foreground(m.theme.ForegroundColor)
+	labelStyle := m.stLabel
+	metricsStyle := m.stMetrics
 
 	// Get category icon for its own column
 	categoryIcon := GetCategoryIcon(torrent.Category)

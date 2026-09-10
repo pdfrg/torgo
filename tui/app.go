@@ -219,9 +219,19 @@ func (a *App) Init() tea.Cmd {
 	)
 }
 
-// startRefreshTicker periodically refreshes torrents every 2 seconds
+// refreshInterval adapts the poll cadence to list size: large seeding lists
+// don't need a 2s refresh, and each refresh triggers a re-filter + re-render.
+func (a *App) refreshInterval() time.Duration {
+	if len(a.state.Torrents) > 400 {
+		return 5 * time.Second
+	}
+	return 2 * time.Second
+}
+
+// startRefreshTicker periodically refreshes torrents (adaptive interval)
 func (a *App) startRefreshTicker() tea.Cmd {
-	return tea.Tick(2*time.Second, func(t time.Time) tea.Msg {
+	interval := a.refreshInterval()
+	return tea.Tick(interval, func(t time.Time) tea.Msg {
 		return tickMsg{}
 	})
 }
@@ -532,8 +542,11 @@ func (a *App) View() tea.View {
 		lines = append(lines, "")
 	}
 
-	// Show either list or detail view based on screenMode
+	// Show either list or detail view based on screenMode.
+	// In list mode the visible list is computed once and reused for the
+	// status bar below (avoids running filter+sort twice per frame).
 	var mainView string
+	var visible []client.Torrent
 	if a.screenMode == "detail" && a.detailView != nil {
 		// In detail view - calculate available height for content
 		// Overhead: tabs(1) + blank(1) = 2 lines within detail view itself
@@ -548,7 +561,8 @@ func (a *App) View() tea.View {
 	} else {
 		// In list view — show a centered empty state when nothing is visible
 		// so the footer stays pinned to the bottom of the terminal.
-		if len(a.visibleTorrents()) == 0 {
+		visible = a.visibleTorrents()
+		if len(visible) == 0 {
 			mainView = a.renderEmptyState(listHeight)
 		} else if a.viewMode == "multiline" {
 			mainView = a.multilineList.Render(a.width, listHeight)
@@ -577,8 +591,16 @@ func (a *App) View() tea.View {
 			Render(a.lastError))
 	}
 
-	// Status bar at bottom
-	statusBarOutput := a.statusBar.Render(a.state, a.width)
+	// Status bar at bottom (reuses the already-computed visible list in list mode
+	// to avoid a second filter+sort pass per frame).
+	var statusBarOutput string
+	if a.screenMode == "detail" && a.detailView != nil {
+		statusBarOutput = a.statusBar.Render(a.state, a.width)
+	} else if a.screenMode == "detail" {
+		statusBarOutput = a.statusBar.Render(a.state, a.width)
+	} else {
+		statusBarOutput = a.statusBar.RenderWithFiltered(a.state, a.width, visible)
+	}
 
 	// Build final output line by line to ensure title is at top
 	finalLines := lines

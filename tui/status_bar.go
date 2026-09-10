@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"torgo/client"
 	"torgo/state"
 
 	"charm.land/lipgloss/v2"
@@ -21,6 +22,12 @@ func NewStatusBar(styles *Styles) *StatusBar {
 
 // Render returns the rendered status bar
 func (s *StatusBar) Render(appState *state.AppState, width int) string {
+	return s.RenderWithFiltered(appState, width, appState.FilteredTorrents())
+}
+
+// RenderWithFiltered renders the status bar with a precomputed filtered list,
+// avoiding a second filter+sort pass when the caller already has it.
+func (s *StatusBar) RenderWithFiltered(appState *state.AppState, width int, filtered []client.Torrent) string {
 	current := appState.CurrentClient()
 	if current == nil {
 		return s.styles.StatusBar.Render(fmt.Sprintf("%-"+fmt.Sprintf("%d", width)+"s", "No clients configured"))
@@ -45,8 +52,8 @@ func (s *StatusBar) Render(appState *state.AppState, width int) string {
 	clientInfo := fmt.Sprintf("%s %s:%d",
 		current.Name, clientHost, clientPort)
 
-	// Torrent count and speeds
-	filtered := appState.FilteredTorrents()
+	// Torrent count and speeds (filtered list passed in by caller)
+	// speeds still sum over all torrents (seeding traffic counts even when filtered out)
 	totalDownSpeed := 0.0
 	totalUpSpeed := 0.0
 	for _, t := range appState.Torrents {

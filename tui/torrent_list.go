@@ -5,17 +5,24 @@ import (
 	"strings"
 	"torgo/client"
 
-	"charm.land/bubbles/v2/viewport"
 	"charm.land/lipgloss/v2"
 )
 
-// TorrentListView displays a list of torrents with viewport scrolling
+// TorrentListView displays a list of torrents (virtualized, sticky header)
 type TorrentListView struct {
 	torrents []client.Torrent
 	selected map[string]bool
 	cursor   int
-	styles   *Styles
-	viewport viewport.Model
+	// scrollFirst is the index of the first visible torrent (header is sticky).
+	scrollFirst int
+	styles      *Styles
+
+	// Per-frame cached styles (rebuilt once per Render, reused by all rows).
+	stNumCursor lipgloss.Style
+	stNumNormal lipgloss.Style
+	stSel       lipgloss.Style
+	stField     lipgloss.Style
+	stSep       lipgloss.Style
 }
 
 // NewTorrentListView creates a new torrent list view
@@ -33,6 +40,15 @@ func (t *TorrentListView) SetTorrents(torrents []client.Torrent) {
 	t.torrents = torrents
 	if t.cursor >= len(torrents) {
 		t.cursor = 0
+	}
+	if t.scrollFirst >= len(torrents) {
+		t.scrollFirst = 0
+	}
+	if t.cursor < 0 {
+		t.cursor = 0
+	}
+	if t.scrollFirst < 0 {
+		t.scrollFirst = 0
 	}
 }
 
@@ -116,8 +132,7 @@ func (t *TorrentListView) GetCurrentTorrent() *client.Torrent {
 	return nil
 }
 
-// Render returns the rendered list with viewport-based scrolling
-// The viewport allows Page Up/Down, arrow keys, and mouse wheel scrolling
+// Render returns the rendered list (virtualized: header + visible rows only)
 func (t *TorrentListView) Render(width, height int) string {
 	if len(t.torrents) == 0 {
 		return t.styles.ListItem.Render("No torrents")
@@ -133,7 +148,14 @@ func (t *TorrentListView) Render(width, height int) string {
 		nameWidth = 10
 	}
 
-	// Build the full content
+	// Per-frame shared styles (not per row).
+	t.stNumCursor = lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor)
+	t.stNumNormal = lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal)
+	t.stSel = lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
+	t.stField = lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+	t.stSep = lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
+
+	// Build the visible content: sticky header + separator + window of rows.
 	lines := []string{}
 
 	// Header
@@ -142,81 +164,48 @@ func (t *TorrentListView) Render(width, height int) string {
 
 	// Separator with accent color
 	if width > 0 {
-		separatorStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
-		separator := separatorStyle.Render(strings.Repeat("─", width))
+		separator := t.stSep.Render(strings.Repeat("─", width))
 		lines = append(lines, separator)
 	}
 
-	// All torrent items
-	for i := 0; i < len(t.torrents); i++ {
+	// Window the visible rows so a 900-torrent list only styles ~height rows.
+	visibleRows := height - 2 // header + separator
+	if visibleRows < 1 {
+		visibleRows = 1
+	}
+	if visibleRows > len(t.torrents) {
+		visibleRows = len(t.torrents)
+	}
+	if t.cursor < t.scrollFirst {
+		t.scrollFirst = t.cursor
+	} else if t.cursor >= t.scrollFirst+visibleRows {
+		t.scrollFirst = t.cursor - visibleRows + 1
+	}
+	maxFirst := len(t.torrents) - visibleRows
+	if maxFirst < 0 {
+		maxFirst = 0
+	}
+	if t.scrollFirst > maxFirst {
+		t.scrollFirst = maxFirst
+	}
+	if t.scrollFirst < 0 {
+		t.scrollFirst = 0
+	}
+	end := t.scrollFirst + visibleRows
+	if end > len(t.torrents) {
+		end = len(t.torrents)
+	}
+
+	for i := t.scrollFirst; i < end; i++ {
 		line := t.renderTorrentRow(t.torrents[i], i == t.cursor, nameWidth, i+1)
 		lines = append(lines, line)
 	}
 
-	content := strings.Join(lines, "\n")
-
-	// Initialize viewport if needed
-	if t.viewport.Width() != width || t.viewport.Height() != height {
-		t.viewport.SetWidth(width)
-		t.viewport.SetHeight(height)
-	}
-
-	// Set content in viewport
-	t.viewport.SetContent(content)
-
-	// Ensure cursor is visible in viewport by scrolling if needed
-	// Line 0 = header, line 1 = separator, torrents start at line 2
-	cursorLine := t.cursor + 2
-	contentHeight := strings.Count(content, "\n") + 1
-
-	// Always keep header and separator visible (lines 0 and 1)
-	// The minimum YOffset is 0, which shows the header
-	// The maximum YOffset is when the last line is at the bottom
-
-	// If cursor is below the visible area, scroll down
-	// Ensure at least 2 lines of overhead (header + separator) are always visible
-	visibleTop := t.viewport.YOffset()
-	visibleBottom := visibleTop + t.viewport.Height()
-
-	if cursorLine >= visibleBottom {
-		// Cursor is below visible bottom, scroll down
-		// But ensure header+separator remain visible
-		newOffset := cursorLine - t.viewport.Height() + 1
-		// Never scroll above line 0 (header must always show)
-		if newOffset < 0 {
-			newOffset = 0
-		}
-		t.viewport.SetYOffset(newOffset)
-	} else if cursorLine < visibleTop {
-		// Cursor is above visible top (shouldn't happen after first render, but handle it)
-		// Show cursor at top, but never hide header
-		t.viewport.SetYOffset(0)
-	}
-
-	// Final safety checks - get updated YOffset after any SetYOffset calls
-	currentYOffset := t.viewport.YOffset()
-	// Never scroll negative
-	if currentYOffset < 0 {
-		t.viewport.SetYOffset(0)
-	}
-
-	// Never scroll past the end
-	currentYOffset = t.viewport.YOffset()
-	if currentYOffset > contentHeight-t.viewport.Height() {
-		t.viewport.SetYOffset(contentHeight - t.viewport.Height())
-		if t.viewport.YOffset() < 0 {
-			t.viewport.SetYOffset(0)
-		}
-	}
-
-	return t.viewport.View()
+	return strings.Join(lines, "\n")
 }
 
-// Update processes messages for viewport scrolling (Page Up/Down, arrow keys, etc)
-// This should be called from the app's Update method
+// Update is a no-op kept for API compatibility (scrolling is cursor-driven).
 func (t *TorrentListView) Update(msg interface{}) {
-	// The viewport will handle scroll messages via the app's Update loop
-	// We expose the viewport's Update so the app can pass messages to it
 }
 
 // renderHeader returns the header row
@@ -246,16 +235,16 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	// Build number string with cursor prompt or padding
 	// Both formats are 4 chars to prevent title shift when going from single to double digits
 	var numberStr string
-	var numberStyle lipgloss.Style
-
 	if cursor {
 		// Cursor row: "> " + 2-digit number = 4 chars ("> 1", "> 10", etc), styled with cursor color
 		numberStr = fmt.Sprintf("> %2d", rowNum)
-		numberStyle = lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor)
 	} else {
 		// Non-cursor row: 4-char right-aligned number = 4 chars ("   1", "  10", etc), styled with text normal
 		numberStr = fmt.Sprintf("%4d", rowNum)
-		numberStyle = lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal)
+	}
+	numberStyle := t.stNumNormal
+	if cursor {
+		numberStyle = t.stNumCursor
 	}
 
 	numberStyled := numberStyle.Render(numberStr)
@@ -263,8 +252,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	// Add dot indicator for selected items (styled with accent color)
 	indicator := " "
 	if isSelected {
-		indicatorStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
-		indicator = indicatorStyle.Render("●")
+		indicator = t.stSel.Render("●")
 	}
 	numberWithIndicator := numberStyled + indicator
 
@@ -296,7 +284,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	unfilledPart := string(nameRunes[filledWidth:])
 
 	filledStyle := lipgloss.NewStyle().Background(statusColor).Foreground(textColor)
-	unfilledStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+	unfilledStyle := t.stField
 
 	// Render the styled name parts
 	renderedName := filledStyle.Render(filledPart) + unfilledStyle.Render(unfilledPart) + privateSuffix
@@ -307,7 +295,7 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 
 	// Create a style for individual fields without padding or highlighting
 	// Only the number gets the highlight styling based on selection state
-	fieldStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+	fieldStyle := t.stField
 
 	// Format field values with proper alignment BEFORE applying style
 	// Match the header format exactly: %3s %-nameWidths %7s %5s %7s %7s %9s %9s %8s
