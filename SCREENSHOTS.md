@@ -16,7 +16,7 @@
 
 ## torrent detail views
 
-![info](assets/torgo_detail_category.png)
+![info](assets/torgo_detail_info.png)
 
 ![edit](assets/torgo_detail_edit.png)
 
