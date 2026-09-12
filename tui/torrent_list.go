@@ -149,11 +149,11 @@ func (t *TorrentListView) Render(width, height int) string {
 	}
 
 	// Per-frame shared styles (not per row).
-	t.stNumCursor = lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor)
-	t.stNumNormal = lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal)
-	t.stSel = lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
-	t.stField = lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
-	t.stSep = lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
+	t.stNumCursor = lipgloss.NewStyle().Foreground(GetCurrentTheme().CursorColor)
+	t.stNumNormal = lipgloss.NewStyle().Foreground(GetCurrentTheme().TextNormal)
+	t.stSel = lipgloss.NewStyle().Foreground(GetCurrentTheme().AccentColor)
+	t.stField = lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor)
+	t.stSep = lipgloss.NewStyle().Foreground(GetCurrentTheme().AccentColor)
 
 	// Build the visible content: sticky header + separator + window of rows.
 	lines := []string{}
@@ -214,7 +214,7 @@ func (t *TorrentListView) renderHeader(width, nameWidth int) string {
 	// Use "#" as column header for sequential numbering (right-aligned in 2 chars)
 	// No space between name and size to match row format
 	headerStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.CursorColor).
+		Foreground(GetCurrentTheme().CursorColor).
 		Bold(true).
 		Padding(0, 1)
 
@@ -275,9 +275,9 @@ func (t *TorrentListView) renderTorrentRow(torrent client.Torrent, cursor bool, 
 	}
 
 	// Get solid status color for oneline view with smart contrast text
-	statusColor := CurrentTheme.GetStatusColorForOneline(string(torrent.Status))
-	statusColorHex := CurrentTheme.GetStatusColorHexForOneline(string(torrent.Status))
-	textColor := CurrentTheme.GetContrastTextColorForBg(statusColorHex)
+	statusColor := GetCurrentTheme().GetStatusColorForOneline(string(torrent.Status))
+	statusColorHex := GetCurrentTheme().GetStatusColorHexForOneline(string(torrent.Status))
+	textColor := GetCurrentTheme().GetContrastTextColorForBg(statusColorHex)
 
 	// Render the name with progress bar background
 	filledPart := string(nameRunes[:filledWidth])

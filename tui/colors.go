@@ -590,20 +590,34 @@ func (t *Theme) UpdateStatusColor(status string, color1, color2 color.Color) {
 	t.StatusGradients[status] = [2]color.Color{color1, color2}
 }
 
-// CurrentTheme holds the active theme
-var CurrentTheme = DefaultTheme()
+// currentTheme holds the active theme. It is unexported so every read goes
+// through GetCurrentTheme(), keeping reads synchronized with SetTheme().
+// Themes are treated as immutable once set (SetTheme replaces the whole
+// value; no code mutates the maps in place), so returning the struct by value
+// is safe as long as that invariant holds.
+var currentTheme = DefaultTheme()
 var currentThemeMu sync.RWMutex
 
 // SetTheme changes the active theme
 func SetTheme(t Theme) {
 	currentThemeMu.Lock()
-	CurrentTheme = t
+	currentTheme = t
 	currentThemeMu.Unlock()
+}
+
+// GetCurrentTheme returns a snapshot of the active theme. Reads are protected
+// by currentThemeMu so they can safely race against SetTheme(), which may be
+// reached from the Bubble Tea main goroutine while a tea.Cmd goroutine renders
+// theme-dependent components.
+func GetCurrentTheme() Theme {
+	currentThemeMu.RLock()
+	defer currentThemeMu.RUnlock()
+	return currentTheme
 }
 
 // GetCurrentStatusGradient returns the gradient colors for a status using the current theme
 func GetCurrentStatusGradient(status string) [2]color.Color {
-	return CurrentTheme.GetStatusGradient(status)
+	return GetCurrentTheme().GetStatusGradient(status)
 }
 
 // GetStatusColorForOneline returns the solid color for oneline view for a given status

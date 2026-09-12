@@ -40,7 +40,7 @@ func NewMultilineTorrentListView(styles *Styles) *MultilineTorrentListView {
 		selected: make(map[string]bool),
 		cursor:   0,
 		styles:   styles,
-		theme:    CurrentTheme,
+		theme:    GetCurrentTheme(),
 	}
 }
 
@@ -145,6 +145,15 @@ func (m *MultilineTorrentListView) GetCurrentTorrent() *client.Torrent {
 func (m *MultilineTorrentListView) Update(msg interface{}) {
 }
 
+// InvalidateThemeCaches drops cached theme-dependent rendering state.
+// Called after a theme change so cached progress-bar builders are rebuilt
+// with the new palette. ProgressBarBuilder also tracks the live theme, so
+// this is defensive belt-and-suspenders for other cached fields.
+func (m *MultilineTorrentListView) InvalidateThemeCaches() {
+	m.barModels = nil
+	m.barModelW = 0
+}
+
 // Render returns only the visible window of torrent blocks (virtualized).
 // Blocks are 4 lines each (3 content + 1 blank separator).
 func (m *MultilineTorrentListView) Render(width, height int) string {
@@ -158,7 +167,7 @@ func (m *MultilineTorrentListView) Render(width, height int) string {
 	}
 
 	// Sync theme on every render
-	m.theme = CurrentTheme
+	m.theme = GetCurrentTheme()
 
 	// Build per-frame shared styles once (not per row).
 	m.stNumCursor = lipgloss.NewStyle().Foreground(m.theme.CursorColor)

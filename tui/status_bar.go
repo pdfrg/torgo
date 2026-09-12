@@ -80,7 +80,7 @@ func (s *StatusBar) RenderWithFiltered(appState *state.AppState, width int, filt
 	}
 
 	// Get bar colors from current theme
-	theme := CurrentTheme
+	theme := GetCurrentTheme()
 	barBg := theme.StatusBarBg
 	barFg := theme.StatusBarFg
 	accentColor := theme.StatusBarAccent

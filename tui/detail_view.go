@@ -285,14 +285,14 @@ func (dv *DetailView) renderTabs() string {
 		if isActive {
 			tabStyle = lipgloss.NewStyle().
 				Border(activeTabBorder, true).
-				BorderForeground(CurrentTheme.DetailTabActiveBorder).
-				Foreground(CurrentTheme.ForegroundColor).
+				BorderForeground(GetCurrentTheme().DetailTabActiveBorder).
+				Foreground(GetCurrentTheme().ForegroundColor).
 				Padding(0, 1)
 		} else {
 			tabStyle = lipgloss.NewStyle().
 				Border(inactiveTabBorder, true).
-				BorderForeground(CurrentTheme.DetailTabActiveBorder).
-				Foreground(CurrentTheme.ForegroundColor).
+				BorderForeground(GetCurrentTheme().DetailTabActiveBorder).
+				Foreground(GetCurrentTheme().ForegroundColor).
 				Padding(0, 1)
 		}
 
@@ -346,10 +346,10 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 	}
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(GetCurrentTheme().DetailLabelColor).
 		Bold(true)
 	valueStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.ForegroundColor)
+		Foreground(GetCurrentTheme().ForegroundColor)
 
 	var content strings.Builder
 	content.WriteString("\n")
@@ -452,11 +452,11 @@ func (m *InfoTabModel) View(state *DetailViewState, filesTab *FilesTabModel) str
 		}
 
 		content.WriteString("\n" + lipgloss.NewStyle().
-			Foreground(CurrentTheme.TextError).
+			Foreground(GetCurrentTheme().TextError).
 			Bold(true).
 			Render(changeMsg) + " - press Enter to save or Esc to discard\n")
 	} else {
-		hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+		hintStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted)
 		content.WriteString("\n" + hintStyle.Render("Press 'e' to edit, Tab to switch tabs\n"))
 	}
 
@@ -557,19 +557,19 @@ func createStyledTextInput(placeholder, value string) textinput.Model {
 	// Apply theme-aware styles to text input
 	styles := textinput.Styles{
 		Focused: textinput.StyleState{
-			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor),
-			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+			Text:        lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor),
+			Placeholder: lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor),
 		},
 		Blurred: textinput.StyleState{
-			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal),
-			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+			Text:        lipgloss.NewStyle().Foreground(GetCurrentTheme().TextNormal),
+			Placeholder: lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor),
 		},
 		Cursor: textinput.CursorStyle{
-			Color: CurrentTheme.DetailCursorColor,
+			Color: GetCurrentTheme().DetailCursorColor,
 		},
 	}
 	ti.SetStyles(styles)
@@ -708,11 +708,11 @@ func (m *EditTabModel) fetchSubdirectories(path string) tea.Cmd {
 
 func (m *EditTabModel) View(state *DetailViewState) string {
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(GetCurrentTheme().DetailLabelColor).
 		Bold(true)
 
-	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
-	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor)
+	hintStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted)
+	selectedStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor)
 
 	var content strings.Builder
 	content.WriteString("\n")
@@ -784,13 +784,13 @@ func NewCategoryTabModel(state *DetailViewState, categories []string, currentCat
 	styles := list.NewDefaultItemStyles(true)
 	// Normal (unselected) items use TextNormal
 	normalStyle := styles.NormalTitle
-	normalStyle = normalStyle.Foreground(CurrentTheme.TextNormal)
+	normalStyle = normalStyle.Foreground(GetCurrentTheme().TextNormal)
 	styles.NormalTitle = normalStyle
 	// Selected items use ForegroundColor
 	selectedStyle := styles.SelectedTitle
 	selectedStyle = selectedStyle.
-		Foreground(CurrentTheme.ForegroundColor).
-		BorderLeftForeground(CurrentTheme.ForegroundColor)
+		Foreground(GetCurrentTheme().ForegroundColor).
+		BorderLeftForeground(GetCurrentTheme().ForegroundColor)
 	styles.SelectedTitle = selectedStyle
 
 	delegate.Styles = styles
@@ -843,7 +843,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(GetCurrentTheme().DetailLabelColor).
 		Bold(true)
 
 	content.WriteString(labelStyle.Render("Select a category:") + "\n\n")
@@ -853,7 +853,7 @@ func (m *CategoryTabModel) View(state *DetailViewState) string {
 	content.WriteString(listView)
 
 	content.WriteString("\n" + lipgloss.NewStyle().
-		Foreground(CurrentTheme.TextMuted).
+		Foreground(GetCurrentTheme().TextMuted).
 		Render("↑/↓ to navigate  •  Enter to select  •  Esc to cancel\n"))
 
 	return content.String()
@@ -1340,12 +1340,12 @@ func (m *FilesTabModel) View(state *DetailViewState) string {
 	content.WriteString("\n")
 
 	labelStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailLabelColor).
+		Foreground(GetCurrentTheme().DetailLabelColor).
 		Bold(true)
 
-	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
-	valueStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
-	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor)
+	hintStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted)
+	valueStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor)
+	selectedStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor)
 
 	content.WriteString(labelStyle.Render("Files") + " " + valueStyle.Render("("+fmt.Sprintf("%d", len(m.files))+" total)") + "\n\n")
 

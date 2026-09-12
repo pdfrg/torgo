@@ -87,19 +87,19 @@ func NewApp(appState *state.AppState) *App {
 	// Apply theme-aware styles to torrent input
 	tiStyles := textinput.Styles{
 		Focused: textinput.StyleState{
-			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor),
-			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+			Text:        lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor),
+			Placeholder: lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor),
 		},
 		Blurred: textinput.StyleState{
-			Text:        lipgloss.NewStyle().Foreground(CurrentTheme.TextNormal),
-			Placeholder: lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Suggestion:  lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted),
-			Prompt:      lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor),
+			Text:        lipgloss.NewStyle().Foreground(GetCurrentTheme().TextNormal),
+			Placeholder: lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Suggestion:  lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted),
+			Prompt:      lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor),
 		},
 		Cursor: textinput.CursorStyle{
-			Color: CurrentTheme.DetailCursorColor,
+			Color: GetCurrentTheme().DetailCursorColor,
 		},
 	}
 	ti.SetStyles(tiStyles)
@@ -122,8 +122,8 @@ func NewApp(appState *state.AppState) *App {
 	listStyles := list.NewDefaultItemStyles(true) // dark theme defaults
 	selectedStyle := listStyles.SelectedTitle
 	selectedStyle = selectedStyle.
-		Foreground(CurrentTheme.ForegroundColor).
-		BorderLeftForeground(CurrentTheme.ForegroundColor)
+		Foreground(GetCurrentTheme().ForegroundColor).
+		BorderLeftForeground(GetCurrentTheme().ForegroundColor)
 	listStyles.SelectedTitle = selectedStyle
 	delegate.Styles = listStyles
 
@@ -134,7 +134,7 @@ func NewApp(appState *state.AppState) *App {
 	categoryList.Title = "Set Category"
 	// Style the title with cursor color and no background
 	categoryList.Styles.Title = lipgloss.NewStyle().
-		Foreground(CurrentTheme.DetailCursorColor)
+		Foreground(GetCurrentTheme().DetailCursorColor)
 
 	hintsBar := NewHintsBar(styles, keys)
 	hintsBar.SetCurrentTheme(themeName)
@@ -168,7 +168,7 @@ func NewApp(appState *state.AppState) *App {
 // syncComponentStyles re-applies theme colors to all UI components that cache styles.
 // Must be called after SetTheme() and SyncFromTheme() whenever the theme changes.
 func (a *App) syncComponentStyles() {
-	theme := CurrentTheme
+	theme := GetCurrentTheme()
 
 	// Text input styles (torrent input and search input)
 	tiStyles := textinput.Styles{
@@ -207,6 +207,12 @@ func (a *App) syncComponentStyles() {
 	// Category list title
 	a.categoryList.Styles.Title = lipgloss.NewStyle().
 		Foreground(theme.DetailCursorColor)
+
+	// Drop cached theme-dependent render state (e.g. multiline progress-bar
+	// builders) so cached components re-style on the next render.
+	if a.multilineList != nil {
+		a.multilineList.InvalidateThemeCaches()
+	}
 }
 
 // Init implements tea.Model
@@ -414,8 +420,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.startRefreshTicker(),
 			a.startSpeedLimitTicker(),
 		)
-	case detailViewOpenedMsg:
-		// Detail view opened, just trigger a redraw by returning nil command
+	case detailLoadedMsg:
+		// Build the detail view on the main goroutine (reads the active theme
+		// and mutates app state, both unsafe from a command goroutine).
+		a.state.Categories = msg.categories
+		a.detailView = NewDetailViewWithHost(a.styles, msg.detail, msg.files, msg.categories, msg.host)
+		a.screenMode = "detail"
 		return a, nil
 	}
 	return a, nil
@@ -470,7 +480,7 @@ func (a *App) View() tea.View {
 	// Title
 	titleText := "󰁇  󰁇  torgo – Multi-Client Torrent TUI"
 	titleStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.AccentColor).
+		Foreground(GetCurrentTheme().AccentColor).
 		Bold(true)
 	lines = append(lines, titleStyle.Render(titleText))
 	lines = append(lines, "")
@@ -494,7 +504,7 @@ func (a *App) View() tea.View {
 		// Different visual style depending on mode
 		var searchStatus string
 		var searchStatusStyle lipgloss.Style
-		theme := CurrentTheme
+		theme := GetCurrentTheme()
 
 		if a.searchMode {
 			// Actively editing search - use bright accent color for visibility
@@ -697,7 +707,7 @@ func (a *App) View() tea.View {
 
 	v := tea.NewView(output)
 	v.AltScreen = true
-	v.BackgroundColor = CurrentTheme.BgNormal
+	v.BackgroundColor = GetCurrentTheme().BgNormal
 	return v
 }
 
@@ -726,15 +736,15 @@ func (a *App) renderEmptyState(listHeight int) string {
 	}
 
 	titleStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.ForegroundColor).
+		Foreground(GetCurrentTheme().ForegroundColor).
 		Bold(true)
 	hintStyle := lipgloss.NewStyle().
-		Foreground(CurrentTheme.TextMuted)
+		Foreground(GetCurrentTheme().TextMuted)
 	content := titleStyle.Render("📂 "+title) + "\n" + hintStyle.Render(hint)
 
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(CurrentTheme.AccentColor).
+		BorderForeground(GetCurrentTheme().AccentColor).
 		Padding(1, 4).
 		Render(content)
 
@@ -756,9 +766,9 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 	}
 
 	// Build dialog content with theming
-	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor).Bold(true)
+	titleStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor).Bold(true)
 	title := titleStyle.Render("Add Torrent")
-	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+	hintStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted)
 	hint := hintStyle.Render("(Ctrl+P to paste, Esc to cancel)")
 
 	// Render torrent input - set width for v2 textinput rendering
@@ -770,7 +780,7 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 
 	// Add validation error in red if present
 	if a.inputValidationErr != "" {
-		errorText := lipgloss.NewStyle().Foreground(CurrentTheme.TextError).Render("✗ " + a.inputValidationErr)
+		errorText := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextError).Render("✗ " + a.inputValidationErr)
 		contentLines = append(contentLines, errorText)
 	}
 
@@ -793,7 +803,7 @@ func (a *App) overlayAddDialog(baseOutput string) string {
 	// Render dialog box with theme-aware border
 	dialogBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(CurrentTheme.AccentColor).
+		BorderForeground(GetCurrentTheme().AccentColor).
 		Width(dialogWidth-2).
 		Height(dialogHeight-2).
 		Padding(1, 2).
@@ -821,10 +831,10 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 	}
 
 	// Build dialog content with theming
-	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.DetailCursorColor).Bold(true)
+	titleStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().DetailCursorColor).Bold(true)
 	title := titleStyle.Render("Confirm Delete")
 
-	accentStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
+	accentStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().AccentColor)
 	var action string
 	if a.deleteConfirmWithData {
 		action = accentStyle.Render("Delete with data (files will be removed)")
@@ -856,7 +866,7 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 	contentLines = append(contentLines, action)
 	contentLines = append(contentLines, "")
 
-	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted)
+	hintStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted)
 	contentLines = append(contentLines, hintStyle.Render("Press Y or Enter to confirm, ESC to cancel"))
 
 	// Create dialog box with theme colors
@@ -864,7 +874,7 @@ func (a *App) overlayDeleteConfirmDialog(baseOutput string) string {
 
 	dialogBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(CurrentTheme.AccentColor).
+		BorderForeground(GetCurrentTheme().AccentColor).
 		Padding(1, 2).
 		Width(60).
 		Render(content)
@@ -1465,14 +1475,14 @@ func (a *App) overlaySortPopup(baseOutput string) string {
 
 	// Build content
 	contentLines := []string{}
-	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
+	titleStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().CursorColor).Bold(true)
 	contentLines = append(contentLines, titleStyle.Render("Sort"))
 
 	// Build option lines
-	indicator := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor).Render("●")
-	empty := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Render("○")
-	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor).Bold(true)
-	normalStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+	indicator := lipgloss.NewStyle().Foreground(GetCurrentTheme().AccentColor).Render("●")
+	empty := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted).Render("○")
+	selectedStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor).Bold(true)
+	normalStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor)
 
 	contentLines = append(contentLines, "")
 	for i, opt := range opts {
@@ -1487,7 +1497,7 @@ func (a *App) overlaySortPopup(baseOutput string) string {
 
 	// Footer hints
 	contentLines = append(contentLines, "")
-	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Italic(true)
+	hintStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted).Italic(true)
 	contentLines = append(contentLines, hintStyle.Render("↑↓/jk navigate  enter select  esc cancel"))
 
 	content := strings.Join(contentLines, "\n")
@@ -1499,8 +1509,8 @@ func (a *App) overlaySortPopup(baseOutput string) string {
 
 	dialogBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(CurrentTheme.AccentColor).
-		Foreground(CurrentTheme.ForegroundColor).
+		BorderForeground(GetCurrentTheme().AccentColor).
+		Foreground(GetCurrentTheme().ForegroundColor).
 		Width(popupWidth-2).
 		Height(popupHeight-2).
 		Padding(1, 2).
@@ -1520,13 +1530,13 @@ func (a *App) overlayFilterPopup(baseOutput string) string {
 
 	// Build content
 	contentLines := []string{}
-	titleStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
+	titleStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().CursorColor).Bold(true)
 	contentLines = append(contentLines, titleStyle.Render("Filter"))
 
-	indicator := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor).Render("●")
-	empty := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Render("○")
-	selectedStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor).Bold(true)
-	normalStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+	indicator := lipgloss.NewStyle().Foreground(GetCurrentTheme().AccentColor).Render("●")
+	empty := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted).Render("○")
+	selectedStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor).Bold(true)
+	normalStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor)
 
 	contentLines = append(contentLines, "")
 	for i, opt := range opts {
@@ -1540,7 +1550,7 @@ func (a *App) overlayFilterPopup(baseOutput string) string {
 	}
 
 	contentLines = append(contentLines, "")
-	hintStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Italic(true)
+	hintStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted).Italic(true)
 	contentLines = append(contentLines, hintStyle.Render("↑↓/jk navigate  enter select  esc cancel"))
 
 	content := strings.Join(contentLines, "\n")
@@ -1551,8 +1561,8 @@ func (a *App) overlayFilterPopup(baseOutput string) string {
 
 	dialogBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(CurrentTheme.AccentColor).
-		Foreground(CurrentTheme.ForegroundColor).
+		BorderForeground(GetCurrentTheme().AccentColor).
+		Foreground(GetCurrentTheme().ForegroundColor).
 		Width(popupWidth-2).
 		Height(popupHeight-2).
 		Padding(1, 2).
@@ -1897,8 +1907,8 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 	}
 
 	// Key and description styling
-	keyStyle := lipgloss.NewStyle().Foreground(CurrentTheme.AccentColor)
-	descStyle := lipgloss.NewStyle().Foreground(CurrentTheme.ForegroundColor)
+	keyStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().AccentColor)
+	descStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().ForegroundColor)
 
 	// Column width for each side (account for border padding and gap)
 	colWidth := (dialogWidth - 10) / 2 // -10 for borders, padding, gap
@@ -1914,7 +1924,7 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 	var lines []string
 
 	// Header styled with cursor color
-	headerStyle := lipgloss.NewStyle().Foreground(CurrentTheme.CursorColor).Bold(true)
+	headerStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().CursorColor).Bold(true)
 	lines = append(lines, headerStyle.Render("Help - Keybindings"))
 	lines = append(lines, "")
 
@@ -1933,7 +1943,7 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 	lines = append(lines, "")
 
 	// Instructions styled with hints color
-	instructStyle := lipgloss.NewStyle().Foreground(CurrentTheme.TextMuted).Italic(true)
+	instructStyle := lipgloss.NewStyle().Foreground(GetCurrentTheme().TextMuted).Italic(true)
 	lines = append(lines, instructStyle.Render("(Press '?' to close)"))
 
 	content := strings.Join(lines, "\n")
@@ -1945,8 +1955,8 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 	// Style the dialog box with theme-aware border color and background
 	helpBox := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(CurrentTheme.AccentColor).
-		Foreground(CurrentTheme.ForegroundColor).
+		BorderForeground(GetCurrentTheme().AccentColor).
+		Foreground(GetCurrentTheme().ForegroundColor).
 		Width(dialogWidth-2).
 		Height(boxHeight).
 		Padding(1, 2).
@@ -1959,8 +1969,14 @@ func (a *App) overlayHelpDialog(baseOutput string) string {
 	)
 }
 
-// openTorrentDetail opens the detail view for a specific torrent
+// openTorrentDetail fetches detail data for a torrent in the background.
+// It must not touch App state or theme-dependent constructors: commands run on
+// their own goroutine. The fetched payload is returned via detailLoadedMsg and
+// the DetailView is built in Update on the main goroutine.
 func (a *App) openTorrentDetail(id string) tea.Cmd {
+	// Snapshot the cached categories on the main goroutine; the command
+	// goroutine must not read App state that Update may be mutating.
+	fallbackCategories := a.state.Categories
 	return func() tea.Msg {
 		// Fetch torrent detail
 		detail, err := a.state.CurrentClient().Adapter.GetTorrentDetail(a.ctx, id)
@@ -1978,23 +1994,21 @@ func (a *App) openTorrentDetail(id string) tea.Cmd {
 		categories, err := a.state.CurrentClient().Adapter.GetCategories(a.ctx)
 		if err != nil {
 			// If fetch fails, use cached categories
-			categories = a.state.Categories
-		} else {
-			// Update cache with fresh data
-			a.state.Categories = categories
+			categories = fallbackCategories
 		}
 
-		// Create detail view with categories
+		// Resolve the client hostname from config if available
 		clientHost := a.state.CurrentClient().ID
-		// Try to get actual hostname from config if available
 		if len(a.state.Config.Clients) > 0 && a.state.CurrentClientIdx < len(a.state.Config.Clients) {
 			clientHost = a.state.Config.Clients[a.state.CurrentClientIdx].Host
 		}
-		a.detailView = NewDetailViewWithHost(a.styles, detail, files, categories, clientHost)
-		a.screenMode = "detail"
 
-		// Return a message to trigger an immediate update and redraw
-		return detailViewOpenedMsg{}
+		return detailLoadedMsg{
+			detail:     detail,
+			files:      files,
+			categories: categories,
+			host:       clientHost,
+		}
 	}
 }
 
@@ -2079,8 +2093,14 @@ func (a *App) saveTorrentChangesWithData(dv *DetailView) tea.Cmd {
 // savesCompleteMsg is sent when torrent changes are saved
 type savesCompleteMsg struct{}
 
-// detailViewOpenedMsg is sent when detail view opens to trigger immediate redraw
-type detailViewOpenedMsg struct{}
+// detailLoadedMsg carries background-fetched detail data back to Update,
+// which constructs the DetailView on the main goroutine.
+type detailLoadedMsg struct {
+	detail     *client.TorrentDetail
+	files      []client.TorrentFile
+	categories []string
+	host       string
+}
 
 // checkThemeFileChanges checks if the current theme file has been modified and reloads if needed
 // Only checks for omarchy and custom themes that read from disk

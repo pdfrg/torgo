@@ -52,7 +52,7 @@ func (h *HintsBar) Render(width int) string {
 	hints := h.keys.ShortHelp()
 
 	// Get bar colors from theme
-	theme := CurrentTheme
+	theme := GetCurrentTheme()
 	barBg := theme.StatusBarBg
 	barFg := theme.StatusBarFg
 	accentColor := theme.StatusBarAccent
