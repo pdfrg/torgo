@@ -3,9 +3,9 @@ package state
 import (
 	"context"
 	"fmt"
+	"github.com/pdfrg/torgo/client"
+	"github.com/pdfrg/torgo/config"
 	"sort"
-	"torgo/client"
-	"torgo/config"
 )
 
 // ClientInstance wraps a client adapter with metadata

@@ -1,8 +1,8 @@
 package tui
 
 import (
+	"github.com/pdfrg/torgo/client"
 	"testing"
-	"torgo/client"
 )
 
 func TestNormalizeForSearch(t *testing.T) {

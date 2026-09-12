@@ -14,9 +14,9 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/atotto/clipboard"
-	"torgo/client"
-	"torgo/config"
-	"torgo/state"
+	"github.com/pdfrg/torgo/client"
+	"github.com/pdfrg/torgo/config"
+	"github.com/pdfrg/torgo/state"
 )
 
 // simpleItem is a minimal list item for categories

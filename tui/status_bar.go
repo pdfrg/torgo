@@ -2,8 +2,8 @@ package tui
 
 import (
 	"fmt"
-	"torgo/client"
-	"torgo/state"
+	"github.com/pdfrg/torgo/client"
+	"github.com/pdfrg/torgo/state"
 
 	"charm.land/lipgloss/v2"
 )

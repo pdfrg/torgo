@@ -57,10 +57,11 @@ go install github.com/pdfrg/torgo@latest
 The binary version is injected via ldflags. The `Makefile` handles this automatically:
 
 ```makefile
-VERSION ?= dev
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS = -s -w -X main.Version=$(VERSION)
-make build          # version = "dev"
-make build VERSION=1.0.0   # version = "1.0.0"
+
+make build                 # version from git describe, e.g. "v0.1.0" or "dev"
+make build VERSION=1.0.0   # explicit override
 ```
 
 ### Multi-platform builds
@@ -626,7 +627,7 @@ Errors are displayed at the bottom and auto-clear after 3 seconds.
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.24+
 
 ### Commands
 
@@ -638,7 +639,7 @@ make install            # go install
 make test               # Run all tests
 make clean              # Remove build artifacts
 
-# Manual checks (from AGENTS.md)
+# Manual checks
 go fmt ./...
 golangci-lint run ./...
 go vet ./...
@@ -653,8 +654,7 @@ torgo/
 ├── main.go                   # Entry point
 ├── config/
 │   ├── config.go             # TOML parsing, theme loading
-│   ├── config_test.go
-│   └── theme.go              # Color theme handling
+│   └── config_test.go
 ├── client/
 │   ├── interface.go          # ClientAdapter interface + Torrent/TorrentDetail/TorrentFile types
 │   ├── qbittorrent.go        # qBittorrent HTTP API v2
@@ -686,6 +686,5 @@ torgo/
 ├── config.example.toml       # Example configuration
 ├── Makefile
 ├── go.mod
-├── go.sum
-└── AGENTS.md
+└── go.sum
 ```

@@ -1,9 +1,9 @@
 package tui
 
 import (
+	"github.com/pdfrg/torgo/client"
 	"net/url"
 	"strings"
-	"torgo/client"
 )
 
 // normalizeForSearch replaces common torrent title separators with spaces

@@ -1,4 +1,4 @@
-module torgo
+module github.com/pdfrg/torgo
 
 go 1.24.2
 

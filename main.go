@@ -3,12 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/pdfrg/torgo/config"
+	"github.com/pdfrg/torgo/state"
+	"github.com/pdfrg/torgo/tui"
 	"log"
 	"os"
 	"strings"
-	"torgo/config"
-	"torgo/state"
-	"torgo/tui"
 
 	tea "charm.land/bubbletea/v2"
 )
@@ -64,7 +64,7 @@ func main() {
 	}
 
 	// Print available themes if custom themes were discovered
-	if len(config.AvailableThemes) > 3 { // More than the 3 built-in themes (dark, light, highcontrast)
+	if len(config.AvailableThemes) > 4 { // More than the 4 built-in themes (dark, light, highcontrast, terminal)
 		fmt.Printf("Available themes: %s\n", strings.Join(config.AvailableThemes, ", "))
 	}
 

@@ -1,9 +1,9 @@
 package state
 
 import (
+	"github.com/pdfrg/torgo/client"
+	"github.com/pdfrg/torgo/config"
 	"testing"
-	"torgo/client"
-	"torgo/config"
 )
 
 // TestNewAppState tests creating a new app state from config

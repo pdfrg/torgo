@@ -74,7 +74,7 @@ username = "admin"
 
 # password: OPTIONAL - Password for authentication
 #          Can use environment variables like $QBT_PASS (will be expanded at startup)
-password = "admin"
+password = "$QBT_PASS"
 
 # qBittorrent Instance 2 (Remote)
 [[clients]]

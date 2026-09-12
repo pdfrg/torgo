@@ -2,9 +2,9 @@ package tui
 
 import (
 	"fmt"
+	"github.com/pdfrg/torgo/client"
 	"strings"
 	"time"
-	"torgo/client"
 
 	"charm.land/lipgloss/v2"
 )
