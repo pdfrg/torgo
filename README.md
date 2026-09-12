@@ -2,6 +2,15 @@
 
 A terminal user interface for managing torrents across **qBittorrent** and **Transmission** instances — simultaneously from one terminal.
 
+Torgo is not designed to be a comprehensive or feature-complete replacment for your torrent client's native webUI, but rather
+a lightweight TUI that can be used for torrent monitoring and most regular management tasks.
+
+![torgo](assets/torgo_view_multiline.png)
+
+Resources used: 908 torrents active, ~26 MB RAM
+
+![resources](assets/torgo_resource_usage_908_torrents.png)
+
 **Features:**
 - Connect to unlimited qBittorrent + Transmission instances, switch with one key
 - Two views: compact single-line or detailed multi-line with gradient progress bars
@@ -13,6 +22,11 @@ A terminal user interface for managing torrents across **qBittorrent** and **Tra
 - Speed limit toggle, copy magnet to clipboard, multi-select for bulk ops
 - Category/label emoji icons (50+ mappings, substring-matched)
 - Private tracker indicator (🔒): distinguish private from public torrents at a glance
+
+**Screenshots:** [SCREENSHOTS.md](SCREENSHOTS.md)
+
+Numerous screenshots available including oneline vs multiline view, detail views, full hints bar, multi-select,
+search, modals, themes, and state-dependent progressbars. 
 
 ## Quick Install
 
@@ -32,7 +46,7 @@ torgo
 
 Press `?` for help, `q` to quit.
 
-> **Full documentation:** [DOCUMENTATION.md](DOCUMENTATION.md)
+**Full documentation:** [DOCUMENTATION.md](DOCUMENTATION.md)
 
 ## License
 
