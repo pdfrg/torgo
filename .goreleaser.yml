@@ -28,7 +28,7 @@ archives:
     formats: [tar.gz]
 
 release:
-  draft: true
+  draft: false
 
 # NOTE: the default changelog format embeds committer emails — never use it.
 # This format intentionally omits all author fields.
