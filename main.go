@@ -8,12 +8,27 @@ import (
 	"github.com/pdfrg/torgo/tui"
 	"log"
 	"os"
+	"runtime/debug"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 )
 
 var Version = "dev"
+
+// resolveVersion fills Version from Go's build info when ldflags did not set it.
+// This makes binaries installed via `go install` (which cannot pass ldflags)
+// report their module version, while make/GoReleaser builds keep the injected tag.
+func resolveVersion() {
+	if Version != "dev" {
+		return
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			Version = v
+		}
+	}
+}
 
 const usageText = `Usage: torgo [flags]
 
@@ -25,6 +40,8 @@ Flags:
 `
 
 func main() {
+	resolveVersion()
+
 	var (
 		showHelp    bool
 		showVersion bool
