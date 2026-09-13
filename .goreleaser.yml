@@ -11,7 +11,7 @@ builds:
     main: .
     binary: torgo
     ldflags:
-      - -s -w -X main.Version={{.Version}}
+      - -s -w -X main.Version={{.Tag}}
     goos:
       - linux
     goarch:
